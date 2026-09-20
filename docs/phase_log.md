@@ -13,6 +13,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | 2026-09-19 | Source licence is custom non-commercial, not GPL (see risks.md L1) | source review |
 | 2026-09-19 | Modulation ported as base value + modulation multiplier per parameter, not in-place mutation (risks.md R2) | proposed, not yet confirmed by user |
 | 2026-09-19 | Per-block amp EG behaviour kept as in original (risks.md F9) | proposed, not yet confirmed by user |
+| 2026-09-20 | lfoPhaseOffset at v=127 saturates to 0xFFFFFFFF (ARM float-to-uint32 behaviour, not verified on hardware) | proposed, not yet confirmed by user |
 | 2026-09-19 | D3: filter keeps int16 buffers in/out with float math inside (accepted by starting P3) | user |
 
 ## Open decisions that block phases
@@ -29,7 +30,8 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 |---|---|---|---|---|
 | P0 | Source review, `param_map.md`, `architecture.md`, `risks.md`, `prompt_template.md` | DSPAudio/, MIDI/, front/LxrAvr/Menu/menu.c | none | DONE |
 | P1 | Export data assets to binary/CSV: sine table, saw/tri/rec `[11][1024]`, crash sample, transient data `[12][2205]`, note frequencies, sqrt LUT | DSPAudio/{wavetable,Samples,transientTables,squareRootLut}.c, MIDI/MidiNoteNumbers.h | none | DOING (script done, run on your repo to confirm hashes) |
-| P2 | Parameter value mappings (all scale tags in `param_map.md`) with unit tests | MIDI/MidiParser.c, DSPAudio/{SlopeEg2,Decay,lfo,distortion}.c, ResonantFilter.c | P1 (constants) | TODO |
+| P2a | Envelope mappings: amp attack/decay/slope, pitch decay/slope/amount (`prompts/P2a_env.md`) | MIDI/MidiParser.c, DSPAudio/{SlopeEg2,Decay}.c | P1 | DONE |
+| P2b | Other mappings: cutoff shape, decimation, distortion, noise freq, transient, LFO freq and offset, filter type, osc pitch (`prompts/P2b_misc.md`); pan moves to P11 | MIDI/MidiParser.c, valueShaper.h, DSPAudio/{distortion,lfo,Oscillator,transientGenerator}.c | P1 | DONE |
 | P3 | Nonlinear ZDF filter, all 8 types incl. LP2 and passthrough | DSPAudio/ResonantFilter.c | D3 | DONE |
 | P4 | Oscillators: sine, wavetables, noise (S&H), crash sample, FM phase modulation | DSPAudio/Oscillator.c | P1, D2, D4 | TODO |
 | P5 | Envelopes: amp (attack, decay, slope, repeat), pitch decay, snap EG | DSPAudio/{SlopeEg2,Decay,snapEg}.c | P2, D2 | TODO |
@@ -47,7 +49,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | P17 | UI implementation (click or injected MIDI for every control) | n/a | P12, P15 | BLOCKED |
 
 ## Suggested order
-P1 -> P3 -> P2 -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10 -> P11 -> P12 -> P13. P14 can run in parallel at any point.
+P1 -> P3 -> P2a/P2b -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10 -> P11 -> P12 -> P13. P14 can run in parallel at any point.
 Reason: filter and mappings are self-contained and testable first; voices need all of them; modulation needs finished voices.
 
 ## Phase entry format (append below when a phase changes)
@@ -82,3 +84,10 @@ Reason: filter and mappings are self-contained and testable first; voices need a
 - Quirks kept or fixed: kept all: type 8/unknown returns after updating state once; R forced to 1 at f >= 0.4499; LP scaled by 0x7fff, others by 0x70ff; q = 0.02 when 1-feedback < 0.1
 - Interfaces saved: `interfaces/ResonantFilter.h`
 - Open issues: Qwen's own test file was unusable (main inside namespace, only type 1, wrong sum) and was replaced by a generated one; `M_PI` replaced by an equal `kPi` constant (MSVC); not yet checked with MSVC or with FMA contraction enabled
+
+### P2 Parameter mappings — DONE — 2026-09-20
+- Prompt files: `prompts/P2a_env.md`, `prompts/P2b_misc.md` (prepared for Qwen; not used, code written by Claude instead)
+- Output files: `dsp/ParamMapEnv.{h,cpp}`, `dsp/ParamMapMisc.{h,cpp}`; tests `dsp/ParamMapEnvTest.cpp` (78 checks), `dsp/ParamMapMiscTest.cpp` (121 checks), all pass at -O0 and -O2 (gcc x86-64); mutation-tested (K=198 instead of the float value is detected)
+- Interfaces saved: `interfaces/ParamMapEnv.h`, `interfaces/ParamMapMisc.h`
+- Findings: TIME_K constants are float-folded (198.000198 and 1998.02576, not 198 and 1998); egA at v=127 is 0; pitchEgSlope(127) = +inf; OFFSET_LFO at v=127 overflows uint32 in C; OUTPUT_DMA_SIZE is 32 in every TU despite an `#if DMA_MODE_ACTIVE` 16 branch in config.h
+- Open issues: pan mapping moved to P11; lfoPhaseOffset saturation is a port decision; not yet run on the user's machine

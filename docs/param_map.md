@@ -22,18 +22,18 @@ NOT the brendanclarke/Catalyst fork (its DSP differs).
 | lin | v/127 |
 | cutoff | f = shaper(v/127, -0.9) x 0.45 (cycles/sample); shaper(x,s): k=2s/(1.0001-s); (1+k)x/(1+k abs(x)). g = fastTan(pi f) |
 | reso | q = 1 - v/127; if q < 0.1 then q = 0.02 |
-| egA | attack step/tick = 1 - (1+K)x/(1+K abs(x)), x=v/127, K=2 x 0.99/0.01 = 198 |
-| egD | same with K = 2 x 0.999/0.001 = 1998 (v=127 -> step 0, never decays) |
+| egA | attack step/tick = 1 - (1+K)x/(1+K abs(x)), x=v/127, K = 2x0.99f/(1.f-0.99f) computed in float = 198.000198 (v=127 -> step 0) |
+| egD | same with K = 2x0.999f/(1.f-0.999f) computed in float = 1998.02576 (v=127 -> step 0, never decays) |
 | slopeA | amount = (v/127 - 0.5) x 1.999; slope = 2a/(1-a); invSlope uses -a |
 | slopeP | pitch EG: amount = (v/127 - 0.5) x 2 (**v=127 divides by zero**); slope = 2a/(1-a) |
-| pDecay | pitch EG decay step/tick: as egA (K=198) |
+| pDecay | pitch EG decay step/tick: as egA (same K = 198.000198) |
 | pAmt | (v/127)^2 x 32 |
-| pan | raw 0..127. L = sqrtLut[127-pan], R = sqrtLut[pan] (sqrtLut[i] = sqrt(i/127)) |
+| pan | raw 0..127. L = sqrtLut[127-pan], R = sqrtLut[pan] (sqrtLut[i] = sqrt(i/127)); handled in the mixer phase (P11), not in P2 |
 | dist | s = v/128; shape = 2s/(1-s); y = (1+shape)x/(1+shape abs(x)) |
 | fdrive | 0.4 + (v/127)^2 x 6 (pre-filter gain into softclip) |
 | decim | rate = shaper(v/127, -0.7); S&H counter += rate x rate_ALL per sample; ALL = index 6 |
 | lfoF | ((v+1)/128)^3 x 200 Hz (free-running); if sync != 0 tempo-synced |
-| lfoOfs | phaseOffset = v/127 x 0xFFFFFFFF |
+| lfoOfs | phaseOffset = v/127.f x 0xffffffff (float product, then to uint32; v=127 gives 2^32, out of range: ARM saturates to 0xFFFFFFFF, port does the same) |
 | ftype | engine type = v+1: 1 LP,2 HP,3 BP,4 unity-BP,5 notch,6 peak,7 LP2 (naive 2-pole),8 off (passthrough) |
 | trF | transient pitch = 1 + (v/33.9 - 0.75) (about 0.25..4.0) |
 | trW | 0 snap EG, 1 offset (start-phase shift), 2..13 = 12 samples (Clk,Ck2,Tik,Kik,Rim,Drp,Hat,Clp,Kk2,Snr,Tom,Sp2); >=14 -> 0 |

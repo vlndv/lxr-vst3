@@ -8,7 +8,7 @@ Licence: custom non-commercial (LICENSE.txt). No sale or commercial use; modifie
 keep copyright notice. Not GPL. Incompatible with AGPL JUCE (JUCE commercial licence would itself be commercial use).
 
 ## 1. Timing model (config.h, mixer.c)
-- Real sample rate `REAL_FS = 44002.7573529412` Hz. Block = `OUTPUT_DMA_SIZE = 32` samples.
+- Real sample rate `REAL_FS = ((float)44002.7573529412f)`, i.e. the float 44002.7578125 Hz. Block = `OUTPUT_DMA_SIZE = 32` samples. (config.h also has `#if DMA_MODE_ACTIVE ... #define OUTPUT_DMA_SIZE 16`; with the Makefile flags every translation unit resolves to 32, checked by preprocessing, because AudioCodecManager.h defines DMA_MODE_ACTIVE only after including config.h.)
 - Once per block ("async" step, ~1375.09 Hz, 0.727 ms): LFOs, modulation, filter coefficients, all envelopes, oscillator phase increments.
 - Then per-sample ("sync" step): oscillators, filter, transient, gain, distortion.
 - Envelope times are per-tick decrements (e.g. decay v=64 -> step 0.000492 -> ~1.5 s full ramp; v=1 -> ~12 ms; v=127 -> infinite).
@@ -86,7 +86,7 @@ Order per block: LFOs -> filter coefficients -> per-voice async -> per-voice syn
 ## 9. Fidelity quirks (decide: keep or fix)
 | # | where | behaviour |
 |---|---|---|
-| 1 | Oscillator.c `calcWavetableOsc*` | fraction computed from table index, not phase -> effectively no interpolation; reads index 1024 (past table) at wrap |
+| 1 | Oscillator.c `calcWavetableOsc*` | fraction computed from table index, not phase -> effectively no interpolation; reads index 1024 (past table) at wrap. config.h has INTERPOLATE_OSC = 1: re-verify this reading in P4 before deciding |
 | 2 | Oscillator.c crash sample | fraction uses `index & 20000` (decimal) instead of 0x20000 |
 | 3 | Oscillator.c FM | `(uint32_t)` cast of negative float. On Cortex-M4 likely saturates to 0 (half-wave FM); on x86 wraps. UNVERIFIED |
 | 4 | Decay.c `DecayEg_setSlope` | amount = (v/127 - 0.5) x 2; v = 127 divides by zero -> inf/NaN |

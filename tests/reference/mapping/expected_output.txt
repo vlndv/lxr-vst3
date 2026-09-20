@@ -1,0 +1,59 @@
+v=0 egA=1 egD=1 calcDecay=1 slopeA=-0.999749899 invSlopeA=3997.81299 pDecay=1 slopeP=-1 pAmt=0
+v=0 cutoffShaped=0 decim=0 dist=0 noiseF=0 lfoHz=9.53674316e-05 trPitch=0.25 detune=0.970268428
+v=0 phaseOffset=0
+v=0 transWave=0
+v=1 egA=0.387692094 egD=0.0592934489 calcDecay=0.0592934489 slopeA=-0.991813421 invSlopeA=121.151344 pDecay=0.387692094 slopeP=-0.992063522 pAmt=0.00198400393
+v=1 cutoffShaped=0.000417931995 decim=0.00139898481 dist=0.0157480314 noiseF=173.228348 lfoHz=0.000762939453 trPitch=0.279498518 detune=0.970736623
+v=1 phaseOffset=33818640
+v=1 transWave=1
+v=2 egA=0.239005625 egD=0.0303173661 calcDecay=0.0303173661 slopeA=-0.983749986 invSlopeA=60.5384293 pDecay=0.239005625 slopeP=-0.984000027 pAmt=0.00793601573
+v=2 cutoffShaped=0.000842193258 decim=0.0028163502 dist=0.0317460336 noiseF=346.456696 lfoHz=0.00257492065 trPitch=0.308997035 detune=0.971204877
+v=2 phaseOffset=67637280
+v=2 transWave=2
+v=10 egA=0.0555291176 egD=0.00581884384 calcDecay=0.00581884384 slopeA=-0.914281666 invSlopeA=10.6661177 pDecay=0.0555291176 slopeP=-0.91452992 pAmt=0.198400393
+v=10 cutoffShaped=0.00448250398 decim=0.0148628596 dist=0.169491529 noiseF=1732.28345 lfoHz=0.126934052 trPitch=0.544985235 detune=0.974950552
+v=10 phaseOffset=338186400
+v=10 transWave=10
+v=32 egA=0.0146990418 egD=0.00148284435 calcDecay=0.00148284435 slopeA=-0.662936211 invSlopeA=1.96679735 pDecay=0.0146990418 slopeP=-0.66315788 pAmt=2.03162003
+v=32 cutoffShaped=0.0174359232 decim=0.0561220758 dist=0.666666687 noiseF=5543.30713 lfoHz=3.42721939 trPitch=1.1939528 detune=0.985251248
+v=32 phaseOffset=1082196480
+v=32 transWave=0
+v=63 egA=0.00507897139 egD=0.000507950783 calcDecay=0.000507950783 slopeA=-0.0156172402 invSlopeA=0.0158650074 pDecay=0.00507897139 slopeP=-0.0156249925 pAmt=7.87451172
+v=63 cutoffShaped=0.0493016019 decim=0.148037747 dist=1.93846154 noiseF=10913.3857 lfoHz=25 trPitch=2.10840702 detune=0.999765873
+v=63 phaseOffset=2130574336
+v=63 transWave=0
+v=64 egA=0.00492227077 egD=0.000492155552 calcDecay=0.000492155552 slopeA=0.0158650074 invSlopeA=-0.0156172402 pDecay=0.00492227077 slopeP=0.0158730075 pAmt=8.1264801
+v=64 cutoffShaped=0.0507990122 decim=0.152054384 dist=2 noiseF=11086.6143 lfoHz=26.1902809 trPitch=2.1379056 detune=1.00023413
+v=64 phaseOffset=2164392960
+v=64 transWave=0
+v=65 egA=0.00477033854 egD=0.000476896763 calcDecay=0.000476896763 slopeA=0.0483622961 invSlopeA=-0.0461312793 pDecay=0.00477033854 slopeP=0.048387073 pAmt=8.38241673
+v=65 cutoffShaped=0.0523397923 decim=0.156161055 dist=2.06349206 noiseF=11259.8428 lfoHz=27.4177551 trPitch=2.16740417 detune=1.00070226
+v=65 phaseOffset=2198211584
+v=65 transWave=0
+v=96 egA=0.00162005424 egD=0.000161528587 calcDecay=0.000161528587 slopeA=2.09462738 invSlopeA=-0.676859319 pDecay=0.00162005424 slopeP=2.0967741 pAmt=18.2845802
+v=96 cutoffShaped=0.14026013 decim=0.353436947 dist=6 noiseF=16629.9219 lfoHz=87.0392761 trPitch=3.0818584 detune=1.01521695
+v=96 phaseOffset=3246589440
+v=96 transWave=0
+v=126 egA=3.98755074e-05 egD=3.9935112e-06 calcDecay=3.9935112e-06 slopeA=121.151344 invSlopeA=-0.991813421 pDecay=3.98755074e-05 slopeP=125.000061 pAmt=31.4980469
+v=126 cutoffShaped=0.869072974 decim=0.956973433 dist=126 noiseF=21826.7715 lfoHz=195.34903 trPitch=3.96681404 detune=1.02926338
+v=126 phaseOffset=4261148672
+v=126 transWave=0
+v=127 egA=0 egD=0 calcDecay=0 slopeA=3997.81299 invSlopeA=-0.999749899 pDecay=0 slopeP=inf pAmt=32
+v=127 cutoffShaped=1 decim=1 dist=254 noiseF=22000 lfoHz=200 trPitch=3.99631262 detune=1.02973151
+v=127 transWave=0
+osc midiFreq=0x3f40 base=63 freq=1063.2489
+osc midiFreq=0x0000 base=63 freq=970.268433
+osc midiFreq=0x7f7f base=63 freq=1160.50745
+osc midiFreq=0x6400 base=90 freq=1093.49255
+osc midiFreq=0x0a7f base=40 freq=1029.73157
+osc midiFreq=0x7f00 base=90 freq=1093.49255
+osc midiFreq=0x0040 base=40 freq=1000.23413
+tw v=0 -> 0
+tw v=1 -> 1
+tw v=12 -> 12
+tw v=13 -> 13
+tw v=14 -> 0
+tw v=15 -> 0
+tw v=127 -> 0
+K_att=198.000198 K_dec=1998.02576
+SEMITONE_UP-1=0.0594631433

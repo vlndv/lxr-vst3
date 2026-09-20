@@ -104,4 +104,5 @@ Attack mapping, slope warp, the envelope state machine.
 - One function family per prompt (e.g. "EG time mappings", not "all envelopes").
 - Paste code, not descriptions. Quote line-level facts from `architecture.md` only as hints, not as the source of truth.
 - Ask for tests in the same prompt; run them yourself. If a test fails, send back only: the failing line, expected vs actual, and the relevant function.
+- Do not ask Qwen for the test program. In P3 its test file was unusable (main inside a namespace, one filter type, wrong sum). Generate the test yourself from the reference harness, give Qwen only the header and source files, and say so under OUTPUT FILES.
 - After each phase, save the accepted headers to `interfaces/` and add one line to `phase_log.md`.
