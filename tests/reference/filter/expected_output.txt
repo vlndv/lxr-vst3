@@ -1,0 +1,48 @@
+fastTan(0.5)=0.546296299
+fastTan(1.0)=1.55555558
+tanhXdX(1.0)=0.761594176
+softClipTwo(1.0)=0.924234331
+softClipTwo(-2.5)=-1.69656801
+drive(0)=0.400000006
+drive(64)=1.923715
+drive(127)=6.4000001
+q(reso0)=1
+q(reso0.5)=0.5
+q(reso0.95)=0.0199999996
+direct(0.5): f=0.224999994 g=0.853991151
+direct(1.0): f=0.449999988 g=6.10959816
+init: f=0.112499997 g=0.368918985 q=0.899999976 drive=0.5 s1=0 s2=0
+C1 type1 blk2 out[0]=570 out[1]=-12159 out[15]=-7734 out[31]=15494 sum=112027 | blk1 out[0]=-9085 | unchanged=0
+C1 type1 state after blk1: s1=-0.0784097761 s2=0.46384269 zi=0.438929796 a=0 b=0 | after blk2: s1=-0.0784097239 s2=0.46384263 zi=0.438929796 a=0 b=0
+C1 type2 blk2 out[0]=-15626 out[1]=32767 out[15]=23 out[31]=-444 sum=3556 | blk1 out[0]=-11857 | unchanged=0
+C1 type3 blk2 out[0]=-15109 out[1]=2238 out[15]=-1660 out[31]=-1888 sum=4711 | blk1 out[0]=-9901 | unchanged=0
+C1 type4 blk2 out[0]=-15109 out[1]=2238 out[15]=-1660 out[31]=-1888 sum=4711 | blk1 out[0]=-9901 | unchanged=0
+C1 type5 blk2 out[0]=-15106 out[1]=26518 out[15]=-7135 out[31]=14585 sum=133871 | blk1 out[0]=-20313 | unchanged=0
+C1 type6 blk2 out[0]=16147 out[1]=-32768 out[15]=-7183 out[31]=15474 sum=111654 | blk1 out[0]=3401 | unchanged=0
+C1 type7 blk2 out[0]=3897 out[1]=-199 out[15]=-9334 out[31]=19044 sum=99708 | blk1 out[0]=-7470 | unchanged=0
+C1 type7 state after blk1: s1=0 s2=0 zi=0 a=0.505028367 b=0.658275604 | after blk2: s1=0 s2=0 zi=0 a=0.505154192 b=0.658368826
+C1 type8 blk2 out[0]=-19740 out[1]=18580 out[15]=-5220 out[31]=7600 sum=85900 | blk1 out[0]=-19740 | unchanged=1
+C1 type8 state after blk2: s1=-0.157155514 s2=-1.25570238 zi=-1.04454124
+C2 type1 blk2 out[0]=32767 out[1]=-32767 out[15]=-32767 out[31]=-32767 sum=0 | blk1 out[0]=-32259 | unchanged=0
+C2 type1 state after blk1: s1=15.5993052 s2=4.36397982 zi=1.26095736 a=0 b=0 | after blk2: s1=15.5993891 s2=4.3659544 zi=1.26095736 a=0 b=0
+C2 type2 blk2 out[0]=-32768 out[1]=32767 out[15]=32767 out[31]=32767 sum=-16 | blk1 out[0]=-5152 | unchanged=0
+C2 type3 blk2 out[0]=-32768 out[1]=32767 out[15]=32767 out[31]=32767 sum=-16 | blk1 out[0]=-15429 | unchanged=0
+C2 type4 blk2 out[0]=-8955 out[1]=10645 out[15]=6994 out[31]=7808 sum=198 | blk1 out[0]=-617 | unchanged=0
+C2 type5 blk2 out[0]=-32768 out[1]=32767 out[15]=-32768 out[31]=28667 sum=220635 | blk1 out[0]=-32768 | unchanged=0
+C2 type6 blk2 out[0]=32767 out[1]=-32768 out[15]=-32768 out[31]=-32768 sum=-16 | blk1 out[0]=-32768 | unchanged=0
+C2 type7 blk2 out[0]=-22855 out[1]=-13258 out[15]=-28650 out[31]=28926 sum=97808 | blk1 out[0]=-25891 | unchanged=0
+C2 type7 state after blk1: s1=0 s2=0 zi=0 a=1 b=0.99999994 | after blk2: s1=0 s2=0 zi=0 a=1 b=0.99999994
+C2 type8 blk2 out[0]=-19740 out[1]=18580 out[15]=-5220 out[31]=7600 sum=85900 | blk1 out[0]=-19740 | unchanged=1
+C2 type8 state after blk2: s1=1.80850887 s2=-0.982486963 zi=-1.9171412
+C3 type1 blk2 out[0]=-18742 out[1]=6509 out[15]=-8738 out[31]=13435 sum=125667 | blk1 out[0]=-21465 | unchanged=0
+C3 type1 state after blk1: s1=-0.319866836 s2=0.603727698 zi=0.438929796 a=0 b=0 | after blk2: s1=-0.319862872 s2=0.603718877 zi=0.438929796 a=0 b=0
+C3 type2 blk2 out[0]=526 out[1]=2785 out[15]=362 out[31]=-1682 sum=-1088 | blk1 out[0]=-611 | unchanged=0
+C3 type3 blk2 out[0]=-5977 out[1]=9986 out[15]=-518 out[31]=778 sum=-327 | blk1 out[0]=-3650 | unchanged=0
+C3 type4 blk2 out[0]=-11955 out[1]=19972 out[15]=-1037 out[31]=1557 sum=-657 | blk1 out[0]=-7301 | unchanged=0
+C3 type5 blk2 out[0]=-18259 out[1]=8784 out[15]=-7758 out[31]=11139 sum=134968 | blk1 out[0]=-22914 | unchanged=0
+C3 type6 blk2 out[0]=-19312 out[1]=3214 out[15]=-8483 out[31]=14505 sum=115688 | blk1 out[0]=-21692 | unchanged=0
+C3 type7 blk2 out[0]=-28703 out[1]=7907 out[15]=-10245 out[31]=11645 sum=92243 | blk1 out[0]=-28767 | unchanged=0
+C3 type7 state after blk1: s1=0 s2=0 zi=0 a=0.402049124 b=0.402584493 | after blk2: s1=0 s2=0 zi=0 a=0.402049124 b=0.402584493
+C3 type8 blk2 out[0]=-19740 out[1]=18580 out[15]=-5220 out[31]=7600 sum=85900 | blk1 out[0]=-19740 | unchanged=1
+C3 type8 state after blk2: s1=0.360988557 s2=-0.873997808 zi=-1.04454124
+zero_input_all_zero=1

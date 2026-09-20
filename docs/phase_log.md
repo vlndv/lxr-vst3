@@ -13,6 +13,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | 2026-09-19 | Source licence is custom non-commercial, not GPL (see risks.md L1) | source review |
 | 2026-09-19 | Modulation ported as base value + modulation multiplier per parameter, not in-place mutation (risks.md R2) | proposed, not yet confirmed by user |
 | 2026-09-19 | Per-block amp EG behaviour kept as in original (risks.md F9) | proposed, not yet confirmed by user |
+| 2026-09-19 | D3: filter keeps int16 buffers in/out with float math inside (accepted by starting P3) | user |
 
 ## Open decisions that block phases
 | id | decision | blocks | see |
@@ -27,9 +28,9 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | # | phase | original source (0.37, `mainboard/LxrStm32/src/`) | depends on | status |
 |---|---|---|---|---|
 | P0 | Source review, `param_map.md`, `architecture.md`, `risks.md`, `prompt_template.md` | DSPAudio/, MIDI/, front/LxrAvr/Menu/menu.c | none | DONE |
-| P1 | Export data assets to binary/CSV: sine table, saw/tri/rec `[11][1024]`, crash sample, transient data `[12][2205]`, note frequencies, sqrt LUT | DSPAudio/{wavetable,Samples,transientTables,squareRootLut}.c, MIDI/MidiNoteNumbers.h | none | TODO |
+| P1 | Export data assets to binary/CSV: sine table, saw/tri/rec `[11][1024]`, crash sample, transient data `[12][2205]`, note frequencies, sqrt LUT | DSPAudio/{wavetable,Samples,transientTables,squareRootLut}.c, MIDI/MidiNoteNumbers.h | none | DOING (script done, run on your repo to confirm hashes) |
 | P2 | Parameter value mappings (all scale tags in `param_map.md`) with unit tests | MIDI/MidiParser.c, DSPAudio/{SlopeEg2,Decay,lfo,distortion}.c, ResonantFilter.c | P1 (constants) | TODO |
-| P3 | Nonlinear ZDF filter, all 8 types incl. LP2 and passthrough | DSPAudio/ResonantFilter.c | D3 | TODO |
+| P3 | Nonlinear ZDF filter, all 8 types incl. LP2 and passthrough | DSPAudio/ResonantFilter.c | D3 | DONE |
 | P4 | Oscillators: sine, wavetables, noise (S&H), crash sample, FM phase modulation | DSPAudio/Oscillator.c | P1, D2, D4 | TODO |
 | P5 | Envelopes: amp (attack, decay, slope, repeat), pitch decay, snap EG | DSPAudio/{SlopeEg2,Decay,snapEg}.c | P2, D2 | TODO |
 | P6 | Transient generator | DSPAudio/transientGenerator.c | P1, P5 | TODO |
@@ -65,3 +66,19 @@ Reason: filter and mappings are self-contained and testable first; voices need a
 - Files: `param_map.md`, `architecture.md`, `risks.md`, `prompt_template.md`, `phase_log.md`
 - Findings: brendanclarke fork is Catalyst v1.02, not 0.37; licence is non-commercial, not GPL; no reverb, delay, EQ, limiter or bit-depth reduction in 0.37.
 - Not reviewed: sequencer, kits/presets, SysEx, sync, front-panel layout.
+
+### P1 Data export — DOING — 2026-09-19
+- Prompt file: none (done as a deterministic script, no Qwen needed)
+- Output files: `tools/export_data.py` -> `data/*.bin`, `data/*.csv`, `data/manifest.json`
+- Tests passed: 9/9 tables have the expected element counts in the sandbox run; sha256 prefixes in manifest
+- Quirks kept or fixed: transientData last row has 13 implicit zeros in source (zero-filled); hex int8 literals >0x7F wrapped to negative
+- Interfaces saved: none
+- Open issues: run on your machine and compare `manifest.json` hashes with the ones in the chat; then mark DONE
+
+### P3 Nonlinear ZDF filter — DONE — 2026-09-20
+- Prompt file: `prompts/P3_filter.md` (Qwen 2.5 Coder 14B, one run)
+- Output files: `dsp/ResonantFilter.{h,cpp}`, `dsp/ResonantFilterTest.cpp`, `tests/reference/filter/diff_test.cpp`
+- Tests passed: 130/130 reference checks (0 WARN) and 80000/80000 random blocks bit-identical to the original C, at -O0 and -O2 (gcc x86-64, -ffp-contract=off)
+- Quirks kept or fixed: kept all: type 8/unknown returns after updating state once; R forced to 1 at f >= 0.4499; LP scaled by 0x7fff, others by 0x70ff; q = 0.02 when 1-feedback < 0.1
+- Interfaces saved: `interfaces/ResonantFilter.h`
+- Open issues: Qwen's own test file was unusable (main inside namespace, only type 1, wrong sum) and was replaced by a generated one; `M_PI` replaced by an equal `kPi` constant (MSVC); not yet checked with MSVC or with FMA contraction enabled

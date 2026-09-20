@@ -1,0 +1,84 @@
+{
+  "sine_table": {
+    "source": "DSPAudio/wavetable.c",
+    "c_name": "sine_table",
+    "count": 4097,
+    "explicit_values_in_source": 4097,
+    "dtype": "int16",
+    "endian": "little",
+    "sha256": "84bae1556a743b86ea23f098b3e2329bbe260b5e6dc2030213f873437d4dd3f7"
+  },
+  "saw_table": {
+    "source": "DSPAudio/wavetable.c",
+    "c_name": "sawTable",
+    "count": 11264,
+    "explicit_values_in_source": 11264,
+    "dtype": "int16",
+    "endian": "little",
+    "sha256": "50972e365198c9a768ccad454ad93bfc12e691857bf2c138737f9f54606104c0"
+  },
+  "tri_table": {
+    "source": "DSPAudio/wavetable.c",
+    "c_name": "triTable",
+    "count": 11264,
+    "explicit_values_in_source": 11264,
+    "dtype": "int16",
+    "endian": "little",
+    "sha256": "591e0656f4a961157554ae2220055366487a744e273554d2120fa27001081b01"
+  },
+  "rec_table": {
+    "source": "DSPAudio/wavetable.c",
+    "c_name": "recTable",
+    "count": 11264,
+    "explicit_values_in_source": 11264,
+    "dtype": "int16",
+    "endian": "little",
+    "sha256": "0e0b93dab16158a1ab7808170cebf4878a80fd8aaef4da8b8810f4d2b112e509"
+  },
+  "crash_sample": {
+    "source": "DSPAudio/Samples.c",
+    "c_name": "crashSample",
+    "count": 32768,
+    "explicit_values_in_source": 32768,
+    "dtype": "uint8",
+    "endian": "little",
+    "sha256": "440ac7dc5a43652a85ee8f01bb8cb9d4a0384ace39e9785f23b2c448d7ec4365"
+  },
+  "transient_data": {
+    "source": "DSPAudio/transientTables.c",
+    "c_name": "transientData",
+    "count": 26460,
+    "explicit_values_in_source": 26447,
+    "dtype": "int8",
+    "endian": "little",
+    "sha256": "f120c68fcb1bbc3afaa778f989712078d6a99e474202aaabd75cd34f82ab0c4c"
+  },
+  "transient_volume_table": {
+    "source": "DSPAudio/transientTables.c",
+    "c_name": "transientVolumeTable",
+    "count": 69,
+    "explicit_values_in_source": 69,
+    "dtype": "float32",
+    "endian": "little",
+    "sha256": "fa7e25307ccd3f86a5b0b39623f3e56617a9f72629d4a6e656869ee658cb98be"
+  },
+  "midi_note_frequencies": {
+    "source": "MIDI/MidiNoteNumbers.h",
+    "c_name": "MidiNoteFrequencies",
+    "count": 128,
+    "explicit_values_in_source": 128,
+    "dtype": "float32",
+    "endian": "little",
+    "sha256": "c53587ea03c65ee8bd3a7849cca890bdfcc2c5209847ded0c1e1de2a7db4a218"
+  },
+  "sqrt_lut": {
+    "source": "DSPAudio/squareRootLut.c",
+    "c_name": "squareRootLut",
+    "count": 128,
+    "explicit_values_in_source": 128,
+    "dtype": "float32",
+    "endian": "little",
+    "sha256": "079c0782a244938cfe38fbec8417b782ba6fb26471ed6cdde5f20de893290365"
+  },
+  "_note": "Derived from SonicPotions/LXR fw 0.37 (custom non-commercial licence). Do not sell or use commercially."
+}

@@ -21,7 +21,7 @@ keep copyright notice. Not GPL. Incompatible with AGPL JUCE (JUCE commercial lic
 `MidiVoiceControl.c`: voice 0-2 -> `Drum_trigger`, 3 -> `Snare_trigger`, 4 -> `Cymbal_trigger`, 5-6 -> `HiHat_trigger(vel, voice-5)`.
 
 ### D1-D3 drum voice (DrumVoice.c)
-Trigger: LFO retrigger; velocity modulator update; phase reset (always, the guard is compiled out): sine start = 1023<<20 (peak),
+Trigger: LFO retrigger; velocity modulator update; phase reset (always, the guard is compiled out): sine start = 1023<<20 (`sine_table` is a -cos shape: index 0 = -32767, 1024 ~ 0, 2048 = +32766, so this starts at the rising zero crossing),
 tri/saw/rec start = 0xff<<20, others 0; transient "offset" mode (wave 1) scales start phase by (1 - transVol). Base note set, pitch EG = 1, amp EG start, transient phase 0, snap EG = 1, filter state reset.
 Per tick: pitchMod = 1 + pitchEG x pitchAmt; if transient wave 0 (snap): pitchMod += snapEG x transVol. osc.fmMod = fmAmount x pitchEG value.
 Per sample block:
