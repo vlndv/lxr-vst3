@@ -2,7 +2,7 @@
 """Extract the code blocks of a Qwen answer into files.
 
 Usage (from the repo root):  python tools/extract_code.py out/P2a_answer.md
-Each ``` block whose first line is a comment holding a path (for example `// dsp/ParamMapEnv.h`) is written to that path.
+Each ``` block whose first line is a comment holding a path (for example `// dsp/ParamMapEnv.h` or `// FILE: dsp/ParamMapEnv.h`) is written to that path.
 Files whose name ends in Test.cpp are never written (the tests are supplied by hand). Existing files are overwritten.
 Terminal wrap artefacts (ESC[nD ESC[K) in text copied from a console are removed first.
 """
@@ -27,7 +27,7 @@ def main():
     for m in re.finditer(r"```[a-zA-Z+]*\r?\n(.*?)```", text, flags=re.S):
         body = m.group(1).replace("\r\n", "\n")
         first = body.split("\n", 1)[0].strip()
-        p = re.match(r"(?://|#)\s*([\w./\\-]+\.(?:h|hpp|cpp|c))\s*$", first)
+        p = re.match(r"(?://|#)\s*(?:FILE:\s*)?([\w./\\-]+\.(?:h|hpp|cpp|c))\s*$", first)
         if not p:
             continue
         path = p.group(1).replace("\\", "/")

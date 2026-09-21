@@ -27,7 +27,9 @@ void AmpEg::init() {
     state = 0; // EG_STOPPED
     repeat = 0;
     repeatCnt = 0;
-    setSlope(64); // default midpoint
+    // ORIGINAL QUIRK: slopeEg2_init calls slopeEg2_setSlope(eg, 0.5f); the float 0.5f converts to the uint8_t 0,
+    // so the default slope is the extreme one (slope -0.99975, invSlope 3997.8), not the midpoint.
+    setSlope(0);
 }
 
 void AmpEg::trigger() {
