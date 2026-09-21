@@ -1,0 +1,122 @@
+PASS cutoffShape v=0 got=0 exp=0
+PASS decimationRate v=0 got=0 exp=0
+PASS distortionShape v=0 got=0 exp=0
+PASS noiseFrequencyHz v=0 got=0 exp=0
+PASS lfoFrequencyHz v=0 got=9.53674316e-05 exp=9.53674316e-05
+PASS transientPitch v=0 got=0.25 exp=0.25
+PASS fineDetune v=0 got=0.970268428 exp=0.970268428
+PASS unitFromParam v=0 got=0 exp=0
+PASS lfoPhaseOffset v=0 got=0 exp=0
+PASS cutoffShape v=1 got=0.000417931995 exp=0.000417931995
+PASS decimationRate v=1 got=0.00139898481 exp=0.00139898481
+PASS distortionShape v=1 got=0.0157480314 exp=0.0157480314
+PASS noiseFrequencyHz v=1 got=173.228348 exp=173.228348
+PASS lfoFrequencyHz v=1 got=0.000762939453 exp=0.000762939453
+PASS transientPitch v=1 got=0.279498518 exp=0.279498518
+PASS fineDetune v=1 got=0.970736623 exp=0.970736623
+PASS unitFromParam v=1 got=0.00787401572 exp=0.00787401572
+PASS lfoPhaseOffset v=1 got=33818640 exp=33818640
+PASS cutoffShape v=2 got=0.000842193258 exp=0.000842193258
+PASS decimationRate v=2 got=0.0028163502 exp=0.0028163502
+PASS distortionShape v=2 got=0.0317460336 exp=0.0317460336
+PASS noiseFrequencyHz v=2 got=346.456696 exp=346.456696
+PASS lfoFrequencyHz v=2 got=0.00257492065 exp=0.00257492065
+PASS transientPitch v=2 got=0.308997035 exp=0.308997035
+PASS fineDetune v=2 got=0.971204877 exp=0.971204877
+PASS unitFromParam v=2 got=0.0157480314 exp=0.0157480314
+PASS lfoPhaseOffset v=2 got=67637280 exp=67637280
+PASS cutoffShape v=10 got=0.00448250398 exp=0.00448250398
+PASS decimationRate v=10 got=0.0148628596 exp=0.0148628596
+PASS distortionShape v=10 got=0.169491529 exp=0.169491529
+PASS noiseFrequencyHz v=10 got=1732.28345 exp=1732.28345
+PASS lfoFrequencyHz v=10 got=0.126934052 exp=0.126934052
+PASS transientPitch v=10 got=0.544985235 exp=0.544985235
+PASS fineDetune v=10 got=0.974950552 exp=0.974950552
+PASS unitFromParam v=10 got=0.0787401572 exp=0.0787401572
+PASS lfoPhaseOffset v=10 got=338186400 exp=338186400
+PASS cutoffShape v=32 got=0.0174359232 exp=0.0174359232
+PASS decimationRate v=32 got=0.0561220758 exp=0.0561220758
+PASS distortionShape v=32 got=0.666666687 exp=0.666666687
+PASS noiseFrequencyHz v=32 got=5543.30713 exp=5543.30713
+PASS lfoFrequencyHz v=32 got=3.42721939 exp=3.42721939
+PASS transientPitch v=32 got=1.1939528 exp=1.1939528
+PASS fineDetune v=32 got=0.985251248 exp=0.985251248
+PASS unitFromParam v=32 got=0.251968503 exp=0.251968503
+PASS lfoPhaseOffset v=32 got=1082196480 exp=1082196480
+PASS cutoffShape v=63 got=0.0493016019 exp=0.0493016019
+PASS decimationRate v=63 got=0.148037747 exp=0.148037747
+PASS distortionShape v=63 got=1.93846154 exp=1.93846154
+PASS noiseFrequencyHz v=63 got=10913.3857 exp=10913.3857
+PASS lfoFrequencyHz v=63 got=25 exp=25
+PASS transientPitch v=63 got=2.10840702 exp=2.10840702
+PASS fineDetune v=63 got=0.999765873 exp=0.999765873
+PASS unitFromParam v=63 got=0.496062994 exp=0.496062994
+PASS lfoPhaseOffset v=63 got=2130574336 exp=2130574336
+PASS cutoffShape v=64 got=0.0507990122 exp=0.0507990122
+PASS decimationRate v=64 got=0.152054384 exp=0.152054384
+PASS distortionShape v=64 got=2 exp=2
+PASS noiseFrequencyHz v=64 got=11086.6143 exp=11086.6143
+PASS lfoFrequencyHz v=64 got=26.1902809 exp=26.1902809
+PASS transientPitch v=64 got=2.1379056 exp=2.1379056
+PASS fineDetune v=64 got=1.00023413 exp=1.00023413
+PASS unitFromParam v=64 got=0.503937006 exp=0.503937006
+PASS lfoPhaseOffset v=64 got=2164392960 exp=2164392960
+PASS cutoffShape v=65 got=0.0523397923 exp=0.0523397923
+PASS decimationRate v=65 got=0.156161055 exp=0.156161055
+PASS distortionShape v=65 got=2.06349206 exp=2.06349206
+PASS noiseFrequencyHz v=65 got=11259.8428 exp=11259.8428
+PASS lfoFrequencyHz v=65 got=27.4177551 exp=27.4177551
+PASS transientPitch v=65 got=2.16740417 exp=2.16740417
+PASS fineDetune v=65 got=1.00070226 exp=1.00070226
+PASS unitFromParam v=65 got=0.511811018 exp=0.511811018
+PASS lfoPhaseOffset v=65 got=2198211584 exp=2198211584
+PASS cutoffShape v=96 got=0.14026013 exp=0.14026013
+PASS decimationRate v=96 got=0.353436947 exp=0.353436947
+PASS distortionShape v=96 got=6 exp=6
+PASS noiseFrequencyHz v=96 got=16629.9219 exp=16629.9219
+PASS lfoFrequencyHz v=96 got=87.0392761 exp=87.0392761
+PASS transientPitch v=96 got=3.0818584 exp=3.0818584
+PASS fineDetune v=96 got=1.01521695 exp=1.01521695
+PASS unitFromParam v=96 got=0.755905509 exp=0.755905509
+PASS lfoPhaseOffset v=96 got=3246589440 exp=3246589440
+PASS cutoffShape v=126 got=0.869072974 exp=0.869072974
+PASS decimationRate v=126 got=0.956973433 exp=0.956973433
+PASS distortionShape v=126 got=126 exp=126
+PASS noiseFrequencyHz v=126 got=21826.7715 exp=21826.7715
+PASS lfoFrequencyHz v=126 got=195.34903 exp=195.34903
+PASS transientPitch v=126 got=3.96681404 exp=3.96681404
+PASS fineDetune v=126 got=1.02926338 exp=1.02926338
+PASS unitFromParam v=126 got=0.992125988 exp=0.992125988
+PASS lfoPhaseOffset v=126 got=4261148672 exp=4261148672
+PASS cutoffShape v=127 got=1 exp=1
+PASS decimationRate v=127 got=1 exp=1
+PASS distortionShape v=127 got=254 exp=254
+PASS noiseFrequencyHz v=127 got=22000 exp=22000
+PASS lfoFrequencyHz v=127 got=200 exp=200
+PASS transientPitch v=127 got=3.99631262 exp=3.99631262
+PASS fineDetune v=127 got=1.02973151 exp=1.02973151
+PASS unitFromParam v=127 got=1 exp=1
+PASS lfoPhaseOffset v=127 got=4294967295 exp=4294967295
+PASS transientWaveform v=0 got=0 exp=0
+PASS transientWaveform v=1 got=1 exp=1
+PASS transientWaveform v=12 got=12 exp=12
+PASS transientWaveform v=13 got=13 exp=13
+PASS transientWaveform v=14 got=0 exp=0
+PASS transientWaveform v=15 got=0 exp=0
+PASS transientWaveform v=127 got=0 exp=0
+PASS filterTypeFromParam v=0
+PASS filterTypeFromParam v=1
+PASS filterTypeFromParam v=2
+PASS filterTypeFromParam v=3
+PASS filterTypeFromParam v=4
+PASS filterTypeFromParam v=5
+PASS filterTypeFromParam v=6
+PASS filterTypeFromParam v=7
+PASS oscFrequencyHz base=63 v=16192 got=1063.2489 exp=1063.2489
+PASS oscFrequencyHz base=63 v=0 got=970.268433 exp=970.268433
+PASS oscFrequencyHz base=63 v=32639 got=1160.50745 exp=1160.50745
+PASS oscFrequencyHz base=90 v=25600 got=1093.49255 exp=1093.49255
+PASS oscFrequencyHz base=40 v=2687 got=1029.73157 exp=1029.73157
+PASS oscFrequencyHz base=90 v=32512 got=1093.49255 exp=1093.49255
+PASS oscFrequencyHz base=40 v=64 got=1000.23413 exp=1000.23413
+SUMMARY fail=0

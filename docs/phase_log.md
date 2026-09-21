@@ -29,7 +29,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | # | phase | original source (0.37, `mainboard/LxrStm32/src/`) | depends on | status |
 |---|---|---|---|---|
 | P0 | Source review, `param_map.md`, `architecture.md`, `risks.md`, `prompt_template.md` | DSPAudio/, MIDI/, front/LxrAvr/Menu/menu.c | none | DONE |
-| P1 | Export data assets to binary/CSV: sine table, saw/tri/rec `[11][1024]`, crash sample, transient data `[12][2205]`, note frequencies, sqrt LUT | DSPAudio/{wavetable,Samples,transientTables,squareRootLut}.c, MIDI/MidiNoteNumbers.h | none | DOING (script done, run on your repo to confirm hashes) |
+| P1 | Export data assets to binary/CSV: sine table, saw/tri/rec `[11][1024]`, crash sample, transient data `[12][2205]`, note frequencies, sqrt LUT | DSPAudio/{wavetable,Samples,transientTables,squareRootLut}.c, MIDI/MidiNoteNumbers.h | none | DONE |
 | P2a | Envelope mappings: amp attack/decay/slope, pitch decay/slope/amount (`prompts/P2a_env.md`) | MIDI/MidiParser.c, DSPAudio/{SlopeEg2,Decay}.c | P1 | DONE |
 | P2b | Other mappings: cutoff shape, decimation, distortion, noise freq, transient, LFO freq and offset, filter type, osc pitch (`prompts/P2b_misc.md`); pan moves to P11 | MIDI/MidiParser.c, valueShaper.h, DSPAudio/{distortion,lfo,Oscillator,transientGenerator}.c | P1 | DONE |
 | P3 | Nonlinear ZDF filter, all 8 types incl. LP2 and passthrough | DSPAudio/ResonantFilter.c | D3 | DONE |
@@ -69,13 +69,13 @@ Reason: filter and mappings are self-contained and testable first; voices need a
 - Findings: brendanclarke fork is Catalyst v1.02, not 0.37; licence is non-commercial, not GPL; no reverb, delay, EQ, limiter or bit-depth reduction in 0.37.
 - Not reviewed: sequencer, kits/presets, SysEx, sync, front-panel layout.
 
-### P1 Data export — DOING — 2026-09-19
+### P1 Data export — DONE — 2026-09-19
 - Prompt file: none (done as a deterministic script, no Qwen needed)
 - Output files: `tools/export_data.py` -> `data/*.bin`, `data/*.csv`, `data/manifest.json`
 - Tests passed: 9/9 tables have the expected element counts in the sandbox run; sha256 prefixes in manifest
 - Quirks kept or fixed: transientData last row has 13 implicit zeros in source (zero-filled); hex int8 literals >0x7F wrapped to negative
 - Interfaces saved: none
-- Open issues: run on your machine and compare `manifest.json` hashes with the ones in the chat; then mark DONE
+- Open issues: none. Run on the user's machine: all nine tables printed OK.
 
 ### P3 Nonlinear ZDF filter — DONE — 2026-09-20
 - Prompt file: `prompts/P3_filter.md` (Qwen 2.5 Coder 14B, one run)
@@ -83,11 +83,11 @@ Reason: filter and mappings are self-contained and testable first; voices need a
 - Tests passed: 130/130 reference checks (0 WARN) and 80000/80000 random blocks bit-identical to the original C, at -O0 and -O2 (gcc x86-64, -ffp-contract=off)
 - Quirks kept or fixed: kept all: type 8/unknown returns after updating state once; R forced to 1 at f >= 0.4499; LP scaled by 0x7fff, others by 0x70ff; q = 0.02 when 1-feedback < 0.1
 - Interfaces saved: `interfaces/ResonantFilter.h`
-- Open issues: Qwen's own test file was unusable (main inside namespace, only type 1, wrong sum) and was replaced by a generated one; `M_PI` replaced by an equal `kPi` constant (MSVC); not yet checked with MSVC or with FMA contraction enabled
+- Open issues: Qwen's own test file was unusable (main inside namespace, only type 1, wrong sum) and was replaced by a generated one; `M_PI` replaced by an equal `kPi` constant (MSVC); not yet checked with MSVC or with FMA contraction enabled. Run on the user's machine (MSYS2 g++ 16.1.0): SUMMARY fail=0 warn=0.
 
 ### P2 Parameter mappings — DONE — 2026-09-20
 - Prompt files: `prompts/P2a_env.md`, `prompts/P2b_misc.md` (prepared for Qwen; not used, code written by Claude instead)
 - Output files: `dsp/ParamMapEnv.{h,cpp}`, `dsp/ParamMapMisc.{h,cpp}`; tests `dsp/ParamMapEnvTest.cpp` (78 checks), `dsp/ParamMapMiscTest.cpp` (121 checks), all pass at -O0 and -O2 (gcc x86-64); mutation-tested (K=198 instead of the float value is detected)
 - Interfaces saved: `interfaces/ParamMapEnv.h`, `interfaces/ParamMapMisc.h`
 - Findings: TIME_K constants are float-folded (198.000198 and 1998.02576, not 198 and 1998); egA at v=127 is 0; pitchEgSlope(127) = +inf; OFFSET_LFO at v=127 overflows uint32 in C; OUTPUT_DMA_SIZE is 32 in every TU despite an `#if DMA_MODE_ACTIVE` 16 branch in config.h
-- Open issues: pan mapping moved to P11; lfoPhaseOffset saturation is a port decision; not yet run on the user's machine
+- Open issues: pan mapping moved to P11; lfoPhaseOffset saturation is a port decision. Run on the user's machine (MSYS2 g++ 16.1.0): both test programs print SUMMARY fail=0.

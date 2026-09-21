@@ -14,6 +14,7 @@ keep copyright notice. Not GPL. Incompatible with AGPL JUCE (JUCE commercial lic
 - Envelope times are per-tick decrements (e.g. decay v=64 -> step 0.000492 -> ~1.5 s full ramp; v=1 -> ~12 ms; v=127 -> infinite).
 - Drum voices D1-D3 interpolate the amp EG linearly across the block (`bufferTool_addGainInterpolated`); SN/CY/HH apply the amp EG as a per-block constant (steps).
 - PORT DECISION (open): run engine at 44002.757 Hz with 32-sample blocks and resample to host rate, or rescale all per-tick constants to host rate. Decimator and LFO rates are defined relative to engine rate.
+- Firmware build flags (Makefile): `-O3 -ffast-math -freciprocal-math -fsingle-precision-constant`, Cortex-M4 FPU (fpv4-sp-d16, fused multiply-add allowed). The port follows the source text under strict IEEE float rules; the hardware can differ in the last bits. Measured on the filter: single-precision constants alone change 0.12% of output samples, by at most 6 LSB of int16 (random full-scale input). Treat as inaudible; verify with recordings (risks F13).
 - Audio path is int16 buffers with float math inside; saturating adds (`__QADD16`). Port: keep int16 semantics at the same clip points, or use float with explicit clamps at those points.
 
 ## 2. Voices
@@ -45,7 +46,7 @@ Same as cymbal, main osc gain 0.5, amp decay picked per trigger (closed/open). N
 ## 3. Oscillators (Oscillator.c, wavetable.h)
 - Phase: uint32. Sine table 4096+1 entries (index phase>>20). Tri/saw/rec: `[11][1024]` int16 tables, one per octave (note 0,12,...,120), index phase>>22, table index = `freqToTableIndex(f)` = (12 x integer-log2(f/440) + 70)/12, clamped to 10 (see quirk 10).
 - Phase increment = table size x f / REAL_FS x 2^(32 - log2 size). Computed per tick, not per sample.
-- FM: index = (uint32)(mod sample x fmMod) << 17 (sine) or << 19 (wavetable) added to phase.
+- FM: index = (uint32)(mod sample x fmMod) << 17 (sine), << 19 (wavetable) or << 14 (crash) added to phase; negative products saturate to 0 (quirk 3).
 - Noise: new `GetRngValue()` (hardware RNG, low 16 bits) when phase wraps; held between. Replace RNG with any white PRNG.
 - Crash: 8-bit unsigned sample `crashSample[32768]`, out = (s - 127) x 256, phase inc uses <<17.
 - Pitch = MidiNoteFrequencies[clamp(coarse + baseNote - 63)] x fineDetune x pitchMod x modNodeValue.
@@ -86,15 +87,19 @@ Order per block: LFOs -> filter coefficients -> per-voice async -> per-voice syn
 ## 9. Fidelity quirks (decide: keep or fix)
 | # | where | behaviour |
 |---|---|---|
-| 1 | Oscillator.c `calcWavetableOsc*` | fraction computed from table index, not phase -> effectively no interpolation; reads index 1024 (past table) at wrap. config.h has INTERPOLATE_OSC = 1: re-verify this reading in P4 before deciding |
-| 2 | Oscillator.c crash sample | fraction uses `index & 20000` (decimal) instead of 0x20000 |
-| 3 | Oscillator.c FM | `(uint32_t)` cast of negative float. On Cortex-M4 likely saturates to 0 (half-wave FM); on x86 wraps. UNVERIFIED |
+| 1 | Oscillator.c `calcWavetableOscBlock` | fraction = (itg & 0x3FFFFF) x 2^-22 where itg is the already incremented table INDEX, not phase bits: at most 2.4e-4, so effectively no interpolation. VERIFIED in P4 (INTERPOLATE_OSC = 1 does not change it). Reads element 1024 of the row (first element of the next row; past the array for row 10). The FM path (`calcFmBlock`) uses the correct phase fraction |
+| 2 | Oscillator.c crash sample | fraction uses `index & 20000` (decimal, 0x4E20) instead of 0x1FFFF: scattered phase bits, max 0.153. Also reads crashSample[32768] (one past the end). VERIFIED in P4 |
+| 3 | Oscillator.c FM | `(uint32_t)` of a negative float. arm-none-eabi-gcc 13.2 with the firmware flags emits `vcvt.u32.f32`, which saturates negatives to 0, so FM is half-wave (negative modulator samples do not move the phase). VERIFIED by compiling for Cortex-M4 (assembly), not on hardware. The port does the same |
 | 4 | Decay.c `DecayEg_setSlope` | amount = (v/127 - 0.5) x 2; v = 127 divides by zero -> inf/NaN |
 | 5 | DrumVoice.c | pitch, amp, filter update once per 32-sample block (stepped) |
 | 6 | Snare/Cymbal/HiHat | amp EG per-block constant (no interpolation) |
 | 7 | Cymbal/HiHat | `osc.pitchMod` only updated when transient wave = 0 |
 | 8 | ResonantFilter.c | filter type 8 ("off") passes audio unfiltered; header comment on bit meanings is stale |
-| 10 | Oscillator.c `freqToTableIndex` | `fast_log2` returns uint8 of `31-CLZ(0)` = 255 when f < 440 Hz, so index wraps to 4 (by reading the code; UNVERIFIED). Integer log2 also means table changes only per octave from 440 Hz |
+| 10 | Oscillator.c `freqToTableIndex` | `fast_log2(0)` returns 255 (uint8 of 31-32), so the index is uint8(3130/12) = 4 for f < 440 Hz. VERIFIED by running the original code (P4). Table index by frequency: <440 Hz -> 4, 440-880 -> 5, 880-1760 -> 6, 1760-3520 -> 7, 3520-7040 -> 8, 7040-14080 -> 9, >=14080 -> 10 |
+| 11 | Oscillator.c `calcSineBlock`, `calcFmSineBlock` | fraction mask is 0x7ffff (19 bits) but the sine index has a 20-bit fraction: frac runs 0..1 twice per table step. VERIFIED in P4 |
+| 12 | Oscillator.c `freq2PhaseIncr32767` | named 32767 but uses 1024 with <<17: the crash sample (32768 entries) advances 32x slower than a full cycle at f |
+| 13 | Oscillator.c, all float -> uint32 | phase increments too large saturate to 0xFFFFFFFF on ARM (vcvt.u32.f32) instead of wrapping as on x86. The port uses `floatToU32Sat` |
+| 14 | Oscillator.c one-past-the-end reads | sawTable/triTable/recTable row 10 index 1024 and crashSample[32768]: the hardware value is unknown. Port default 0 (`OscTableStore::setGuards`); only reached at f >= 14 kHz or once per crash-sample cycle |
 | 9 | MidiParser.c | OSC3_DIST branch under disabled `USE_FILTER_DRIVE` writes voiceArray[3] (dead code) |
 
 ## 10. Not yet reviewed

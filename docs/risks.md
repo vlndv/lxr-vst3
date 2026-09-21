@@ -19,15 +19,18 @@ Baseline: SonicPotions/LXR @ dee4968 (fw 0.37). Not legal advice.
 | F1 | Engine runs at 44002.757 Hz in 32-sample blocks; envelopes, LFOs, filter coefficients and pitch update once per block (~1375 Hz). Host rates differ. Option A: run engine at 44002.757 Hz and resample (faithful, adds resampler cost/latency). Option B: rescale per-tick constants to host rate (cheaper, timing and stair-stepping differ). Decimator and LFO rates are relative to engine rate. | OPEN |
 | F2 | Audio path is int16 with saturating adds. Keep int16 clip points or use float with explicit clamps at the same points. Mixed choice changes distortion character. | OPEN |
 | F3 | Filter must be copied from `SVF_calcBlockZDF` verbatim (Padé fastTan, softClipTwo, tanhXdX). A textbook SVF will sound different. | DECIDED |
-| F4 | FM negative-value cast: `(uint32_t)` of a negative float. Cortex-M4 likely saturates to 0 (half-wave FM); x86 wraps. Need disassembly or hardware recording. | UNVERIFIED |
-| F5 | Wavetable table index for f < 440 Hz likely wraps to table 4 via uint8 overflow in `fast_log2`. | UNVERIFIED |
-| F6 | Wavetable non-FM path has effectively no interpolation (fraction from table index). Reads index 1024 (one past table) at wrap. Fixing changes aliasing/tone. | OPEN (keep vs fix) |
-| F7 | Crash sample interpolation uses `index & 20000` (decimal). | OPEN (keep vs fix) |
+| F4 | FM negative-value cast: `(uint32_t)` of a negative float. Compiling Oscillator.c for Cortex-M4 with the firmware flags emits `vcvt.u32.f32`, which saturates negatives to 0 (half-wave FM). The port reproduces this (`floatToU32Sat`). Not measured on hardware. | VERIFIED by assembly, not on hardware |
+| F5 | Wavetable table index for f < 440 Hz wraps to table 4 (uint8 overflow in `fast_log2`, CLZ(0) = 32). Reproduced by running the original code. Port keeps it. | VERIFIED (kept) |
+| F6 | Wavetable non-FM path has effectively no interpolation (fraction from table index). Confirmed in P4. Port keeps it (proposed: keep; fixing changes aliasing and tone). | OPEN (proposed: keep) |
+| F7 | Crash sample interpolation uses `index & 20000` (decimal). Confirmed in P4. Port keeps it (proposed: keep). | OPEN (proposed: keep) |
 | F8 | `PITCH_SLOPE` = 127 divides by zero (inf/NaN). Clamp in port, or reproduce? Hardware behaviour unknown. | OPEN |
 | F9 | Amp EG is interpolated per block on D1-D3 but stepped per block on SN/CY/HH. Keep. | DECIDED (keep) |
 | F10 | `RNG`: hardware RNG in original. Any white PRNG is fine but noise will not be bit-identical. | DECIDED |
 | F11 | Original has no bit-depth reduction, no reverb, delay, EQ or limiter. Do not add them and call it "faithful". If added later, mark as extensions. | DECIDED |
 | F12 | Verification method: none yet. No reference audio from a real LXR. Recommend recording test patches (single hits, sweeps) from the hardware for A/B comparison. | OPEN |
+| F13 | Firmware is built with `-O3 -ffast-math -freciprocal-math -fsingle-precision-constant` and runs on a Cortex-M4 FPU (fused multiply-add). Ports follow the source text under strict IEEE rules, so hardware output can differ in the last bits (filter test: 0.12% of samples, max 6 LSB). Recordings (F12) are the only way to judge audibility. | UNVERIFIED (expected inaudible) |
+| F14 | Sine oscillator interpolation uses a 19-bit mask on a 20-bit fraction (frac runs twice per table step). Confirmed in P4. Port keeps it (proposed: keep). | OPEN (proposed: keep) |
+| F15 | The original reads one element past the end of sawTable/triTable/recTable (row 10) and crashSample. Hardware value unknown; port reads 0 (`setGuards`). Reached only at f >= 14 kHz or once per crash cycle. | UNVERIFIED |
 
 ## 3. Scope and MIDI compatibility
 | # | risk | status |
