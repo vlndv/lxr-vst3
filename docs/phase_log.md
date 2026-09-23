@@ -36,7 +36,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | P4 | Oscillators: sine, wavetables, noise (S&H), crash sample, FM phase modulation | DSPAudio/Oscillator.c | P1, D2, D4 | DONE |
 | P5 | Envelopes: amp (attack, decay, slope, repeat), pitch decay, snap EG | DSPAudio/{SlopeEg2,Decay,snapEg}.c | P2, D2 | DONE |
 | P6 | Transient generator | DSPAudio/transientGenerator.c | P1, P5 | DONE |
-| P7 | Distortion and per-voice decimator | DSPAudio/distortion.c, mixer.c | P2 | TODO |
+| P7 | Distortion and per-voice decimator | DSPAudio/distortion.c, mixer.c | P2 | DONE |
 | P8 | Drum voice D1-D3 (mix and FM modes, pitch EG, transient, filter, amp, distortion) | DSPAudio/DrumVoice.c | P3-P7 | TODO |
 | P9 | Snare, cymbal, hi-hat voices | DSPAudio/{Snare,CymbalVoice,HiHat}.c | P3-P7 | TODO |
 | P10 | LFO and modulation (per-parameter base + multiplier), velocity modulators, LFO retrigger and sync | DSPAudio/{lfo,modulationNode}.c | P8, P9, D2 | TODO |
