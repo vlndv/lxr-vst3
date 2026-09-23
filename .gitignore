@@ -1,2 +1,14 @@
 
+# Ignore compiled executables
+*.exe
+*.dll
+*.so
+*.dylib
+*.o
+*.obj
+
+# Ignore build output directories
 out/
+build/
+.vs/
+.vscode/
