@@ -26,48 +26,50 @@ int main() {
     lxr::DrumVoice voice;
     voice.init();
     
-    // 1. init checks
     check("init vol", voice.vol, 0.8f, 1e-5f);
     check("init fmModAmount", voice.fmModAmount, 0.5f, 1e-5f);
     check("init mixOscs", (float)voice.mixOscs, 1.0f, 0.1f);
     check("init volumeMod", (float)voice.volumeMod, 1.0f, 0.1f);
     
-    // 2. trigger - SINE
+    // Test unconditional reset: even if state is 1 (A) and value is high, it MUST reset.
     voice.osc.waveform = lxr::OSC_SINE;
-    voice.oscVolEg.state = 0;
+    voice.oscVolEg.state = 1; 
+    voice.oscVolEg.value = 0.5f; 
     voice.trigger(127, 60, mockNoteFreq);
     check("trigger velo", voice.velo, 1.0f, 1e-5f);
-    check_u32("trigger sine phase", voice.osc.phase, 1072693248u);
+    check_u32("trigger sine phase (unconditional)", voice.osc.phase, 1072693248u);
     
-    // 3. trigger - TRI
     voice.osc.waveform = lxr::OSC_TRI;
-    voice.oscVolEg.state = 0;
+    voice.oscVolEg.state = 1;
     voice.trigger(127, 60, mockNoteFreq);
-    check_u32("trigger tri phase", voice.osc.phase, 267386880u);
+    check_u32("trigger tri phase (unconditional)", voice.osc.phase, 267386880u);
     
-    // 4. offset mode trigger
     voice.transGen.waveform = 1;
     voice.transGen.volume = 0.5f;
     voice.osc.waveform = lxr::OSC_SINE;
     voice.trigger(127, 60, mockNoteFreq);
     check_u32("trigger offset phase", voice.osc.phase, 536347136u);
     
-    // 5. calcAsync checks
     voice.oscPitchEg.value = 0.5f;
-    voice.oscPitchEg.decay = 0.0f; // freeze value so calc() returns exactly 0.5
+    voice.oscPitchEg.decay = 0.0f;
     voice.egPitchModAmount = 0.5f;
     voice.calcAsync(mockNoteFreq);
     check("calcAsync pitchMod", voice.osc.pitchMod, 1.25f, 1e-5f);
     check("calcAsync fmMod", voice.osc.fmMod, 0.25f, 1e-5f);
     
-    // 6. calcSyncBlock - no crash
     int16_t buf[32] = {0};
     for (int i = 0; i < 32; i++) buf[i] = 1000;
     voice.lastGain = 0.0f;
     voice.targetGain = 1.0f;
-    voice.calcSyncBlock(buf, 32, mockTables);
-    printf("PASS calcSyncBlock executed without crash\n");
-    pass++;
+    
+    try {
+        voice.calcSyncBlock(buf, 32, mockTables);
+        printf("PASS calcSyncBlock executed without crash\n");
+        pass++;
+    } catch (...) {
+        printf("FAIL calcSyncBlock crashed\n");
+        fail++;
+    }
 
     printf("SUMMARY pass=%d fail=%d\n", pass, fail);
     return fail > 0 ? 1 : 0;

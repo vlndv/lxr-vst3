@@ -5,6 +5,9 @@ Status: TODO / DOING / DONE / BLOCKED. Update one line per phase when it changes
 Rule: a phase is DONE only when its acceptance tests pass against values from the original C and its headers are saved in `interfaces/`.
 
 ## Decisions log
+| 2026-09-23 | D2: Engine rate kept at original 44002.757 Hz; host resampling deferred to plugin shell (P12). | implementation |
+| 2026-09-23 | D3: Kept int16 buffers in/out with float math inside, matching original C saturation behavior. | implementation |
+| 2026-09-23 | D4: All documented quirks (e.g., transient float promotion, FM half-wave, unconditional phase reset) are kept and verified by tests. | implementation |
 | date | decision | source |
 |---|---|---|
 | 2026-09-19 | Base on original 0.37 firmware, not Catalyst | user |
