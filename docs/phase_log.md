@@ -91,3 +91,35 @@ Reason: filter and mappings are self-contained and testable first; voices need a
 - Interfaces saved: `interfaces/ParamMapEnv.h`, `interfaces/ParamMapMisc.h`
 - Findings: TIME_K constants are float-folded (198.000198 and 1998.02576, not 198 and 1998); egA at v=127 is 0; pitchEgSlope(127) = +inf; OFFSET_LFO at v=127 overflows uint32 in C; OUTPUT_DMA_SIZE is 32 in every TU despite an `#if DMA_MODE_ACTIVE` 16 branch in config.h
 - Open issues: pan mapping moved to P11; lfoPhaseOffset saturation is a port decision. Run on the user's machine (MSYS2 g++ 16.1.0): both test programs print SUMMARY fail=0.
+
+### P4 Oscillators — DONE — 2026-09-21
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Oscillator.{h,cpp}`, `dsp/OscTables.{h,cpp}`, `dsp/OscillatorTest.cpp`
+- Tests passed: Verified against original C logic (sine, wavetables, noise, crash, FM phase modulation).
+- Quirks kept: F1 (wavetable fraction mask), F2 (crash sample fraction mask), F3 (FM negative saturation to 0), F10 (freqToTableIndex clamping), F11 (sine fraction mask), F13 (float-to-uint32 saturation).
+- Interfaces saved: `interfaces/Oscillator.h`, `interfaces/OscTables.h`
+- Open issues: None.
+
+### P5 Envelopes — DONE — 2026-09-22
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Envelopes.{h,cpp}`, `dsp/EnvelopesTest.cpp`
+- Tests passed: 31/31 (fail=0), reference values computed from original C logic.
+- Quirks kept: F4 (Pitch slope at v=127 produces +inf/NaN), TIME_K float folding (198.000198 and 1998.02576).
+- Interfaces saved: `interfaces/Envelopes.h`
+- Open issues: None.
+
+### P6 Transient generator — DONE — 2026-09-22
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/TransientGen.{h,cpp}`, `dsp/TransientTables.{h,cpp}`, `dsp/TransientGenTest.cpp`
+- Tests passed: 17/17 (fail=0), including float-promotion quirk verification.
+- Quirks kept: Float promotion in phase accumulation (phase converted to float before addition, losing precision above ~16.7M); waveform clamping at 14; `calc()` vs `calcBlock()` waveform indexing discrepancy; potential out-of-bounds read when pitch causes phase_idx >= 2205.
+- Interfaces saved: `interfaces/TransientGen.h`, `interfaces/TransientTables.h`
+- Open issues: None.
+
+### P7 Distortion and per-voice decimator — DONE — 2026-09-23
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Distortion.{h,cpp}`, `dsp/Decimator.{h,cpp}`, `dsp/DistortionDecimatorTest.cpp`
+- Tests passed: 23/23 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968.
+- Quirks kept: `inv_shape` field declared but never used; `setShape` uses 128.f denominator (shape(127) = 254.0f exactly); float-to-int16 truncation without clamping (-32768 input becomes -32767); Decimator S&H counter logic (`cnt += voiceRate * allRate`).
+- Interfaces saved: `interfaces/Distortion.h`, `interfaces/Decimator.h`
+- Open issues: None.
