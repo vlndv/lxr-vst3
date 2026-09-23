@@ -12,3 +12,12 @@ out/
 build/
 .vs/
 .vscode/
+
+# Ignore reference firmware and build artifacts
+ref/
+*.exe
+*.dll
+*.o
+*.obj
+out/
+build/
