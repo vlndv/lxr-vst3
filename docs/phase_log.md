@@ -37,7 +37,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | P5 | Envelopes: amp (attack, decay, slope, repeat), pitch decay, snap EG | DSPAudio/{SlopeEg2,Decay,snapEg}.c | P2, D2 | DONE |
 | P6 | Transient generator | DSPAudio/transientGenerator.c | P1, P5 | DONE |
 | P7 | Distortion and per-voice decimator | DSPAudio/distortion.c, mixer.c | P2 | DONE |
-| P8 | Drum voice D1-D3 (mix and FM modes, pitch EG, transient, filter, amp, distortion) | DSPAudio/DrumVoice.c | P3-P7 | TODO |
+| P8 | Drum voice D1-D3 (mix and FM modes, pitch EG, transient, filter, amp, distortion) | DSPAudio/DrumVoice.c | P3-P7 | DONE |
 | P9 | Snare, cymbal, hi-hat voices | DSPAudio/{Snare,CymbalVoice,HiHat}.c | P3-P7 | TODO |
 | P10 | LFO and modulation (per-parameter base + multiplier), velocity modulators, LFO retrigger and sync | DSPAudio/{lfo,modulationNode}.c | P8, P9, D2 | TODO |
 | P11 | Mixer: pan (sqrt LUT), routing, saturating sum, mutes | DSPAudio/mixer.c | P8, P9 | TODO |
@@ -123,3 +123,16 @@ Reason: filter and mappings are self-contained and testable first; voices need a
 - Quirks kept: `inv_shape` field declared but never used; `setShape` uses 128.f denominator (shape(127) = 254.0f exactly); float-to-int16 truncation without clamping (-32768 input becomes -32767); Decimator S&H counter logic (`cnt += voiceRate * allRate`).
 - Interfaces saved: `interfaces/Distortion.h`, `interfaces/Decimator.h`
 - Open issues: None.
+
+### P8 Drum voice D1-D3 — DONE — 2026-09-23
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/DrumVoice.{h,cpp}`, `dsp/DrumVoiceTest.cpp`
+- Tests passed: 11/11 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968
+- Quirks kept: 
+  - Phase reset only occurs if amp EG is closed (state == 0 or value <= 0.01f) OR transient waveform == 1 (offset mode)
+  - Sine start phase uses 1024 + ((1023 << 20) - 1024) * offset (not clean 0)
+  - TRI/SAW/REC start phase uses (0xff << 20) * offset
+  - bufferTool_addGainInterpolated uses i / (size - 1.f) for linear interpolation across 32-sample block
+  - Saturating int16 adds for oscillator mixing and transient mixing
+- Interfaces saved: `interfaces/DrumVoice.h`
+- Open issues: LFO struct is a minimal stub (P10 will provide full implementation); user samples (waveform >= 6) output silence
