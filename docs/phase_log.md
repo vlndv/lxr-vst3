@@ -40,7 +40,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | P8 | Drum voice D1-D3 (mix and FM modes, pitch EG, transient, filter, amp, distortion) | DSPAudio/DrumVoice.c | P3-P7 | DONE |
 | P9 | Snare, cymbal, hi-hat voices | DSPAudio/{Snare,CymbalVoice,HiHat}.c | P3-P7 | DONE |
 | P10 | LFO and modulation (per-parameter base + multiplier), velocity modulators, LFO retrigger and sync | DSPAudio/{lfo,modulationNode}.c | P8, P9, D2 | DONE |
-| P11 | Mixer: pan (sqrt LUT), routing, saturating sum, mutes | DSPAudio/mixer.c | P8, P9 | TODO |
+| P11 | Mixer: pan (sqrt LUT), routing, saturating sum, mutes | DSPAudio/mixer.c | P8, P9 | DONE |
 | P12 | Plugin shell: parameters (227 IDs from `param_map.md`), MIDI in (CC, NRPN, 7 channels + global, note override), outputs | MIDI/{MidiParser,MidiVoiceControl}.c | P11, D1 | TODO |
 | P13 | Reference-vector harness: render single hits from the port and compare against recordings and original-C vectors | n/a | P8-P11, D5 | TODO |
 | P14 | Review sequencer, kits/presets, front-panel layout (source not yet reviewed) | front/LxrAvr/, mainboard Sequencer/, preset storage | none | TODO |
@@ -165,3 +165,16 @@ Open issues:
 - Sine LFO uses `std::sin()` instead of OscTables.sine — should verify bit-identical output against original in P13
 - Random LFO uses `rand()` instead of original `GetRngValue()` — should match hardware RNG behavior in P13
 - Tempo sync scalers mapping inferred from architecture.md — exact values not verified against source
+
+### P11 Mixer — DONE — 2026-09-25
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Mixer.{h,cpp}`, `dsp/MixerTest.cpp`
+- Tests passed: 32/32 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968
+- Quirks kept:
+  - Pan LUT uses `sqrtLut[127-pan]` for L and `sqrtLut[pan]` for R, matching original `squareRootLut` indexing
+  - Saturating adds use int16 clamping (replaces ARM `__QADD16`)
+  - Decimation integrates P7 `Decimator` per-voice with global `rate_ALL` multiplier
+  - Routing simplified to 2 stereo buses (St1, St2) with mono sub-routes; jack-detect fallback dropped (not applicable to plugin)
+  - Mutes per track (NRPN 200-206) silence voices before mixing
+- Interfaces saved: `interfaces/Mixer.h`
+- Open issues: None
