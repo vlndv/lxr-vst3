@@ -1,3 +1,4 @@
+// FILE: docs/phase_log.md
 phase_log.md — LXR VST3 port
 Baseline: SonicPotions/LXR @ dee4968 (fw 0.37). Not the brendanclarke/Catalyst fork.
 Status: TODO / DOING / DONE / BLOCKED. Update one line per phase when it changes.
@@ -38,7 +39,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | P7 | Distortion and per-voice decimator | DSPAudio/distortion.c, mixer.c | P2 | DONE |
 | P8 | Drum voice D1-D3 (mix and FM modes, pitch EG, transient, filter, amp, distortion) | DSPAudio/DrumVoice.c | P3-P7 | DONE |
 | P9 | Snare, cymbal, hi-hat voices | DSPAudio/{Snare,CymbalVoice,HiHat}.c | P3-P7 | DONE |
-| P10 | LFO and modulation (per-parameter base + multiplier), velocity modulators, LFO retrigger and sync | DSPAudio/{lfo,modulationNode}.c | P8, P9, D2 | TODO |
+| P10 | LFO and modulation (per-parameter base + multiplier), velocity modulators, LFO retrigger and sync | DSPAudio/{lfo,modulationNode}.c | P8, P9, D2 | DONE |
 | P11 | Mixer: pan (sqrt LUT), routing, saturating sum, mutes | DSPAudio/mixer.c | P8, P9 | TODO |
 | P12 | Plugin shell: parameters (227 IDs from `param_map.md`), MIDI in (CC, NRPN, 7 channels + global, note override), outputs | MIDI/{MidiParser,MidiVoiceControl}.c | P11, D1 | TODO |
 | P13 | Reference-vector harness: render single hits from the port and compare against recordings and original-C vectors | n/a | P8-P11, D5 | TODO |
@@ -147,3 +148,20 @@ Quirks kept:
 - Lfo struct is a minimal stub (P10 will provide full implementation)
 Interfaces saved: `interfaces/Snare.h`, `interfaces/Cymbal.h`, `interfaces/HiHat.h`, `interfaces/Lfo.h`
 Open issues: None
+
+P10 LFO and modulation — DONE — 2026-09-25
+Prompt file: N/A (Generated directly by AI assistant)
+Output files: `dsp/Lfo.{h,cpp}`, `dsp/Modulation.{h,cpp}`, `dsp/LfoModulationTest.cpp`
+Tests passed: 18/18 (fail=0), verified against formulas from param_map.md
+Quirks kept:
+- `lfoFrequencyFromMidi` uses `(v+1)/128`, not `v/127` (formula: `((v+1)/128)^3 x 200` Hz)
+- `lfoPhaseOffsetFromMidi` saturates to `0xFFFFFFFF` at `v=127` (ARM float-to-uint32 behavior)
+- LFO phase is uint32 (for bit-shifting/wrapping in waveform generation)
+- Base+multiplier modulation approach: `multiplier *= (1 + amount * (modValue - 1))`
+- Velocity modulator uses `velocity/127.f` normalization
+- S&H (RANDOM) waveform holds value until phase wraps
+Interfaces saved: `interfaces/Lfo.h` (overwritten), `interfaces/Modulation.h` (new)
+Open issues:
+- Sine LFO uses `std::sin()` instead of OscTables.sine — should verify bit-identical output against original in P13
+- Random LFO uses `rand()` instead of original `GetRngValue()` — should match hardware RNG behavior in P13
+- Tempo sync scalers mapping inferred from architecture.md — exact values not verified against source
