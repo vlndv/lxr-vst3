@@ -169,12 +169,14 @@ Open issues:
 ### P11 Mixer — DONE — 2026-09-25
 - Prompt file: N/A (Generated directly by AI assistant)
 - Output files: `dsp/Mixer.{h,cpp}`, `dsp/MixerTest.cpp`
-- Tests passed: 32/32 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968
+- Tests passed: 28/28 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968
 - Quirks kept:
   - Pan LUT uses `sqrtLut[127-pan]` for L and `sqrtLut[pan]` for R, matching original `squareRootLut` indexing
   - Saturating adds use int16 clamping (replaces ARM `__QADD16`)
   - Decimation integrates P7 `Decimator` per-voice with global `rate_ALL` multiplier
   - Routing simplified to 2 stereo buses (St1, St2) with mono sub-routes; jack-detect fallback dropped (not applicable to plugin)
-  - Mutes per track (NRPN 200-206) silence voices before mixing
+  - Null buffer handling: `processBlock` safely skips voices with null buffers, allowing inactive voices to be omitted
 - Interfaces saved: `interfaces/Mixer.h`
+- Design notes:
+  - Per-track mute removed from Mixer. In the original firmware, muting is a pre-trigger sequencer gate (`seq_mutedTracks` bitmask in `sequencer.c`, toggled via NRPN 200-206), not a post-render audio gate — muted tracks simply never trigger a voice. Will be implemented at the trigger-dispatch layer in P12/P14, where all 7 tracks (including closed/open hi-hat distinction) can be handled correctly.
 - Open issues: None
