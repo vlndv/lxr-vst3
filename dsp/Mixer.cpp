@@ -12,12 +12,10 @@ void Mixer::init() {
     for (uint8_t v = 0; v < kNumVoices; v++) {
         routing[v] = ROUTE_ST1;
         pan[v] = 64;
-        mute[v] = false;
         decimators[v].init();
         decimationRate[v] = 1.0f;
     }
-    mute[6] = false;
-    decimationRate[6] = 1.0f;
+    decimationRate[6] = 1.0f; // global ALL
 }
 
 void Mixer::setPan(uint8_t voice, uint8_t panVal) {
@@ -26,10 +24,6 @@ void Mixer::setPan(uint8_t voice, uint8_t panVal) {
 
 void Mixer::setRouting(uint8_t voice, uint8_t route) {
     if (voice < kNumVoices && route <= ROUTE_ST2_R) routing[voice] = route;
-}
-
-void Mixer::setMute(uint8_t track, bool muted) {
-    if (track < kNumTracks) mute[track] = muted;
 }
 
 void Mixer::setDecimationRate(uint8_t voice, float rate) {
@@ -52,8 +46,6 @@ void Mixer::processBlock(int16_t* voiceBuffers[kNumVoices],
     }
     
     for (uint8_t v = 0; v < kNumVoices; v++) {
-        // Skip muted voices and inactive voices (null buffer)
-        if (mute[v]) continue;
         int16_t* buf = voiceBuffers[v];
         if (buf == nullptr) continue;
         
@@ -67,46 +59,28 @@ void Mixer::processBlock(int16_t* voiceBuffers[kNumVoices],
         switch (route) {
             case ROUTE_ST1:
                 for (uint8_t i = 0; i < size; i++) {
-                    int16_t l = static_cast<int16_t>(buf[i] * panL);
-                    int16_t r = static_cast<int16_t>(buf[i] * panR);
-                    outSt1L[i] = saturatingAdd(outSt1L[i], l);
-                    outSt1R[i] = saturatingAdd(outSt1R[i], r);
+                    outSt1L[i] = saturatingAdd(outSt1L[i], static_cast<int16_t>(buf[i] * panL));
+                    outSt1R[i] = saturatingAdd(outSt1R[i], static_cast<int16_t>(buf[i] * panR));
                 }
                 break;
-                
             case ROUTE_ST2:
                 for (uint8_t i = 0; i < size; i++) {
-                    int16_t l = static_cast<int16_t>(buf[i] * panL);
-                    int16_t r = static_cast<int16_t>(buf[i] * panR);
-                    outSt2L[i] = saturatingAdd(outSt2L[i], l);
-                    outSt2R[i] = saturatingAdd(outSt2R[i], r);
+                    outSt2L[i] = saturatingAdd(outSt2L[i], static_cast<int16_t>(buf[i] * panL));
+                    outSt2R[i] = saturatingAdd(outSt2R[i], static_cast<int16_t>(buf[i] * panR));
                 }
                 break;
-                
             case ROUTE_ST1_L:
-                for (uint8_t i = 0; i < size; i++) {
-                    outSt1L[i] = saturatingAdd(outSt1L[i], buf[i]);
-                }
+                for (uint8_t i = 0; i < size; i++) outSt1L[i] = saturatingAdd(outSt1L[i], buf[i]);
                 break;
-                
             case ROUTE_ST1_R:
-                for (uint8_t i = 0; i < size; i++) {
-                    outSt1R[i] = saturatingAdd(outSt1R[i], buf[i]);
-                }
+                for (uint8_t i = 0; i < size; i++) outSt1R[i] = saturatingAdd(outSt1R[i], buf[i]);
                 break;
-                
             case ROUTE_ST2_L:
-                for (uint8_t i = 0; i < size; i++) {
-                    outSt2L[i] = saturatingAdd(outSt2L[i], buf[i]);
-                }
+                for (uint8_t i = 0; i < size; i++) outSt2L[i] = saturatingAdd(outSt2L[i], buf[i]);
                 break;
-                
             case ROUTE_ST2_R:
-                for (uint8_t i = 0; i < size; i++) {
-                    outSt2R[i] = saturatingAdd(outSt2R[i], buf[i]);
-                }
+                for (uint8_t i = 0; i < size; i++) outSt2R[i] = saturatingAdd(outSt2R[i], buf[i]);
                 break;
-                
             default:
                 break;
         }
