@@ -41,7 +41,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | P6 | Transient generator | DSPAudio/transientGenerator.c | P1, P5 | DONE |
 | P7 | Distortion and per-voice decimator | DSPAudio/distortion.c, mixer.c | P2 | DONE |
 | P8 | Drum voice D1-D3 (mix and FM modes, pitch EG, transient, filter, amp, distortion) | DSPAudio/DrumVoice.c | P3-P7 | DONE |
-| P9 | Snare, cymbal, hi-hat voices | DSPAudio/{Snare,CymbalVoice,HiHat}.c | P3-P7 | TODO |
+| P9 | Snare, cymbal, hi-hat voices | DSPAudio/{Snare,CymbalVoice,HiHat}.c | P3-P7 | DONE |
 | P10 | LFO and modulation (per-parameter base + multiplier), velocity modulators, LFO retrigger and sync | DSPAudio/{lfo,modulationNode}.c | P8, P9, D2 | TODO |
 | P11 | Mixer: pan (sqrt LUT), routing, saturating sum, mutes | DSPAudio/mixer.c | P8, P9 | TODO |
 | P12 | Plugin shell: parameters (227 IDs from `param_map.md`), MIDI in (CC, NRPN, 7 channels + global, note override), outputs | MIDI/{MidiParser,MidiVoiceControl}.c | P11, D1 | TODO |
@@ -139,3 +139,17 @@ Reason: filter and mappings are self-contained and testable first; voices need a
   - Saturating int16 adds for oscillator mixing and transient mixing
 - Interfaces saved: `interfaces/DrumVoice.h`
 - Open issues: LFO struct is a minimal stub (P10 will provide full implementation); user samples (waveform >= 6) output silence
+
+### P9 Snare, Cymbal, Hi-Hat voices — DONE — 2026-09-24
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Snare.{h,cpp}`, `dsp/Cymbal.{h,cpp}`, `dsp/HiHat.{h,cpp}`, `dsp/Lfo.h`, `dsp/SnareCymbalHiHatTest.cpp`
+- Tests passed: 47/47 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968
+- Quirks kept: 
+  - Snare/Cymbal/HiHat use (0x3ff << 20) for SINE phase reset (not DrumVoice's 1024 + ((1023<<20)-1024)*offset)
+  - Snare/Cymbal/HiHat apply amp EG as per-block constant (no interpolation, unlike DrumVoice)
+  - Cymbal/HiHat only update osc.pitchMod when transient wave == 0
+  - HiHat uses gain 0.5 for main osc FM, Cymbal uses 1.0
+  - HiHat picks decay per trigger (closed/open)
+  - Lfo struct is a minimal stub (P10 will provide full implementation)
+- Interfaces saved: `interfaces/Snare.h`, `interfaces/Cymbal.h`, `interfaces/HiHat.h`, `interfaces/Lfo.h`
+- Open issues: None

@@ -1,4 +1,4 @@
-// FILE: dsp/DrumVoice.h
+// FILE: interfaces/DrumVoice.h
 #pragma once
 #include <cstdint>
 #include "Oscillator.h"
@@ -6,19 +6,9 @@
 #include "Distortion.h"
 #include "Envelopes.h"
 #include "TransientGen.h"
+#include "Lfo.h"
 
 namespace lxr {
-
-// STUB: LFO is implemented in P10. This minimal struct preserves memory layout.
-struct Lfo {
-    float phase = 0.f;
-    float rate = 0.f;
-    uint8_t waveform = 0;
-    uint8_t retrigger = 0;
-    uint8_t sync = 0;
-    uint32_t phaseOffset = 0;
-    float amount = 0.f;
-};
 
 struct DrumVoice {
     OscInfo osc;
@@ -34,14 +24,14 @@ struct DrumVoice {
     float offset = 0.f;
     
     TransientGen transGen;
-    Lfo lfo; // STUB for P10
+    Lfo lfo;
     AmpEg oscVolEg;
     float egValueOscVol = 0.f;
-    float volEgValueBlock[32]; // OUTPUT_DMA_SIZE
+    float volEgValueBlock[32];
     
     Distortion distortion;
     ResonantFilter filter;
-    uint8_t filterType = 1; // FILTER_LP
+    uint8_t filterType = 1;
     
     bool mixOscs = true;
     float decimationCnt = 0.f;
@@ -53,7 +43,7 @@ struct DrumVoice {
     float lastGain = 0.f;
     float targetGain = 0.f;
     
-    OscRng rng; // Per-voice RNG for noise
+    OscRng rng;
 
     void init();
     void trigger(uint8_t vol, uint8_t note, const float* noteFreq);

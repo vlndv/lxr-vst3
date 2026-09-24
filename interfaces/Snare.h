@@ -1,4 +1,4 @@
-// FILE: dsp/DrumVoice.h
+// FILE: dsp/Snare.h
 #pragma once
 #include <cstdint>
 #include "Oscillator.h"
@@ -10,46 +10,37 @@
 
 namespace lxr {
 
-struct DrumVoice {
+struct SnareVoice {
     OscInfo osc;
-    OscInfo modOsc;
-    float fmModAmount = 0.5f;
+    OscInfo noiseOsc;
+    uint8_t filterType = 1; // FILTER_LP
     float vol = 0.8f;
-    float velo = 0.f;
     uint8_t pan = 0;
+    float mix = 0.5f; // 0 = 100% osc, 1 = 100% noise
+    float velo = 0.f;
     int16_t oscSample = 0;
+    int32_t noiseSample = 0;
     
+    ResonantFilter filter;
     PitchDecayEg oscPitchEg;
     float egPitchModAmount = 0.5f;
-    float offset = 0.f;
     
-    TransientGen transGen;
     Lfo lfo; // STUB for P10
+    TransientGen transGen;
     AmpEg oscVolEg;
     float egValueOscVol = 0.f;
-    float volEgValueBlock[32];
     
     Distortion distortion;
-    ResonantFilter filter;
-    uint8_t filterType = 1;
-    
-    bool mixOscs = true;
-    float decimationCnt = 0.f;
-    float decimationRate = 1.f;
     SnapEg snapEg;
-    
     uint8_t volumeMod = 1;
-    
-    float lastGain = 0.f;
-    float targetGain = 0.f;
     
     OscRng rng;
 
     void init();
-    void trigger(uint8_t vol, uint8_t note, const float* noteFreq);
+    void trigger(uint8_t vel, uint8_t note, const float* noteFreq);
     void calcAsync(const float* noteFreq);
     void calcSyncBlock(int16_t* buf, uint8_t size, const OscTables& tables);
-    void setPan(uint8_t p);
+    void setPan(uint8_t pan);
 };
 
 } // namespace lxr

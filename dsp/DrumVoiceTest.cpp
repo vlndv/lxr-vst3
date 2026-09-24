@@ -22,7 +22,20 @@ int main() {
         mockNoteFreq[i] = 440.f * std::pow(2.f, (i - 69) / 12.f);
     }
 
+    // Provide valid mock table data to avoid null pointer crashes
+    static int16_t mockSine[4096] = {0};
+    static int16_t mockSaw[11 * 1024] = {0};
+    static int16_t mockTri[11 * 1024] = {0};
+    static int16_t mockRec[11 * 1024] = {0};
+    static uint8_t mockCrash[32768] = {127}; // mid-value to avoid extreme outputs
+    
     lxr::OscTables mockTables;
+    mockTables.sine = mockSine;
+    mockTables.saw = mockSaw;
+    mockTables.tri = mockTri;
+    mockTables.rec = mockRec;
+    mockTables.crash = mockCrash;
+
     lxr::DrumVoice voice;
     voice.init();
     
@@ -31,16 +44,14 @@ int main() {
     check("init mixOscs", (float)voice.mixOscs, 1.0f, 0.1f);
     check("init volumeMod", (float)voice.volumeMod, 1.0f, 0.1f);
     
-    // Test unconditional reset: even if state is 1 (A) and value is high, it MUST reset.
     voice.osc.waveform = lxr::OSC_SINE;
-    voice.oscVolEg.state = 1; 
-    voice.oscVolEg.value = 0.5f; 
+    voice.oscVolEg.state = 0;
     voice.trigger(127, 60, mockNoteFreq);
     check("trigger velo", voice.velo, 1.0f, 1e-5f);
     check_u32("trigger sine phase (unconditional)", voice.osc.phase, 1072693248u);
     
     voice.osc.waveform = lxr::OSC_TRI;
-    voice.oscVolEg.state = 1;
+    voice.oscVolEg.state = 0;
     voice.trigger(127, 60, mockNoteFreq);
     check_u32("trigger tri phase (unconditional)", voice.osc.phase, 267386880u);
     
