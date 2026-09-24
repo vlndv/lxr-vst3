@@ -1,14 +1,8 @@
 // FILE: dsp/Modulation.h
 #pragma once
 #include <cstdint>
-#include "Lfo.h"
 
 namespace lxr {
-
-// Base + multiplier approach for modulation
-// Each modulated parameter has a base value and a multiplier
-// Final value = base * multiplier
-// Modulators contribute: multiplier *= (1 + amount * (mod - 1))
 
 struct ModTarget {
     float baseValue = 1.0f;
@@ -19,9 +13,6 @@ struct ModTarget {
     }
     
     void applyModulation(float modValue, float amount) {
-        // ORIGINAL QUIRK: formula from architecture.md
-        // target = target x (amount x mod + (1-amount) x 1)
-        // Simplified: target = target x (1 + amount * (mod - 1))
         multiplier *= (1.0f + amount * (modValue - 1.0f));
     }
     
@@ -31,25 +22,24 @@ struct ModTarget {
 };
 
 struct VelocityModulator {
-    uint8_t destination = 0;  // PAR index
+    uint8_t destination = 0;
     float amount = 0.f;
-    float modValue = 0.f;     // velocity/127
+    float modValue = 0.f;
     
     void init();
     void updateVelocity(uint8_t velocity);
     void applyTo(ModTarget& target);
 };
 
-// Global modulation system
-class ModulationSystem {
-public:
-    VelocityModulator velocityMods[6];  // one per voice
+// NOTE: Removed global `gModulationSystem`. 
+// ModulationSystem should be instantiated per-plugin-instance in P12 to avoid 
+// cross-instance data races in a VST3 host.
+struct ModulationSystem {
+    VelocityModulator velocityMods[6];
     
     void init();
-    void resetTargets();
+    void resetTargets(); // Stub: deferred to P11/P12 when PAR routing is wired
     void updateVelocity(uint8_t voiceNum, uint8_t velocity);
 };
-
-extern ModulationSystem gModulationSystem;
 
 } // namespace lxr

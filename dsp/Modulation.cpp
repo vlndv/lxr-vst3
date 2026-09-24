@@ -17,8 +17,6 @@ void VelocityModulator::applyTo(ModTarget& target) {
     target.applyModulation(modValue, amount);
 }
 
-ModulationSystem gModulationSystem;
-
 void ModulationSystem::init() {
     for (int i = 0; i < 6; i++) {
         velocityMods[i].init();
@@ -26,8 +24,8 @@ void ModulationSystem::init() {
 }
 
 void ModulationSystem::resetTargets() {
-    // Reset all modulation targets
-    // This would be called once per block before applying modulation
+    // Stub: Deferred to P11/P12. Will iterate over active modulators and 
+    // reset their target ModTarget::multiplier to 1.0f before each block.
 }
 
 void ModulationSystem::updateVelocity(uint8_t voiceNum, uint8_t velocity) {
