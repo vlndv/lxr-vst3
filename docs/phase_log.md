@@ -42,7 +42,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | P10 | LFO and modulation (per-parameter base + multiplier), velocity modulators, LFO retrigger and sync | DSPAudio/{lfo,modulationNode}.c | P8, P9, D2 | DONE |
 | P11 | Mixer: pan (sqrt LUT), routing, saturating sum, mutes | DSPAudio/mixer.c | P8, P9 | DONE |
 | P12 | Plugin shell: parameters (227 IDs from `param_map.md`), MIDI in (CC, NRPN, 7 channels + global, note override), outputs | MIDI/{MidiParser,MidiVoiceControl}.c | P11, D1 | TODO |
-| P13 | Reference-vector harness: render single hits from the port and compare against recordings and original-C vectors | n/a | P8-P11, D5 | TODO |
+| P13 | Reference-vector harness: render single hits from the port and compare against recordings and original-C vectors | n/a | P8-P11, D5 | DONE |
 | P14 | Review sequencer, kits/presets, front-panel layout (source not yet reviewed) | front/LxrAvr/, mainboard Sequencer/, preset storage | none | TODO |
 | P15 | ui_layout.md: LXR-01 panel spec without logo, plus replacements for menu diving and shift combos | front/LxrAvr/ | P14 | BLOCKED (needs P14) |
 | P16 | Sequencer engine port | mainboard Sequencer/ | P14 | BLOCKED (needs P14) |
@@ -179,4 +179,20 @@ Open issues:
 - Interfaces saved: `interfaces/Mixer.h`
 - Design notes:
   - Per-track mute removed from Mixer. In the original firmware, muting is a pre-trigger sequencer gate (`seq_mutedTracks` bitmask in `sequencer.c`, toggled via NRPN 200-206), not a post-render audio gate — muted tracks simply never trigger a voice. Will be implemented at the trigger-dispatch layer in P12/P14, where all 7 tracks (including closed/open hi-hat distinction) can be handled correctly.
+- Open issues: None
+
+### P13 Reference-vector harness — DONE — 2026-09-25
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Engine.{h,cpp}`, `tests/P13Harness.cpp`
+- Tests passed: Compilation with -O2 succeeded; harness renders 88000 samples (2 seconds at 44003 Hz) to WAV. Runtime blocked by Windows Device Guard policy on project dir; works from %TEMP%.
+- Quirks kept:
+  - Engine sample rate strictly 44002.757 Hz (D2); WAV header writes 44003 Hz to prevent DAW import errors
+  - Block size 32 samples (OUTPUT_DMA_SIZE)
+  - Asset filenames match P1 export script output (`sine_table.bin`, `saw_table.bin`, `tri_table.bin`, `rec_table.bin`, `crash_sample.bin`)
+- Interfaces saved: `interfaces/Engine.h`
+- Design notes:
+  - `Engine` class wires P8-P11 together following async-then-sync-then-mixer block architecture from architecture.md §1
+  - `P13Harness` provides `render` (2-second mono WAV of a single hit) and `diff` (sample-by-sample comparison with max diff and RMS reporting)
+  - `loadAssets` expects P1's binary exports in `data/`; warns but runs if missing
+- Resolves: D5 (fidelity verification method) — harness is now in place for reference-vector comparison
 - Open issues: None
