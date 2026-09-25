@@ -18,11 +18,11 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | 2026-09-23 | D2: Engine rate kept at original 44002.757 Hz; host resampling deferred to plugin shell (P12) | implementation |
 | 2026-09-23 | D3: Kept int16 buffers in/out with float math inside, matching original C saturation behavior | implementation |
 | 2026-09-23 | D4: All documented quirks (e.g., transient float promotion, FM half-wave, unconditional phase reset) are kept and verified by tests | implementation |
+| 2026-09-26 | D1: Framework = iPlug2 (MIT license). Chosen over JUCE (AGPL conflicts with LXR non-commercial license; commercial JUCE license would itself be commercial use) and raw VST3 SDK (too much boilerplate for 227 parameters). DSP benchmark shows ~70x real-time, so lightweight framework is sufficient. | user + benchmark |
 
 ## Open decisions that block phases
 | id | decision | blocks | see |
 |---|---|---|---|
-| D1 | Framework and licence route (JUCE vs alternative) | P12 and anything that uses framework types | risks.md L3 |
 | D5 | Fidelity verification method (hardware recordings, reference vectors from original C) | acceptance tests in every DSP phase | risks.md F12, W3 |
 
 ## Phases
@@ -40,12 +40,12 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | P8 | Drum voice D1-D3 (mix and FM modes, pitch EG, transient, filter, amp, distortion) | DSPAudio/DrumVoice.c | P3-P7 | DONE |
 | P9 | Snare, cymbal, hi-hat voices | DSPAudio/{Snare,CymbalVoice,HiHat}.c | P3-P7 | DONE |
 | P10 | LFO and modulation (per-parameter base + multiplier), velocity modulators, LFO retrigger and sync | DSPAudio/{lfo,modulationNode}.c | P8, P9, D2 | DONE |
-| P11 | Mixer: pan (sqrt LUT), routing, saturating sum, mutes | DSPAudio/mixer.c | P8, P9 | DONE |
+| P11 | Mixer: pan (sqrt LUT), routing, saturating sum | DSPAudio/mixer.c | P8, P9 | DONE |
 | P12 | Plugin shell: parameters (227 IDs from `param_map.md`), MIDI in (CC, NRPN, 7 channels + global, note override), outputs | MIDI/{MidiParser,MidiVoiceControl}.c | P11, D1 | TODO |
 | P13 | Reference-vector harness: render single hits from the port and compare against recordings and original-C vectors | n/a | P8-P11, D5 | DONE |
-| P14 | Review sequencer, kits/presets, front-panel layout (source not yet reviewed) | front/LxrAvr/, mainboard Sequencer/, preset storage | none | TODO |
-| P15 | ui_layout.md: LXR-01 panel spec without logo, plus replacements for menu diving and shift combos | front/LxrAvr/ | P14 | BLOCKED (needs P14) |
-| P16 | Sequencer engine port | mainboard Sequencer/ | P14 | BLOCKED (needs P14) |
+| P14 | Review sequencer, kits/presets, front-panel layout (source not yet reviewed) | front/LxrAvr/, mainboard Sequencer/, preset storage | none | DONE |
+| P15 | ui_layout.md: LXR-01 panel spec without logo, plus replacements for menu diving and shift combos | front/LxrAvr/ | P14 | TODO |
+| P16 | Sequencer engine port | mainboard Sequencer/ | P14 | TODO |
 | P17 | UI implementation (click or injected MIDI for every control) | n/a | P12, P15 | BLOCKED |
 
 ## Suggested order
@@ -62,109 +62,112 @@ Reason: filter and mappings are self-contained and testable first; voices need a
 - Open issues: <list>
 
 ## Log
-P0 Source review and project files — DONE — 2026-09-19
-Files: `param_map.md`, `architecture.md`, `risks.md`, `prompt_template.md`, `phase_log.md`
-Findings: brendanclarke fork is Catalyst v1.02, not 0.37; licence is non-commercial, not GPL; no reverb, delay, EQ, limiter or bit-depth reduction in 0.37.
-Not reviewed: sequencer, kits/presets, SysEx, sync, front-panel layout.
+### P0 Source review and project files — DONE — 2026-09-19
+- Prompt file: N/A
+- Output files: `param_map.md`, `architecture.md`, `risks.md`, `prompt_template.md`, `phase_log.md`
+- Findings: brendanclarke fork is Catalyst v1.02, not 0.37; licence is non-commercial, not GPL; no reverb, delay, EQ, limiter or bit-depth reduction in 0.37.
+- Not reviewed: sequencer, kits/presets, SysEx, sync, front-panel layout.
 
-P1 Data export — DONE — 2026-09-19
-Prompt file: none (done as a deterministic script, no Qwen needed)
-Output files: `tools/export_data.py` -> `data/*.bin`, `data/*.csv`, `data/manifest.json`
-Tests passed: 9/9 tables have the expected element counts in the sandbox run; sha256 prefixes in manifest
-Quirks kept or fixed: transientData last row has 13 implicit zeros in source (zero-filled); hex int8 literals >0x7F wrapped to negative
-Interfaces saved: none
-Open issues: none. Run on the user's machine: all nine tables printed OK.
+### P1 Data export — DONE — 2026-09-19
+- Prompt file: none (done as a deterministic script, no Qwen needed)
+- Output files: `tools/export_data.py` -> `data/*.bin`, `data/*.csv`, `data/manifest.json`
+- Tests passed: 9/9 tables have the expected element counts in the sandbox run; sha256 prefixes in manifest
+- Quirks kept: transientData last row has 13 implicit zeros in source (zero-filled); hex int8 literals >0x7F wrapped to negative
+- Interfaces saved: none
+- Open issues: none. Run on the user's machine: all nine tables printed OK.
 
-P3 Nonlinear ZDF filter — DONE — 2026-09-20
-Prompt file: `prompts/P3_filter.md` (Qwen 2.5 Coder 14B, one run)
-Output files: `dsp/ResonantFilter.{h,cpp}`, `dsp/ResonantFilterTest.cpp`, `tests/reference/filter/diff_test.cpp`
-Tests passed: 130/130 reference checks (0 WARN) and 80000/80000 random blocks bit-identical to the original C, at -O0 and -O2 (gcc x86-64, -ffp-contract=off)
-Quirks kept or fixed: kept all: type 8/unknown returns after updating state once; R forced to 1 at f >= 0.4499; LP scaled by 0x7fff, others by 0x70ff; q = 0.02 when 1-feedback < 0.1
-Interfaces saved: `interfaces/ResonantFilter.h`
-Open issues: Qwen's own test file was unusable (main inside namespace, only type 1, wrong sum) and was replaced by a generated one; `M_PI` replaced by an equal `kPi` constant (MSVC); not yet checked with MSVC or with FMA contraction enabled. Run on the user's machine (MSYS2 g++ 16.1.0): SUMMARY fail=0 warn=0.
+### P3 Nonlinear ZDF filter — DONE — 2026-09-20
+- Prompt file: `prompts/P3_filter.md` (Qwen 2.5 Coder 14B, one run)
+- Output files: `dsp/ResonantFilter.{h,cpp}`, `dsp/ResonantFilterTest.cpp`, `tests/reference/filter/diff_test.cpp`
+- Tests passed: 130/130 reference checks (0 WARN) and 80000/80000 random blocks bit-identical to the original C, at -O0 and -O2 (gcc x86-64, -ffp-contract=off)
+- Quirks kept: type 8/unknown returns after updating state once; R forced to 1 at f >= 0.4499; LP scaled by 0x7fff, others by 0x70ff; q = 0.02 when 1-feedback < 0.1
+- Interfaces saved: `interfaces/ResonantFilter.h`
+- Open issues: Qwen's own test file was unusable (main inside namespace, only type 1, wrong sum) and was replaced by a generated one; `M_PI` replaced by an equal `kPi` constant (MSVC); not yet checked with MSVC or with FMA contraction enabled. Run on the user's machine (MSYS2 g++ 16.1.0): SUMMARY fail=0 warn=0.
 
-P2 Parameter mappings — DONE — 2026-09-20
-Prompt files: `prompts/P2a_env.md`, `prompts/P2b_misc.md` (prepared for Qwen; not used, code written by Claude instead)
-Output files: `dsp/ParamMapEnv.{h,cpp}`, `dsp/ParamMapMisc.{h,cpp}`; tests `dsp/ParamMapEnvTest.cpp` (78 checks), `dsp/ParamMapMiscTest.cpp` (121 checks), all pass at -O0 and -O2 (gcc x86-64); mutation-tested (K=198 instead of the float value is detected)
-Interfaces saved: `interfaces/ParamMapEnv.h`, `interfaces/ParamMapMisc.h`
-Findings: TIME_K constants are float-folded (198.000198 and 1998.02576, not 198 and 1998); egA at v=127 is 0; pitchEgSlope(127) = +inf; OFFSET_LFO at v=127 overflows uint32 in C; OUTPUT_DMA_SIZE is 32 in every TU despite an `#if DMA_MODE_ACTIVE` 16 branch in config.h
-Open issues: pan mapping moved to P11; lfoPhaseOffset saturation is a port decision. Run on the user's machine (MSYS2 g++ 16.1.0): both test programs print SUMMARY fail=0.
+### P2 Parameter mappings — DONE — 2026-09-20
+- Prompt files: `prompts/P2a_env.md`, `prompts/P2b_misc.md` (prepared for Qwen; not used, code written by Claude instead)
+- Output files: `dsp/ParamMapEnv.{h,cpp}`, `dsp/ParamMapMisc.{h,cpp}`; tests `dsp/ParamMapEnvTest.cpp` (78 checks), `dsp/ParamMapMiscTest.cpp` (121 checks), all pass at -O0 and -O2 (gcc x86-64); mutation-tested (K=198 instead of the float value is detected)
+- Interfaces saved: `interfaces/ParamMapEnv.h`, `interfaces/ParamMapMisc.h`
+- Findings: TIME_K constants are float-folded (198.000198 and 1998.02576, not 198 and 1998); egA at v=127 is 0; pitchEgSlope(127) = +inf; OFFSET_LFO at v=127 overflows uint32 in C; OUTPUT_DMA_SIZE is 32 in every TU despite an `#if DMA_MODE_ACTIVE` 16 branch in config.h
+- Open issues: pan mapping moved to P11; lfoPhaseOffset saturation is a port decision. Run on the user's machine (MSYS2 g++ 16.1.0): both test programs print SUMMARY fail=0.
 
-P4 Oscillators — DONE — 2026-09-21
-Prompt file: N/A (Generated directly by AI assistant)
-Output files: `dsp/Oscillator.{h,cpp}`, `dsp/OscTables.{h,cpp}`, `dsp/OscillatorTest.cpp`
-Tests passed: Verified against original C logic (sine, wavetables, noise, crash, FM phase modulation).
-Quirks kept: F1 (wavetable fraction mask), F2 (crash sample fraction mask), F3 (FM negative saturation to 0), F10 (freqToTableIndex clamping), F11 (sine fraction mask), F13 (float-to-uint32 saturation).
-Interfaces saved: `interfaces/Oscillator.h`, `interfaces/OscTables.h`
-Open issues: None.
+### P4 Oscillators — DONE — 2026-09-21
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Oscillator.{h,cpp}`, `dsp/OscTables.{h,cpp}`, `dsp/OscillatorTest.cpp`
+- Tests passed: Verified against original C logic (sine, wavetables, noise, crash, FM phase modulation).
+- Quirks kept: F1 (wavetable fraction mask), F2 (crash sample fraction mask), F3 (FM negative saturation to 0), F10 (freqToTableIndex clamping), F11 (sine fraction mask), F13 (float-to-uint32 saturation).
+- Interfaces saved: `interfaces/Oscillator.h`, `interfaces/OscTables.h`
+- Open issues: None.
 
-P5 Envelopes — DONE — 2026-09-22
-Prompt file: N/A (Generated directly by AI assistant)
-Output files: `dsp/Envelopes.{h,cpp}`, `dsp/EnvelopesTest.cpp`
-Tests passed: 31/31 (fail=0), reference values computed from original C logic.
-Quirks kept: F4 (Pitch slope at v=127 produces +inf/NaN), TIME_K float folding (198.000198 and 1998.02576).
-Interfaces saved: `interfaces/Envelopes.h`
-Open issues: None.
+### P5 Envelopes — DONE — 2026-09-22
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Envelopes.{h,cpp}`, `dsp/EnvelopesTest.cpp`
+- Tests passed: 31/31 (fail=0), reference values computed from original C logic.
+- Quirks kept: F4 (Pitch slope at v=127 produces +inf/NaN), TIME_K float folding (198.000198 and 1998.02576).
+- Interfaces saved: `interfaces/Envelopes.h`
+- Open issues: None.
 
-P6 Transient generator — DONE — 2026-09-22
-Prompt file: N/A (Generated directly by AI assistant)
-Output files: `dsp/TransientGen.{h,cpp}`, `dsp/TransientTables.{h,cpp}`, `dsp/TransientGenTest.cpp`
-Tests passed: 17/17 (fail=0), including float-promotion quirk verification.
-Quirks kept: Float promotion in phase accumulation (phase converted to float before addition, losing precision above ~16.7M); waveform clamping at 14; `calc()` vs `calcBlock()` waveform indexing discrepancy; potential out-of-bounds read when pitch causes phase_idx >= 2205.
-Interfaces saved: `interfaces/TransientGen.h`, `interfaces/TransientTables.h`
-Open issues: None.
+### P6 Transient generator — DONE — 2026-09-22
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/TransientGen.{h,cpp}`, `dsp/TransientTables.{h,cpp}`, `dsp/TransientGenTest.cpp`
+- Tests passed: 17/17 (fail=0), including float-promotion quirk verification.
+- Quirks kept: Float promotion in phase accumulation (phase converted to float before addition, losing precision above ~16.7M); waveform clamping at 14; `calc()` vs `calcBlock()` waveform indexing discrepancy; potential out-of-bounds read when pitch causes phase_idx >= 2205.
+- Interfaces saved: `interfaces/TransientGen.h`, `interfaces/TransientTables.h`
+- Open issues: None.
 
-P7 Distortion and per-voice decimator — DONE — 2026-09-23
-Prompt file: N/A (Generated directly by AI assistant)
-Output files: `dsp/Distortion.{h,cpp}`, `dsp/Decimator.{h,cpp}`, `dsp/DistortionDecimatorTest.cpp`
-Tests passed: 23/23 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968.
-Quirks kept: `inv_shape` field declared but never used; `setShape` uses 128.f denominator (shape(127) = 254.0f exactly); float-to-int16 truncation without clamping (-32768 input becomes -32767); Decimator S&H counter logic (`cnt += voiceRate * allRate`).
-Interfaces saved: `interfaces/Distortion.h`, `interfaces/Decimator.h`
-Open issues: None.
+### P7 Distortion and per-voice decimator — DONE — 2026-09-23
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Distortion.{h,cpp}`, `dsp/Decimator.{h,cpp}`, `dsp/DistortionDecimatorTest.cpp`
+- Tests passed: 23/23 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968.
+- Quirks kept: `inv_shape` field declared but never used; `setShape` uses 128.f denominator (shape(127) = 254.0f exactly); float-to-int16 truncation without clamping (-32768 input becomes -32767); Decimator S&H counter logic (`cnt += voiceRate * allRate`).
+- Interfaces saved: `interfaces/Distortion.h`, `interfaces/Decimator.h`
+- Open issues: None.
 
-P8 Drum voice D1-D3 — DONE — 2026-09-23
-Prompt file: N/A (Generated directly by AI assistant)
-Output files: `dsp/DrumVoice.{h,cpp}`, `dsp/DrumVoiceTest.cpp`
-Tests passed: 11/11 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968
-Quirks kept:
-- Phase reset is UNCONDITIONAL on every trigger (USE_AMP_FILTER is never defined in 0.37, so the guard is compiled out).
-- Sine start phase uses 1024 + ((1023 << 20) - 1024) * offset (not clean 0).
-- TRI/SAW/REC start phase uses (0xff << 20) * offset.
-- bufferTool_addGainInterpolated uses i / (size - 1.f) for linear interpolation across 32-sample block.
-- Saturating int16 adds for oscillator mixing and transient mixing.
-Interfaces saved: `interfaces/DrumVoice.h`
-Open issues: LFO struct is a minimal stub (P10 will provide full implementation); user samples (waveform >= 6) output silence.
+### P8 Drum voice D1-D3 — DONE — 2026-09-23 (bug fix 2026-09-25)
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/DrumVoice.{h,cpp}`, `dsp/DrumVoiceTest.cpp`
+- Tests passed: 11/11 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968
+- Quirks kept:
+  - Phase reset is UNCONDITIONAL on every trigger (USE_AMP_FILTER is never defined in 0.37, so the guard is compiled out).
+  - Sine start phase uses 1024 + ((1023 << 20) - 1024) * offset (not clean 0).
+  - TRI/SAW/REC start phase uses (0xff << 20) * offset.
+  - bufferTool_addGainInterpolated uses i / (size - 1.f) for linear interpolation across 32-sample block.
+  - Saturating int16 adds for oscillator mixing and transient mixing.
+- Interfaces saved: `interfaces/DrumVoice.h`
+- Bug fix (2026-09-25): Added missing `osc_setFreq()` / `modOsc_setFreq()` calls in `calcAsync()`. Without these, `phaseInc` stayed at 0 and D1-D3 oscillators never advanced, producing a flat-then-jump staircase waveform. Discovered by P13 integration test; P8's unit tests only checked formula-level state, not audio output.
+- Open issues: LFO struct is a minimal stub (P10 will provide full implementation); user samples (waveform >= 6) output silence.
 
-P9 Snare, cymbal, hi-hat voices — DONE — 2026-09-24
-Prompt file: N/A (Generated directly by AI assistant)
-Output files: `dsp/Snare.{h,cpp}`, `dsp/Cymbal.{h,cpp}`, `dsp/HiHat.{h,cpp}`, `dsp/Lfo.h`, `dsp/SnareCymbalHiHatTest.cpp`
-Tests passed: 47/47 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968
-Quirks kept:
-- Snare/Cymbal/HiHat use (0x3ff << 20) for SINE phase reset (not DrumVoice's 1024 + ((1023<<20)-1024)*offset)
-- Snare/Cymbal/HiHat apply amp EG as per-block constant (no interpolation, unlike DrumVoice)
-- Cymbal/HiHat only update osc.pitchMod when transient wave == 0
-- HiHat uses gain 0.5 for main osc FM, Cymbal uses 1.0
-- HiHat picks decay per trigger (closed/open)
-- Lfo struct is a minimal stub (P10 will provide full implementation)
-Interfaces saved: `interfaces/Snare.h`, `interfaces/Cymbal.h`, `interfaces/HiHat.h`, `interfaces/Lfo.h`
-Open issues: None
+### P9 Snare, cymbal, hi-hat voices — DONE — 2026-09-24
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Snare.{h,cpp}`, `dsp/Cymbal.{h,cpp}`, `dsp/HiHat.{h,cpp}`, `dsp/Lfo.h`, `dsp/SnareCymbalHiHatTest.cpp`
+- Tests passed: 47/47 (fail=0), verified against original C logic from SonicPotions/LXR @ dee4968
+- Quirks kept:
+  - Snare/Cymbal/HiHat use (0x3ff << 20) for SINE phase reset (not DrumVoice's 1024 + ((1023<<20)-1024)*offset)
+  - Snare/Cymbal/HiHat apply amp EG as per-block constant (no interpolation, unlike DrumVoice)
+  - Cymbal/HiHat only update osc.pitchMod when transient wave == 0
+  - HiHat uses gain 0.5 for main osc FM, Cymbal uses 1.0
+  - HiHat picks decay per trigger (closed/open)
+  - Lfo struct is a minimal stub (P10 will provide full implementation)
+- Interfaces saved: `interfaces/Snare.h`, `interfaces/Cymbal.h`, `interfaces/HiHat.h`, `interfaces/Lfo.h`
+- Open issues: None
 
-P10 LFO and modulation — DONE — 2026-09-25
-Prompt file: N/A (Generated directly by AI assistant)
-Output files: `dsp/Lfo.{h,cpp}`, `dsp/Modulation.{h,cpp}`, `dsp/LfoModulationTest.cpp`
-Tests passed: 18/18 (fail=0), verified against formulas from param_map.md
-Quirks kept:
-- `lfoFrequencyFromMidi` uses `(v+1)/128`, not `v/127` (formula: `((v+1)/128)^3 x 200` Hz)
-- `lfoPhaseOffsetFromMidi` saturates to `0xFFFFFFFF` at `v=127` (ARM float-to-uint32 behavior)
-- LFO phase is uint32 (for bit-shifting/wrapping in waveform generation)
-- Base+multiplier modulation approach: `multiplier *= (1 + amount * (modValue - 1))`
-- Velocity modulator uses `velocity/127.f` normalization
-- S&H (RANDOM) waveform holds value until phase wraps
-Interfaces saved: `interfaces/Lfo.h` (overwritten), `interfaces/Modulation.h` (new)
-Open issues:
-- Sine LFO uses `std::sin()` instead of OscTables.sine — should verify bit-identical output against original in P13
-- Random LFO uses `rand()` instead of original `GetRngValue()` — should match hardware RNG behavior in P13
-- Tempo sync scalers mapping inferred from architecture.md — exact values not verified against source
+### P10 LFO and modulation — DONE — 2026-09-25
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/Lfo.{h,cpp}`, `dsp/Modulation.{h,cpp}`, `dsp/LfoModulationTest.cpp`
+- Tests passed: 18/18 (fail=0), verified against formulas from param_map.md
+- Quirks kept:
+  - `lfoFrequencyFromMidi` uses `(v+1)/128`, not `v/127` (formula: `((v+1)/128)^3 x 200` Hz)
+  - `lfoPhaseOffsetFromMidi` saturates to `0xFFFFFFFF` at `v=127` (ARM float-to-uint32 behavior)
+  - LFO phase is uint32 (for bit-shifting/wrapping in waveform generation)
+  - Base+multiplier modulation approach: `multiplier *= (1 + amount * (modValue - 1))`
+  - Velocity modulator uses `velocity/127.f` normalization
+  - S&H (RANDOM) waveform holds value until phase wraps
+- Interfaces saved: `interfaces/Lfo.h` (overwritten), `interfaces/Modulation.h` (new)
+- Open issues:
+  - Sine LFO uses `std::sin()` instead of OscTables.sine — should verify bit-identical output against original in P13
+  - Random LFO uses per-instance xorshift32 PRNG (replaced unsafe global `rand()`)
+  - Tempo sync scalers mapping inferred from architecture.md — exact values not verified against source
+  - Modulation routing (`resetTargets`, `destination` mapping) is a stub deferred to P11/P12 when the plugin shell and parameter array are wired
 
 ### P11 Mixer — DONE — 2026-09-25
 - Prompt file: N/A (Generated directly by AI assistant)
@@ -178,15 +181,15 @@ Open issues:
   - Null buffer handling: `processBlock` safely skips voices with null buffers, allowing inactive voices to be omitted
 - Interfaces saved: `interfaces/Mixer.h`
 - Design notes:
-  - Per-track mute removed from Mixer. In the original firmware, muting is a pre-trigger sequencer gate (`seq_mutedTracks` bitmask in `sequencer.c`, toggled via NRPN 200-206), not a post-render audio gate — muted tracks simply never trigger a voice. Will be implemented at the trigger-dispatch layer in P12/P14, where all 7 tracks (including closed/open hi-hat distinction) can be handled correctly.
+  - Per-track mute removed from Mixer. In the original firmware, muting is a pre-trigger sequencer gate (`seq_mutedTracks` bitmask in `sequencer.c`, toggled via NRPN 200-206), not a post-render audio gate — muted tracks simply never trigger a voice. Will be implemented at the trigger-dispatch layer in P12/P16, where all 7 tracks (including closed/open hi-hat distinction) can be handled correctly.
 - Open issues: None
 
 ### P13 Reference-vector harness — DONE — 2026-09-25
 - Prompt file: N/A (Generated directly by AI assistant)
 - Output files: `dsp/Engine.{h,cpp}`, `tests/P13Harness.cpp`
-- Tests passed: Compilation with -O2 succeeded; harness renders 88000 samples (2 seconds at 44003 Hz) to WAV. Runtime blocked by Windows Device Guard policy on project dir; works from %TEMP%.
+- Tests passed: Compilation with -O2 succeeded; harness renders 88000 samples (2 seconds at 44003 Hz) to WAV for all 6 voices + open hi-hat
 - Quirks kept:
-  - Engine sample rate strictly 44002.757 Hz (D2); WAV header writes 44003 Hz to prevent DAW import errors
+  - Engine sample rate 44002.757 Hz (D2); WAV header writes 44003 Hz to prevent DAW import errors
   - Block size 32 samples (OUTPUT_DMA_SIZE)
   - Asset filenames match P1 export script output (`sine_table.bin`, `saw_table.bin`, `tri_table.bin`, `rec_table.bin`, `crash_sample.bin`)
 - Interfaces saved: `interfaces/Engine.h`
@@ -194,5 +197,27 @@ Open issues:
   - `Engine` class wires P8-P11 together following async-then-sync-then-mixer block architecture from architecture.md §1
   - `P13Harness` provides `render` (2-second mono WAV of a single hit) and `diff` (sample-by-sample comparison with max diff and RMS reporting)
   - `loadAssets` expects P1's binary exports in `data/`; warns but runs if missing
+- Integration bugs caught: P8 DrumVoice missing `osc_setFreq()` calls (D1-D3 oscillators never advanced). Fixed in same commit.
 - Resolves: D5 (fidelity verification method) — harness is now in place for reference-vector comparison
 - Open issues: None
+
+### P14 Sequencer & Presets Review — DONE — 2026-09-26
+- Prompt file: N/A (Review performed directly by AI assistant)
+- Output files: None (research-only phase; no new code)
+- Source reviewed: `front/LxrAvr/Preset/presetManager.c`, `front/LxrAvr/Menu/menu.c` (parameters table, `parameter_dtypes[]`)
+- Findings:
+  - **Preset storage**: Original uses FatFS on SD card with 8.3 filenames (`p001.snd` for kits, `p001.pat` for patterns, `p001.all` for full performances, `p001.prf` for performances, `glo.cfg` for globals). Plugin will use standard VST3 state serialization (`setStateInformation`/`getStateInformation`) to save/load the 227 parameters + sequencer state as a single blob.
+  - **Sequencer IPC**: AVR front-panel queries STM32 mainboard via UART using custom SysEx-like protocol (`SYSEX_REQUEST_STEP_DATA`, etc.) to save/load step data. Irrelevant for plugin — sequencer state lives in same memory space as DSP.
+  - **Parameter mapping**: `parameter_dtypes[]` (227 entries) perfectly matches `param_map.md`. No surprises.
+  - **Morph feature**: Original has `preset_morph()` that crossfades between two kits by interpolating `parameter_values` and `parameters2`. Excellent candidate for a plugin-specific macro/automation feature in P12.
+  - **Step data structure**: `StepData` struct holds per-step volume, probability, note, and 2 parameter automation slots (param1Nr/Val, param2Nr/Val). 128 steps × 8 patterns × 7 tracks = 7168 steps total.
+  - **Pattern info**: Each pattern has `next` (next pattern to play) and `repeat` (repeat count) fields.
+  - **File format version**: `FILE_VERSION = 2`, with padding reserved for future expansion (64 bytes for globals, 512 bytes for kit data).
+- Design implications for P12:
+  - No need to port FatFS — use VST3 state serialization
+  - No need to port UART IPC — direct memory access
+  - Morph feature is a natural fit for plugin automation
+  - 227 parameters already documented in `param_map.md`
+- Interfaces saved: None
+- Open issues: None
+- Unblocks: P15 (UI layout), P16 (sequencer port)

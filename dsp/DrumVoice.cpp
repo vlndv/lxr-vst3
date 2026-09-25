@@ -41,6 +41,12 @@ void DrumVoice::init() {
     
     filter.init();
     filterType = FILTER_LP;
+    // ORIGINAL QUIRK FIX: Must set default filter coefficients after init().
+    // Without this, filter.f/g/q are uninitialized, producing noise/NaN.
+    filter.f = 0.2f;  // Default cutoff ~8.8 kHz (safe value)
+    filter.q = 0.5f;  // Default resonance
+    filter.drive = 1.0f;
+    filter.recalcFreq();
     
     mixOscs = true;
     decimationCnt = 0.f;
@@ -98,6 +104,12 @@ void DrumVoice::calcAsync(const float* noteFreq) {
     
     osc_recalcFreq(&osc, noteFreq);
     osc_recalcFreq(&modOsc, noteFreq);
+    
+    // ORIGINAL QUIRK FIX: Must call osc_setFreq() to convert freq -> phaseInc.
+    // Without this, phaseInc stays at 0 (from init()) and oscillators never advance.
+    // Snare/Cymbal/HiHat already do this correctly; only DrumVoice was missing it.
+    osc_setFreq(&osc);
+    osc_setFreq(&modOsc);
 }
 
 void DrumVoice::calcSyncBlock(int16_t* buf, uint8_t size, const OscTables& tables) {

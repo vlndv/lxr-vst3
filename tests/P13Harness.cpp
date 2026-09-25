@@ -53,6 +53,9 @@ int runRender(int argc, char** argv) {
         printf("WARNING: Could not load data/*.bin assets. Output will be silent/garbage.\n");
     }
 
+    // Setup 808 kit
+    engine.setup808Kit();
+
     if (voice == "D1") engine.triggerDrum(0, vel, note);
     else if (voice == "D2") engine.triggerDrum(1, vel, note);
     else if (voice == "D3") engine.triggerDrum(2, vel, note);

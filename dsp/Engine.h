@@ -11,7 +11,6 @@
 namespace lxr {
 
 constexpr float kEngineSampleRate = 44002.7573529412f;
-// kBlockSize is already defined in Mixer.h
 
 class Engine {
 public:
@@ -35,6 +34,17 @@ public:
 
     void processBlock(int16_t* outSt1L, int16_t* outSt1R, 
                       int16_t* outSt2L, int16_t* outSt2R);
+    
+    // 808-style presets
+    void setup808Kick(uint8_t voiceIdx);
+    void setup808Snare();
+    void setup808HiHatClosed();
+    void setup808HiHatOpen();
+    void setup808Cymbal();
+    void setup808Tom(uint8_t voiceIdx);
+    
+    // Setup a complete 808 kit (D1=kick, D2/D3=toms, SN=snare, CY=cymbal, HH=hihat)
+    void setup808Kit();
 };
 
 } // namespace lxr
