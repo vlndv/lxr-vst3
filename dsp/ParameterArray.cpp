@@ -233,7 +233,7 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 147: engine.velocityModulators[4].amount = value / 127.0f; break;
         case 148: engine.velocityModulators[5].amount = value / 127.0f; break;
         
-        case 149: engine.velocityModulators[0].destination = value; break;
+        case 149: case 150: case 151: case 152: case 153: case 154: break; // VEL_DEST_1-6
         case 150: engine.velocityModulators[1].destination = value; break;
         case 151: engine.velocityModulators[2].destination = value; break;
         case 152: engine.velocityModulators[3].destination = value; break;
@@ -247,8 +247,8 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 159: engine.cymbal.lfo.waveform = value; break;
         case 160: engine.hihat.lfo.waveform = value; break;
         
-        case 161: case 162: case 163: case 164: case 165: case 166: break;
-        case 167: case 168: case 169: case 170: case 171: case 172: break;
+        case 161: case 162: case 163: case 164: case 165: case 166: break; // VOICE_LFO_1-6
+        case 167: case 168: case 169: case 170: case 171: case 172: break; // TARGET_LFO_1-6
         
         case 173: engine.drums[0].lfo.retrigger = value; break;
         case 174: engine.drums[1].lfo.retrigger = value; break;

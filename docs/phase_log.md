@@ -239,15 +239,4 @@ Reason: filter and mappings are self-contained and testable first; voices need a
   - Uses mapping functions from P2 (`egAttackStep`, `egDecayStep`, `cutoffShape`, `pitchModAmount`, `lfoFrequencyFromMidi`, `lfoPhaseOffsetFromMidi`, etc.)
   - Pitch EG decay/slope/amount indices corrected to PAR 70-81 per `param_map.md`
   - LFO frequency uses `setRate(lfoFrequencyFromMidi(value))` per `dsp/Lfo.h`
-  - LFO phase offset saturates to 0xFFFFFFFF at v=127 (ARM float-to-uint32 behavior)
-- Interfaces saved: `interfaces/ParameterArray.h`
-- Design notes:
-  - ~200 of 227 parameters wired (voice-level DSP: waveforms, tuning, filter freq/reso/type/drive, amp EG attack/decay/slope, pitch EG decay/slope/amount, FM amount/freq, noise, mod oscs, volume, pan, drive, distortion, decimation, mix mode, volume mod, transient vol/wave/pitch, LFO freq/amount/waveform/retrigger/sync/offset, velocity mod amount/destination, audio routing)
-  - Remaining ~27 parameters: MIDI note override (PAR 221-227), sequencer/global params (PAR 228+)
-  - VOICE_LFO/TARGET_LFO (PAR 161-172) are front-panel only per param_map.md, not settable over MIDI
-  - Framework decision D1 (iPlug2) locked in; iPlug2 integration deferred until parameter array is complete
-- Open issues:
-  - MIDI parser integration (CC, NRPN, 7 channels + global, note override)
-  - iPlug2 plugin shell integration
-  - State serialization (save/load)
-  - Sequencer/global parameter wiring (depends on P16)
+  - LFO phase offset
