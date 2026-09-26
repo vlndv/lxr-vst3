@@ -229,14 +229,23 @@ Reason: filter and mappings are self-contained and testable first; voices need a
   - Parameter indices match `param_map.md` exactly (0 unused, 1-227 active)
   - Defaults match original firmware (waveform=TRI, coarse=63, fine=63, volume=100, pan=63)
 
-### P12 Plugin shell (ParameterArray foundation) — DOING — 2026-09-26
+### P12 Plugin shell (ParameterArray + MidiParser) — DOING — 2026-09-26
 - Prompt file: N/A (Generated directly by AI assistant)
-- Output files: `dsp/ParameterArray.{h,cpp}`, `dsp/ParameterArrayTest.cpp`
-- Tests passed: 33/33 (fail=0)
+- Output files: `dsp/ParameterArray.{h,cpp}`, `dsp/MidiParser.{h,cpp}`, `dsp/ParameterArrayTest.cpp`, `dsp/MidiParserTest.cpp`
+- Tests passed: ParameterArray 33/33 (fail=0), MidiParser 5/5 (fail=0)
 - Quirks kept:
   - Parameter indices match `param_map.md` exactly (0 unused, 1-227 active)
-  - Defaults match original firmware (waveform=TRI, coarse=63, fine=63, volume=100, pan=63)
-  - Uses mapping functions from P2 (`egAttackStep`, `egDecayStep`, `cutoffShape`, `pitchModAmount`, `lfoFrequencyFromMidi`, `lfoPhaseOffsetFromMidi`, etc.)
-  - Pitch EG decay/slope/amount indices corrected to PAR 70-81 per `param_map.md`
-  - LFO frequency uses `setRate(lfoFrequencyFromMidi(value))` per `dsp/Lfo.h`
-  - LFO phase offset
+  - CC mapping: CC 1-127 → PAR 1-127 (CC 0 = bank select, unused)
+  - NRPN mapping: NRPN 1-100 → PAR 128-227
+  - NRPN 200-206 (track mutes) intercepted before PAR mapping, no-op until P16 sequencer layer
+  - `VEL_DEST` (149-154), `VOICE_LFO` (161-166), `TARGET_LFO` (167-172) are no-ops (front-panel only in original)
+  - NRPN state machine: CC 99 (MSB), CC 98 (LSB), CC 6 (Data Entry)
+- Interfaces saved: `interfaces/ParameterArray.h`, `interfaces/MidiParser.h`
+- Design notes:
+  - ~200 of 227 parameters wired (voice-level DSP, LFO, transient, routing, etc.)
+  - Remaining ~27 parameters: MIDI note override (221-227), sequencer/global params
+  - Framework decision D1 (iPlug2, MIT) locked in
+- Open issues:
+  - iPlug2 plugin shell integration
+  - State serialization (save/load)
+  - Sequencer/global parameter wiring (depends on P16)

@@ -48,14 +48,12 @@ void ParameterArray::init() {
     for (int i = 191; i <= 196; i++) values[i] = 0;
     values[134] = values[135] = values[136] = 1;
     for (int i = 137; i <= 142; i++) values[i] = 1;
-    // LFO defaults
     for (int i = 115; i <= 120; i++) values[i] = 64;
     for (int i = 121; i <= 126; i++) values[i] = 0;
     for (int i = 155; i <= 160; i++) values[i] = 0;
     for (int i = 173; i <= 178; i++) values[i] = 0;
     for (int i = 179; i <= 184; i++) values[i] = 0;
     for (int i = 185; i <= 190; i++) values[i] = 0;
-    // Audio routing defaults
     for (int i = 215; i <= 220; i++) values[i] = 0;
 }
 
@@ -233,12 +231,11 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 147: engine.velocityModulators[4].amount = value / 127.0f; break;
         case 148: engine.velocityModulators[5].amount = value / 127.0f; break;
         
+        // VEL_DEST, VOICE_LFO, and TARGET_LFO are not settable over MIDI in the original.
+        // The front panel sets them via internal messages. Kept as no-ops for a faithful port.
         case 149: case 150: case 151: case 152: case 153: case 154: break; // VEL_DEST_1-6
-        case 150: engine.velocityModulators[1].destination = value; break;
-        case 151: engine.velocityModulators[2].destination = value; break;
-        case 152: engine.velocityModulators[3].destination = value; break;
-        case 153: engine.velocityModulators[4].destination = value; break;
-        case 154: engine.velocityModulators[5].destination = value; break;
+        case 161: case 162: case 163: case 164: case 165: case 166: break; // VOICE_LFO_1-6
+        case 167: case 168: case 169: case 170: case 171: case 172: break; // TARGET_LFO_1-6
         
         case 155: engine.drums[0].lfo.waveform = value; break;
         case 156: engine.drums[1].lfo.waveform = value; break;
@@ -246,9 +243,6 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 158: engine.snare.lfo.waveform = value; break;
         case 159: engine.cymbal.lfo.waveform = value; break;
         case 160: engine.hihat.lfo.waveform = value; break;
-        
-        case 161: case 162: case 163: case 164: case 165: case 166: break; // VOICE_LFO_1-6
-        case 167: case 168: case 169: case 170: case 171: case 172: break; // TARGET_LFO_1-6
         
         case 173: engine.drums[0].lfo.retrigger = value; break;
         case 174: engine.drums[1].lfo.retrigger = value; break;
