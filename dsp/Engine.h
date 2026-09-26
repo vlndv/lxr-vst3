@@ -12,6 +12,11 @@ namespace lxr {
 
 constexpr float kEngineSampleRate = 44002.7573529412f;
 
+struct VelocityModulator {
+    float amount = 0.0f;
+    uint8_t destination = 0;
+};
+
 class Engine {
 public:
     DrumVoice drums[3];
@@ -19,6 +24,8 @@ public:
     CymbalVoice cymbal;
     HiHatVoice hihat;
     Mixer mixer;
+    
+    VelocityModulator velocityModulators[6];
     
     OscTables tables;
     float noteFreq[128];

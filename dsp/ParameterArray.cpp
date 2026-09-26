@@ -3,6 +3,7 @@
 #include "ParamMapEnv.h"
 #include "ParamMapMisc.h"
 #include "Envelopes.h"
+#include "Lfo.h"
 
 namespace lxr {
 
@@ -47,6 +48,15 @@ void ParameterArray::init() {
     for (int i = 191; i <= 196; i++) values[i] = 0;
     values[134] = values[135] = values[136] = 1;
     for (int i = 137; i <= 142; i++) values[i] = 1;
+    // LFO defaults
+    for (int i = 115; i <= 120; i++) values[i] = 64;
+    for (int i = 121; i <= 126; i++) values[i] = 0;
+    for (int i = 155; i <= 160; i++) values[i] = 0;
+    for (int i = 173; i <= 178; i++) values[i] = 0;
+    for (int i = 179; i <= 184; i++) values[i] = 0;
+    for (int i = 185; i <= 190; i++) values[i] = 0;
+    // Audio routing defaults
+    for (int i = 215; i <= 220; i++) values[i] = 0;
 }
 
 void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
@@ -130,29 +140,24 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 66: setAmpSlope(engine.cymbal.oscVolEg, value); break;
         case 67: setAmpSlope(engine.hihat.oscVolEg, value); break;
         
-        // === Repeat (SN, CY only) ===
         case 68: engine.snare.oscVolEg.repeat = value; break;
         case 69: engine.cymbal.oscVolEg.repeat = value; break;
         
-        // === Pitch EG decay (D1-D3, SN) ===
         case 70: engine.drums[0].oscPitchEg.decay = pitchEgDecayStep(value); break;
         case 71: engine.drums[1].oscPitchEg.decay = pitchEgDecayStep(value); break;
         case 72: engine.drums[2].oscPitchEg.decay = pitchEgDecayStep(value); break;
         case 73: engine.snare.oscPitchEg.decay = pitchEgDecayStep(value); break;
         
-        // === Pitch EG amount (D1-D3, SN) ===
         case 74: engine.drums[0].egPitchModAmount = pitchModAmount(value); break;
         case 75: engine.drums[1].egPitchModAmount = pitchModAmount(value); break;
         case 76: engine.drums[2].egPitchModAmount = pitchModAmount(value); break;
         case 77: engine.snare.egPitchModAmount = pitchModAmount(value); break;
         
-        // === Pitch EG slope (D1-D3, SN) ===
         case 78: engine.drums[0].oscPitchEg.slope = pitchEgSlope(value); break;
         case 79: engine.drums[1].oscPitchEg.slope = pitchEgSlope(value); break;
         case 80: engine.drums[2].oscPitchEg.slope = pitchEgSlope(value); break;
         case 81: engine.snare.oscPitchEg.slope = pitchEgSlope(value); break;
         
-        // === FM amount / FM freq alternating (D1, D2, D3) ===
         case 82: engine.drums[0].fmModAmount = value / 127.0f; break;
         case 83: setCoarse(engine.drums[0].modOsc, value); break;
         case 84: engine.drums[1].fmModAmount = value / 127.0f; break;
@@ -181,7 +186,27 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 106: engine.cymbal.distortion.setShape(value); break;
         case 107: engine.hihat.distortion.setShape(value); break;
         
-        case 108: case 109: case 110: case 111: case 112: case 113: case 114: break;
+        case 108: engine.mixer.setDecimationRate(0, decimationRate(value)); break;
+        case 109: engine.mixer.setDecimationRate(1, decimationRate(value)); break;
+        case 110: engine.mixer.setDecimationRate(2, decimationRate(value)); break;
+        case 111: engine.mixer.setDecimationRate(3, decimationRate(value)); break;
+        case 112: engine.mixer.setDecimationRate(4, decimationRate(value)); break;
+        case 113: engine.mixer.setDecimationRate(5, decimationRate(value)); break;
+        case 114: engine.mixer.setGlobalDecimationRate(decimationRate(value)); break;
+        
+        case 115: engine.drums[0].lfo.setRate(lfoFrequencyFromMidi(value)); break;
+        case 116: engine.drums[1].lfo.setRate(lfoFrequencyFromMidi(value)); break;
+        case 117: engine.drums[2].lfo.setRate(lfoFrequencyFromMidi(value)); break;
+        case 118: engine.snare.lfo.setRate(lfoFrequencyFromMidi(value)); break;
+        case 119: engine.cymbal.lfo.setRate(lfoFrequencyFromMidi(value)); break;
+        case 120: engine.hihat.lfo.setRate(lfoFrequencyFromMidi(value)); break;
+        
+        case 121: engine.drums[0].lfo.amount = value / 127.0f; break;
+        case 122: engine.drums[1].lfo.amount = value / 127.0f; break;
+        case 123: engine.drums[2].lfo.amount = value / 127.0f; break;
+        case 124: engine.snare.lfo.amount = value / 127.0f; break;
+        case 125: engine.cymbal.lfo.amount = value / 127.0f; break;
+        case 126: engine.hihat.lfo.amount = value / 127.0f; break;
         
         case 128: setFilterDrive(engine.drums[0].filter, value); break;
         case 129: setFilterDrive(engine.drums[1].filter, value); break;
@@ -201,8 +226,50 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 141: engine.cymbal.volumeMod = (value != 0); break;
         case 142: engine.hihat.volumeMod = (value != 0); break;
         
-        case 143: case 144: case 145: case 146: case 147: case 148: break;
-        case 149: case 150: case 151: case 152: case 153: case 154: break;
+        case 143: engine.velocityModulators[0].amount = value / 127.0f; break;
+        case 144: engine.velocityModulators[1].amount = value / 127.0f; break;
+        case 145: engine.velocityModulators[2].amount = value / 127.0f; break;
+        case 146: engine.velocityModulators[3].amount = value / 127.0f; break;
+        case 147: engine.velocityModulators[4].amount = value / 127.0f; break;
+        case 148: engine.velocityModulators[5].amount = value / 127.0f; break;
+        
+        case 149: engine.velocityModulators[0].destination = value; break;
+        case 150: engine.velocityModulators[1].destination = value; break;
+        case 151: engine.velocityModulators[2].destination = value; break;
+        case 152: engine.velocityModulators[3].destination = value; break;
+        case 153: engine.velocityModulators[4].destination = value; break;
+        case 154: engine.velocityModulators[5].destination = value; break;
+        
+        case 155: engine.drums[0].lfo.waveform = value; break;
+        case 156: engine.drums[1].lfo.waveform = value; break;
+        case 157: engine.drums[2].lfo.waveform = value; break;
+        case 158: engine.snare.lfo.waveform = value; break;
+        case 159: engine.cymbal.lfo.waveform = value; break;
+        case 160: engine.hihat.lfo.waveform = value; break;
+        
+        case 161: case 162: case 163: case 164: case 165: case 166: break;
+        case 167: case 168: case 169: case 170: case 171: case 172: break;
+        
+        case 173: engine.drums[0].lfo.retrigger = value; break;
+        case 174: engine.drums[1].lfo.retrigger = value; break;
+        case 175: engine.drums[2].lfo.retrigger = value; break;
+        case 176: engine.snare.lfo.retrigger = value; break;
+        case 177: engine.cymbal.lfo.retrigger = value; break;
+        case 178: engine.hihat.lfo.retrigger = value; break;
+        
+        case 179: engine.drums[0].lfo.sync = value; break;
+        case 180: engine.drums[1].lfo.sync = value; break;
+        case 181: engine.drums[2].lfo.sync = value; break;
+        case 182: engine.snare.lfo.sync = value; break;
+        case 183: engine.cymbal.lfo.sync = value; break;
+        case 184: engine.hihat.lfo.sync = value; break;
+        
+        case 185: engine.drums[0].lfo.phaseOffset = lfoPhaseOffsetFromMidi(value); break;
+        case 186: engine.drums[1].lfo.phaseOffset = lfoPhaseOffsetFromMidi(value); break;
+        case 187: engine.drums[2].lfo.phaseOffset = lfoPhaseOffsetFromMidi(value); break;
+        case 188: engine.snare.lfo.phaseOffset = lfoPhaseOffsetFromMidi(value); break;
+        case 189: engine.cymbal.lfo.phaseOffset = lfoPhaseOffsetFromMidi(value); break;
+        case 190: engine.hihat.lfo.phaseOffset = lfoPhaseOffsetFromMidi(value); break;
         
         case 191: setFilterType(engine.drums[0].filterType, value); break;
         case 192: setFilterType(engine.drums[1].filterType, value); break;
@@ -232,7 +299,14 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 213: engine.cymbal.transGen.pitch = transientPitch(value); break;
         case 214: engine.hihat.transGen.pitch = transientPitch(value); break;
         
-        case 215: case 216: case 217: case 218: case 219: case 220: break;
+        case 215: engine.mixer.setRouting(0, value); break;
+        case 216: engine.mixer.setRouting(1, value); break;
+        case 217: engine.mixer.setRouting(2, value); break;
+        case 218: engine.mixer.setRouting(3, value); break;
+        case 219: engine.mixer.setRouting(4, value); break;
+        case 220: engine.mixer.setRouting(5, value); break;
+        
+        case 221: case 222: case 223: case 224: case 225: case 226: case 227: break;
         
         default: break;
     }

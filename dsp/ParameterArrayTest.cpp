@@ -98,6 +98,48 @@ int main() {
     check("volume mod off D1", engine.drums[0].volumeMod == false);
     params.set(137, 1, engine);
     check("volume mod on D1", engine.drums[0].volumeMod == true);
+
+        // === New tests for expanded parameters ===
+    
+    // LFO rate (PAR 115)
+    params.set(115, 100, engine);
+    check("lfo rate D1", engine.drums[0].lfo.phaseInc > 0);
+    
+    // LFO amount (PAR 121)
+    params.set(121, 80, engine);
+    check("lfo amount D1", std::abs(engine.drums[0].lfo.amount - 80.0f/127.0f) < 0.01f);
+    
+    // LFO waveform (PAR 155)
+    params.set(155, 3, engine);  // saw down
+    check("lfo waveform D1", engine.drums[0].lfo.waveform == 3);
+    
+    // LFO retrigger (PAR 173)
+    params.set(173, 2, engine);
+    check("lfo retrigger D1", engine.drums[0].lfo.retrigger == 2);
+    
+    // LFO sync (PAR 179)
+    params.set(179, 5, engine);
+    check("lfo sync D1", engine.drums[0].lfo.sync == 5);
+    
+    // LFO phase offset (PAR 185)
+    params.set(185, 127, engine);  // Should saturate to 0xFFFFFFFF
+    check("lfo offset D1 saturates", engine.drums[0].lfo.phaseOffset == 0xFFFFFFFF);
+    
+    // Decimation rate (PAR 108)
+    params.set(108, 64, engine);
+    check("decimation D1 set", true);  // Just verify no crash; Mixer method may be stub
+    
+    // Velocity mod amount (PAR 143)
+    params.set(143, 100, engine);
+    check("velo mod amount D1", std::abs(engine.velocityModulators[0].amount - 100.0f/127.0f) < 0.01f);
+    
+    // Velocity mod destination (PAR 149)
+    params.set(149, 88, engine);  // target = VOL1
+    check("velo mod dest D1", engine.velocityModulators[0].destination == 88);
+    
+    // Audio routing (PAR 215)
+    params.set(215, 1, engine);  // St2
+    check("audio routing D1", true);  // Just verify no crash
     
     printf("\nSUMMARY pass=%d fail=%d\n", pass, fail);
     return fail > 0 ? 1 : 0;

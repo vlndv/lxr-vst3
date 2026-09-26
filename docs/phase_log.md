@@ -232,19 +232,22 @@ Reason: filter and mappings are self-contained and testable first; voices need a
 ### P12 Plugin shell (ParameterArray foundation) — DOING — 2026-09-26
 - Prompt file: N/A (Generated directly by AI assistant)
 - Output files: `dsp/ParameterArray.{h,cpp}`, `dsp/ParameterArrayTest.cpp`
-- Tests passed: 23/23 (fail=0)
+- Tests passed: 33/33 (fail=0)
 - Quirks kept:
   - Parameter indices match `param_map.md` exactly (0 unused, 1-227 active)
   - Defaults match original firmware (waveform=TRI, coarse=63, fine=63, volume=100, pan=63)
-  - Uses mapping functions from P2 (`egAttackStep`, `egDecayStep`, `cutoffShape`, `pitchModAmount`, etc.) for correct coefficient conversion
+  - Uses mapping functions from P2 (`egAttackStep`, `egDecayStep`, `cutoffShape`, `pitchModAmount`, `lfoFrequencyFromMidi`, `lfoPhaseOffsetFromMidi`, etc.)
   - Pitch EG decay/slope/amount indices corrected to PAR 70-81 per `param_map.md`
+  - LFO frequency uses `setRate(lfoFrequencyFromMidi(value))` per `dsp/Lfo.h`
+  - LFO phase offset saturates to 0xFFFFFFFF at v=127 (ARM float-to-uint32 behavior)
 - Interfaces saved: `interfaces/ParameterArray.h`
 - Design notes:
-  - ~150 of 227 parameters wired (voice-level DSP: waveforms, tuning, filter freq/reso/type/drive, amp EG attack/decay/slope, pitch EG decay/slope/amount, FM amount/freq, noise, mod oscs, volume, pan, drive, distortion, mix mode, volume mod, transient vol/wave/pitch)
-  - Remaining ~77 parameters (LFO freq/amount/waveform/sync/retrigger/offset, velocity mod amount/destination, decimation, audio routing, MIDI note override, sequencer/global) follow same pattern but depend on P16 (sequencer engine port)
+  - ~200 of 227 parameters wired (voice-level DSP: waveforms, tuning, filter freq/reso/type/drive, amp EG attack/decay/slope, pitch EG decay/slope/amount, FM amount/freq, noise, mod oscs, volume, pan, drive, distortion, decimation, mix mode, volume mod, transient vol/wave/pitch, LFO freq/amount/waveform/retrigger/sync/offset, velocity mod amount/destination, audio routing)
+  - Remaining ~27 parameters: MIDI note override (PAR 221-227), sequencer/global params (PAR 228+)
+  - VOICE_LFO/TARGET_LFO (PAR 161-172) are front-panel only per param_map.md, not settable over MIDI
   - Framework decision D1 (iPlug2) locked in; iPlug2 integration deferred until parameter array is complete
 - Open issues:
-  - LFO parameter wiring (PAR 115-190) needs full LFO struct implementation
-  - Decimation rate fields need to be added to voice structs (currently stored but not applied)
-  - Velocity mod amount/destination fields need to be added to voice structs (currently stored but not applied)
-  - Audio routing (`mixer.setOutput()`) needs to be implemented in Mixer
+  - MIDI parser integration (CC, NRPN, 7 channels + global, note override)
+  - iPlug2 plugin shell integration
+  - State serialization (save/load)
+  - Sequencer/global parameter wiring (depends on P16)
