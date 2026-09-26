@@ -41,7 +41,7 @@ Rule: a phase is DONE only when its acceptance tests pass against values from th
 | P9 | Snare, cymbal, hi-hat voices | DSPAudio/{Snare,CymbalVoice,HiHat}.c | P3-P7 | DONE |
 | P10 | LFO and modulation (per-parameter base + multiplier), velocity modulators, LFO retrigger and sync | DSPAudio/{lfo,modulationNode}.c | P8, P9, D2 | DONE |
 | P11 | Mixer: pan (sqrt LUT), routing, saturating sum | DSPAudio/mixer.c | P8, P9 | DONE |
-| P12 | Plugin shell: parameters (227 IDs from `param_map.md`), MIDI in (CC, NRPN, 7 channels + global, note override), outputs | MIDI/{MidiParser,MidiVoiceControl}.c | P11, D1 | TODO |
+| P12 | Plugin shell: parameters (227 IDs from `param_map.md`), MIDI in (CC, NRPN, 7 channels + global, note override), outputs | MIDI/{MidiParser,MidiVoiceControl}.c | P11, D1 | DOING |
 | P13 | Reference-vector harness: render single hits from the port and compare against recordings and original-C vectors | n/a | P8-P11, D5 | DONE |
 | P14 | Review sequencer, kits/presets, front-panel layout (source not yet reviewed) | front/LxrAvr/, mainboard Sequencer/, preset storage | none | DONE |
 | P15 | ui_layout.md: LXR-01 panel spec without logo, plus replacements for menu diving and shift combos | front/LxrAvr/ | P14 | TODO |
@@ -221,3 +221,18 @@ Reason: filter and mappings are self-contained and testable first; voices need a
 - Interfaces saved: None
 - Open issues: None
 - Unblocks: P15 (UI layout), P16 (sequencer port)
+
+### P12 Plugin shell — DOING — 2026-09-26
+- Prompt file: N/A (Generated directly by AI assistant)
+- Output files: `dsp/ParameterArray.{h,cpp}`, `dsp/ParameterArrayTest.cpp`
+- Tests passed: 8/8 (fail=0)
+- Quirks kept:
+  - Parameter indices match `param_map.md` exactly (0 unused, 1-227 active)
+  - Defaults match original firmware (waveform=TRI, coarse=63, fine=63, volume=100, pan=63)
+  - Uses mapping functions from P2 (`egAttackStep`, `egDecayStep`, `cutoffShape`) for correct coefficient conversion
+- Interfaces saved: `interfaces/ParameterArray.h`
+- Design notes:
+  - ~60 of 227 parameters wired (waveforms, tuning, filter freq/reso, amp EG attack/decay, volume, pan)
+  - Remaining ~167 parameters (pitch EG, FM, distortion, decimation, LFO, transient, filter type, routing, sequencer, global) follow same pattern
+  - Framework decision D1 (iPlug2) locked in; iPlug2 integration deferred until parameter array is complete
+- Open issues: Remaining parameters need wiring per `param_map.md`
