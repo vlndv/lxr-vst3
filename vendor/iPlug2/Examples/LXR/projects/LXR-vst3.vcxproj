@@ -1,0 +1,404 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{2EB4846A-93E0-43A0-821E-1223710530CF}</ProjectGuid>
+    <RootNamespace>LXR</RootNamespace>
+    <ProjectName>LXR-vst3</ProjectName>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)config\LXR-win.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)config\LXR-win.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)config\LXR-win.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(SolutionDir)config\LXR-win.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>$(SolutionDir)build-win\vst3\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build-win\vst3\$(Platform)\$(Configuration)\int\LXR\</IntDir>
+    <TargetName>LXR</TargetName>
+    <TargetExt>.vst3</TargetExt>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)build-win\vst3\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build-win\vst3\$(Platform)\$(Configuration)\int\LXR\</IntDir>
+    <TargetName>LXR</TargetName>
+    <TargetExt>.vst3</TargetExt>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>$(SolutionDir)build-win\vst3\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build-win\vst3\$(Platform)\$(Configuration)\int\LXR\</IntDir>
+    <TargetName>LXR</TargetName>
+    <TargetExt>.vst3</TargetExt>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)build-win\vst3\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build-win\vst3\$(Platform)\$(Configuration)\int\LXR\</IntDir>
+    <TargetName>LXR</TargetName>
+    <TargetExt>.vst3</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>$(VST3_DEFS);$(DEBUG_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\..\..\dsp;..\..\..\..\..\interfaces;..\..\..\IPlug\VST3;..\..\..\Dependencies\IPlug\VST3_SDK;..\..\..\WDL;..\..\..\IPlug;..\..\..\IPlug\Extras;..\..\..\IPlug\Extras\OSC;..\..\..\IPlug\Extras\Synth;..\..\..\IPlug\Extras\WebView;..\..\..\Dependencies\Extras\nlohmann;..\resources;..\..\..\IGraphics;..\..\..\IGraphics\Controls;..\..\..\IGraphics\Drawing;..\..\..\IGraphics\Platforms;..\..\..\IGraphics\Extras;..\..\..\Dependencies\IGraphics\NanoSVG\src;..\..\..\Dependencies\IGraphics\NanoVG\src;..\..\..\WDL\libpng;..\..\..\WDL\zlib;..\..\..\Dependencies\Build\src\freetype\include;..\..\..\Dependencies\IGraphics\STB;..\..\..\Dependencies\Build\src\skia;..\..\..\Dependencies\Build\src\skia\include\core;..\..\..\Dependencies\Build\src\skia\include\effects;..\..\..\Dependencies\Build\src\skia\include\config;..\..\..\Dependencies\Build\src\skia\include\utils;..\..\..\Dependencies\Build\src\skia\include\gpu;..\..\..\Dependencies\Build\src\skia\modules\svg\include;..\..\..\Dependencies\Build\src\skia\third_party\externals\icu\source\common;..\..\..\Dependencies\IGraphics\yoga;..\..\..\Dependencies\IGraphics\yoga\yoga;..\..\..\Dependencies\IGraphics\glad_GL2\include;..\..\..\Dependencies\IGraphics\glad_GL2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(SolutionDir)..\..\..\Dependencies\Build\win\$(Platform)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(VST3_LIBS);$(DEBUG_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>$(SolutionDir)scripts\prebuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(TargetPath)" "$(OutDir)"</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>$(SolutionDir)scripts\postbuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(COPY_VST2)" "$(TargetPath)" "$(VST2_32BIT_PATH)" "$(VST2_64BIT_PATH)" "$(VST3_32BIT_PATH)" "$(VST3_64BIT_PATH)" "$(AAX_32BIT_PATH)" "$(AAX_64BIT_PATH)" "$(CLAP_32BIT_PATH)" "$(CLAP_64BIT_PATH)" "$(BUILD_DIR)" "$(VST_ICON)" "$(AAX_ICON)" "$(SolutionDir)..\..\..\Scripts\create_bundle.bat" "$(ICUDAT_PATH)"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>$(VST3_DEFS);$(DEBUG_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\..\..\dsp;..\..\..\..\..\interfaces;..\..\..\IPlug\VST3;..\..\..\Dependencies\IPlug\VST3_SDK;..\..\..\WDL;..\..\..\IPlug;..\..\..\IPlug\Extras;..\..\..\IPlug\Extras\OSC;..\..\..\IPlug\Extras\Synth;..\..\..\IPlug\Extras\WebView;..\..\..\Dependencies\Extras\nlohmann;..\resources;..\..\..\IGraphics;..\..\..\IGraphics\Controls;..\..\..\IGraphics\Drawing;..\..\..\IGraphics\Platforms;..\..\..\IGraphics\Extras;..\..\..\Dependencies\IGraphics\NanoSVG\src;..\..\..\Dependencies\IGraphics\NanoVG\src;..\..\..\WDL\libpng;..\..\..\WDL\zlib;..\..\..\Dependencies\Build\src\freetype\include;..\..\..\Dependencies\IGraphics\STB;..\..\..\Dependencies\Build\src\skia;..\..\..\Dependencies\Build\src\skia\include\core;..\..\..\Dependencies\Build\src\skia\include\effects;..\..\..\Dependencies\Build\src\skia\include\config;..\..\..\Dependencies\Build\src\skia\include\utils;..\..\..\Dependencies\Build\src\skia\include\gpu;..\..\..\Dependencies\Build\src\skia\modules\svg\include;..\..\..\Dependencies\Build\src\skia\third_party\externals\icu\source\common;..\..\..\Dependencies\IGraphics\yoga;..\..\..\Dependencies\IGraphics\yoga\yoga;..\..\..\Dependencies\IGraphics\glad_GL2\include;..\..\..\Dependencies\IGraphics\glad_GL2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(SolutionDir)..\..\..\Dependencies\Build\win\$(Platform)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(VST3_LIBS);$(DEBUG_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>$(SolutionDir)scripts\prebuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(TargetPath)" "$(OutDir)"</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>$(SolutionDir)scripts\postbuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(COPY_VST2)" "$(TargetPath)" "$(VST2_32BIT_PATH)" "$(VST2_64BIT_PATH)" "$(VST3_32BIT_PATH)" "$(VST3_64BIT_PATH)" "$(AAX_32BIT_PATH)" "$(AAX_64BIT_PATH)" "$(CLAP_32BIT_PATH)" "$(CLAP_64BIT_PATH)" "$(BUILD_DIR)" "$(VST_ICON)" "$(AAX_ICON)" "$(SolutionDir)..\..\..\Scripts\create_bundle.bat" "$(ICUDAT_PATH)"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>$(VST3_DEFS);$(RELEASE_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\..\..\dsp;..\..\..\..\..\interfaces;..\..\..\IPlug\VST3;..\..\..\Dependencies\IPlug\VST3_SDK;..\..\..\WDL;..\..\..\IPlug;..\..\..\IPlug\Extras;..\..\..\IPlug\Extras\OSC;..\..\..\IPlug\Extras\Synth;..\..\..\IPlug\Extras\WebView;..\..\..\Dependencies\Extras\nlohmann;..\resources;..\..\..\IGraphics;..\..\..\IGraphics\Controls;..\..\..\IGraphics\Drawing;..\..\..\IGraphics\Platforms;..\..\..\IGraphics\Extras;..\..\..\Dependencies\IGraphics\NanoSVG\src;..\..\..\Dependencies\IGraphics\NanoVG\src;..\..\..\WDL\libpng;..\..\..\WDL\zlib;..\..\..\Dependencies\Build\src\freetype\include;..\..\..\Dependencies\IGraphics\STB;..\..\..\Dependencies\Build\src\skia;..\..\..\Dependencies\Build\src\skia\include\core;..\..\..\Dependencies\Build\src\skia\include\effects;..\..\..\Dependencies\Build\src\skia\include\config;..\..\..\Dependencies\Build\src\skia\include\utils;..\..\..\Dependencies\Build\src\skia\include\gpu;..\..\..\Dependencies\Build\src\skia\modules\svg\include;..\..\..\Dependencies\Build\src\skia\third_party\externals\icu\source\common;..\..\..\Dependencies\IGraphics\yoga;..\..\..\Dependencies\IGraphics\yoga\yoga;..\..\..\Dependencies\IGraphics\glad_GL2\include;..\..\..\Dependencies\IGraphics\glad_GL2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(SolutionDir)..\..\..\Dependencies\Build\win\$(Platform)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(VST3_LIBS);$(RELEASE_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>$(SolutionDir)scripts\prebuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(TargetPath)" "$(OutDir)"</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>$(SolutionDir)scripts\postbuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(COPY_VST2)" "$(TargetPath)" "$(VST2_32BIT_PATH)" "$(VST2_64BIT_PATH)" "$(VST3_32BIT_PATH)" "$(VST3_64BIT_PATH)" "$(AAX_32BIT_PATH)" "$(AAX_64BIT_PATH)" "$(CLAP_32BIT_PATH)" "$(CLAP_64BIT_PATH)" "$(BUILD_DIR)" "$(VST_ICON)" "$(AAX_ICON)" "$(SolutionDir)..\..\..\Scripts\create_bundle.bat" "$(ICUDAT_PATH)"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>$(VST3_DEFS);$(RELEASE_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\..\..\dsp;..\..\..\..\..\interfaces;..\..\..\IPlug\VST3;..\..\..\Dependencies\IPlug\VST3_SDK;..\..\..\WDL;..\..\..\IPlug;..\..\..\IPlug\Extras;..\..\..\IPlug\Extras\OSC;..\..\..\IPlug\Extras\Synth;..\..\..\IPlug\Extras\WebView;..\..\..\Dependencies\Extras\nlohmann;..\resources;..\..\..\IGraphics;..\..\..\IGraphics\Controls;..\..\..\IGraphics\Drawing;..\..\..\IGraphics\Platforms;..\..\..\IGraphics\Extras;..\..\..\Dependencies\IGraphics\NanoSVG\src;..\..\..\Dependencies\IGraphics\NanoVG\src;..\..\..\WDL\libpng;..\..\..\WDL\zlib;..\..\..\Dependencies\Build\src\freetype\include;..\..\..\Dependencies\IGraphics\STB;..\..\..\Dependencies\Build\src\skia;..\..\..\Dependencies\Build\src\skia\include\core;..\..\..\Dependencies\Build\src\skia\include\effects;..\..\..\Dependencies\Build\src\skia\include\config;..\..\..\Dependencies\Build\src\skia\include\utils;..\..\..\Dependencies\Build\src\skia\include\gpu;..\..\..\Dependencies\Build\src\skia\modules\svg\include;..\..\..\Dependencies\Build\src\skia\third_party\externals\icu\source\common;..\..\..\Dependencies\IGraphics\yoga;..\..\..\Dependencies\IGraphics\yoga\yoga;..\..\..\Dependencies\IGraphics\glad_GL2\include;..\..\..\Dependencies\IGraphics\glad_GL2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(SolutionDir)..\..\..\Dependencies\Build\win\$(Platform)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(VST3_LIBS);$(RELEASE_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PreBuildEvent>
+      <Command>$(SolutionDir)scripts\prebuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(TargetPath)" "$(OutDir)"</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>$(SolutionDir)scripts\postbuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(COPY_VST2)" "$(TargetPath)" "$(VST2_32BIT_PATH)" "$(VST2_64BIT_PATH)" "$(VST3_32BIT_PATH)" "$(VST3_64BIT_PATH)" "$(AAX_32BIT_PATH)" "$(AAX_64BIT_PATH)" "$(CLAP_32BIT_PATH)" "$(CLAP_64BIT_PATH)" "$(BUILD_DIR)" "$(VST_ICON)" "$(AAX_ICON)" "$(SolutionDir)..\..\..\Scripts\create_bundle.bat" "$(ICUDAT_PATH)"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\baseiids.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fbuffer.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fdebug.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fdynlib.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fobject.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fstreamer.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fstring.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\timer.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\updatehandler.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\thread\source\fcondition.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\thread\source\flock.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\conststringtable.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\coreiids.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\funknown.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\ustring.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\common\memorystream.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\common\pluginview.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\common\commoniids.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\main\dllmain.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\main\pluginfactory.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstaudioeffect.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstbus.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstcomponent.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstcomponentbase.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstinitiids.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstparameters.cpp" />
+    <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstsinglecomponenteffect.cpp" />
+    <ClCompile Include="..\..\..\IGraphics\Controls\IControls.cpp" />
+    <ClCompile Include="..\..\..\IGraphics\Controls\IPopupMenuControl.cpp" />
+    <ClCompile Include="..\..\..\IGraphics\Controls\ITextEntryControl.cpp" />
+    <ClCompile Include="..\..\..\IGraphics\IControl.cpp" />
+    <ClCompile Include="..\..\..\IGraphics\IGraphics.cpp" />
+    <ClCompile Include="..\..\..\IGraphics\Platforms\IGraphicsWin.cpp" />
+    <ClCompile Include="..\..\..\IPlug\IPlugAPIBase.cpp" />
+    <ClCompile Include="..\..\..\IGraphics\IGraphicsEditorDelegate.cpp" />
+    <ClCompile Include="..\..\..\IPlug\IPlugParameter.cpp" />
+    <ClCompile Include="..\..\..\IPlug\IPlugPaths.cpp" />
+    <ClCompile Include="..\..\..\IPlug\IPlugPluginBase.cpp" />
+    <ClCompile Include="..\..\..\IPlug\IPlugProcessor.cpp" />
+    <ClCompile Include="..\..\..\IPlug\IPlugTimer.cpp" />
+    <ClCompile Include="..\..\..\IPlug\VST3\IPlugVST3.cpp" />
+    <ClCompile Include="..\..\..\IPlug\VST3\IPlugVST3_ProcessorBase.cpp" />
+    <ClCompile Include="..\LXR.cpp" />
+    <ClCompile Include="..\..\..\WDL\win32_utf8.c" />
+    <ClCompile Include="..\..\..\..\..\dsp\Engine.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\DrumVoice.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\Snare.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\Cymbal.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\HiHat.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\Mixer.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\Oscillator.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\ResonantFilter.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\Distortion.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\Decimator.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\Envelopes.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\TransientGen.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\TransientTables.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\OscTables.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\ParamMapMisc.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\ParamMapEnv.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\Lfo.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\Modulation.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\ParameterArray.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\MidiParser.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fdebug.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fobject.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fstdmethods.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fstreamer.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\fstring.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\hexbinary.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\timer.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\updatehandler.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\thread\include\fcondition.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\thread\include\flock.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\conststringtable.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\falign.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\fplatform.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\fstrdefs.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\ftypes.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\funknown.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\futils.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\fvariant.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\geoconstants.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\ibstream.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\icloneable.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\ierrorcontext.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\ipersistent.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\ipluginbase.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\istringresult.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\iupdatehandler.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\pluginbasefwd.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\smartptr.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\ucolorspec.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\base\ustring.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\gui\iplugview.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\gui\iplugviewcontentscalesupport.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstattributes.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstaudioprocessor.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstautomationstate.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstchannelcontextinfo.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstcomponent.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstcontextmenu.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivsteditcontroller.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstevents.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivsthostapplication.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstinterappaudio.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstmessage.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstmidicontrollers.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstmidilearn.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstnoteexpression.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstparameterchanges.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstphysicalui.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstpluginterfacesupport.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstplugview.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstprefetchablesupport.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstprocesscontext.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstrepresentation.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\ivstunits.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\vstpresetkeys.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\vstpshpack4.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\vstspeaker.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\pluginterfaces\vst\vsttypes.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\common\memorystream.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\common\pluginview.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\main\pluginfactory.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstaudioeffect.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstbus.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstbypassprocessor.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstcomponent.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstcomponentbase.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vsteditcontroller.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vsthostprocess.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstparameters.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstrepresentation.h" />
+    <ClInclude Include="..\..\..\Dependencies\IPlug\VST3_SDK\public.sdk\source\vst\vstsinglecomponenteffect.h" />
+    <ClInclude Include="..\..\..\IGraphics\Controls\IControls.h" />
+    <ClInclude Include="..\..\..\IGraphics\Controls\IPopupMenuControl.h" />
+    <ClInclude Include="..\..\..\IGraphics\Controls\ITextEntryControl.h" />
+    <ClInclude Include="..\..\..\IGraphics\Controls\IVKeyboardControl.h" />
+    <ClInclude Include="..\..\..\IGraphics\Controls\IVMeterControl.h" />
+    <ClInclude Include="..\..\..\IGraphics\Controls\IVMultiSliderControl.h" />
+    <ClInclude Include="..\..\..\IGraphics\Controls\IVScopeControl.h" />
+    <ClInclude Include="..\..\..\IGraphics\Drawing\IGraphicsNanoVG.h" />
+    <ClInclude Include="..\..\..\IGraphics\Drawing\IGraphicsSkia.h" />
+    <ClInclude Include="..\..\..\IGraphics\IControl.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphics.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphicsConstants.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphicsEditorDelegate.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphicsLiveEdit.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphicsPopupMenu.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphicsStructs.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphicsPrivate.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphicsUtilities.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphics_include_in_plug_hdr.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphics_include_in_plug_src.h" />
+    <ClInclude Include="..\..\..\IGraphics\IGraphics_select.h" />
+    <ClInclude Include="..\..\..\IGraphics\Platforms\IGraphicsLinux.h" />
+    <ClInclude Include="..\..\..\IGraphics\Platforms\IGraphicsMac.h" />
+    <ClInclude Include="..\..\..\IGraphics\Platforms\IGraphicsMac_view.h" />
+    <ClInclude Include="..\..\..\IGraphics\Platforms\IGraphicsWeb.h" />
+    <ClInclude Include="..\..\..\IGraphics\Platforms\IGraphicsWin.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugAPIBase.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugConstants.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugEditorDelegate.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugLogger.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugMidi.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugPaths.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugPlatform.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugParameter.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugPluginBase.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugProcessor.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugQueue.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugStructs.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugTimer.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlugUtilities.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlug_include_in_plug_hdr.h" />
+    <ClInclude Include="..\..\..\IPlug\IPlug_include_in_plug_src.h" />
+    <ClInclude Include="..\..\..\IPlug\VST3\IPlugVST3.h" />
+    <ClInclude Include="..\..\..\IPlug\VST3\IPlugVST3_Common.h" />
+    <ClInclude Include="..\..\..\IPlug\VST3\IPlugVST3_ControllerBase.h" />
+    <ClInclude Include="..\..\..\IPlug\VST3\IPlugVST3_ParameterBridge.h" />
+    <ClInclude Include="..\..\..\IPlug\VST3\IPlugVST3_ProcessorBase.h" />
+    <ClInclude Include="..\..\..\IPlug\VST3\IPlugVST3_View.h" />
+    <ClInclude Include="..\LXR.h" />
+    <ClInclude Include="..\resources\resource.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\Engine.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\DrumVoice.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\Snare.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\Cymbal.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\HiHat.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\Mixer.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\Oscillator.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\ResonantFilter.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\Distortion.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\Decimator.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\Envelopes.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\TransientGen.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\TransientTables.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\OscTables.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\ParamMapMisc.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\ParamMapEnv.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\Lfo.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\Modulation.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\ParameterArray.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\MidiParser.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\resources\main.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\config\LXR-ios.xcconfig" />
+    <None Include="..\config\LXR-mac.xcconfig" />
+    <None Include="..\config\LXR-wasm.mk" />
+    <None Include="..\config\LXR-web.mk" />
+    <None Include="..\config\LXR-win.props" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
