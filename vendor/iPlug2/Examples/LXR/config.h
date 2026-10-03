@@ -4,8 +4,8 @@
 #define PLUG_VERSION_STR "1.0.0"
 #define PLUG_UNIQUE_ID 'Lxr1'
 #define PLUG_MFR_ID 'SPtn'
-#define PLUG_URL_STR "https://github.com/your-repo/lxr-vst3"
-#define PLUG_EMAIL_STR "contact@example.com"
+#define PLUG_URL_STR "https://github.com/vlndv/lxr-vst3"
+#define PLUG_EMAIL_STR "valentino.de.vivo@outlook.com"
 #define PLUG_COPYRIGHT_STR "Copyright 2026 Sonic Potions"
 #define PLUG_CLASS_NAME LXR
 
@@ -23,7 +23,7 @@
 #define PLUG_DOES_MIDI_OUT 0
 #define PLUG_DOES_MPE 0
 #define PLUG_DOES_STATE_CHUNKS 0
-#define PLUG_HAS_UI 0
+#define PLUG_HAS_UI 1
 #define PLUG_WIDTH 600
 #define PLUG_HEIGHT 600
 #define PLUG_FPS 60

@@ -8,7 +8,6 @@ class LXR final : public iplug::Plugin
 {
 public:
   LXR(const iplug::InstanceInfo& info);
-
   void ProcessBlock(double** inputs, double** outputs, int nFrames) override;
   void ProcessMidiMsg(const iplug::IMidiMsg& msg) override;
   void OnReset() override;

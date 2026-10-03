@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -52,8 +52,7 @@
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionSettings"></ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(SolutionDir)config\LXR-win.props" />
@@ -107,12 +106,6 @@
       <AdditionalLibraryDirectories>$(SolutionDir)..\..\..\Dependencies\Build\win\$(Platform)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(VST3_LIBS);$(DEBUG_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <PreBuildEvent>
-      <Command>$(SolutionDir)scripts\prebuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(TargetPath)" "$(OutDir)"</Command>
-    </PreBuildEvent>
-    <PostBuildEvent>
-      <Command>$(SolutionDir)scripts\postbuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(COPY_VST2)" "$(TargetPath)" "$(VST2_32BIT_PATH)" "$(VST2_64BIT_PATH)" "$(VST3_32BIT_PATH)" "$(VST3_64BIT_PATH)" "$(AAX_32BIT_PATH)" "$(AAX_64BIT_PATH)" "$(CLAP_32BIT_PATH)" "$(CLAP_64BIT_PATH)" "$(BUILD_DIR)" "$(VST_ICON)" "$(AAX_ICON)" "$(SolutionDir)..\..\..\Scripts\create_bundle.bat" "$(ICUDAT_PATH)"</Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -126,12 +119,6 @@
       <AdditionalLibraryDirectories>$(SolutionDir)..\..\..\Dependencies\Build\win\$(Platform)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(VST3_LIBS);$(DEBUG_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <PreBuildEvent>
-      <Command>$(SolutionDir)scripts\prebuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(TargetPath)" "$(OutDir)"</Command>
-    </PreBuildEvent>
-    <PostBuildEvent>
-      <Command>$(SolutionDir)scripts\postbuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(COPY_VST2)" "$(TargetPath)" "$(VST2_32BIT_PATH)" "$(VST2_64BIT_PATH)" "$(VST3_32BIT_PATH)" "$(VST3_64BIT_PATH)" "$(AAX_32BIT_PATH)" "$(AAX_64BIT_PATH)" "$(CLAP_32BIT_PATH)" "$(CLAP_64BIT_PATH)" "$(BUILD_DIR)" "$(VST_ICON)" "$(AAX_ICON)" "$(SolutionDir)..\..\..\Scripts\create_bundle.bat" "$(ICUDAT_PATH)"</Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -149,12 +136,6 @@
       <AdditionalLibraryDirectories>$(SolutionDir)..\..\..\Dependencies\Build\win\$(Platform)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(VST3_LIBS);$(RELEASE_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <PreBuildEvent>
-      <Command>$(SolutionDir)scripts\prebuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(TargetPath)" "$(OutDir)"</Command>
-    </PreBuildEvent>
-    <PostBuildEvent>
-      <Command>$(SolutionDir)scripts\postbuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(COPY_VST2)" "$(TargetPath)" "$(VST2_32BIT_PATH)" "$(VST2_64BIT_PATH)" "$(VST3_32BIT_PATH)" "$(VST3_64BIT_PATH)" "$(AAX_32BIT_PATH)" "$(AAX_64BIT_PATH)" "$(CLAP_32BIT_PATH)" "$(CLAP_64BIT_PATH)" "$(BUILD_DIR)" "$(VST_ICON)" "$(AAX_ICON)" "$(SolutionDir)..\..\..\Scripts\create_bundle.bat" "$(ICUDAT_PATH)"</Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -172,12 +153,6 @@
       <AdditionalLibraryDirectories>$(SolutionDir)..\..\..\Dependencies\Build\win\$(Platform)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(VST3_LIBS);$(RELEASE_LIBS);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <PreBuildEvent>
-      <Command>$(SolutionDir)scripts\prebuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(TargetPath)" "$(OutDir)"</Command>
-    </PreBuildEvent>
-    <PostBuildEvent>
-      <Command>$(SolutionDir)scripts\postbuild-win.bat "$(TargetExt)" "$(BINARY_NAME)" "$(Platform)" "$(COPY_VST2)" "$(TargetPath)" "$(VST2_32BIT_PATH)" "$(VST2_64BIT_PATH)" "$(VST3_32BIT_PATH)" "$(VST3_64BIT_PATH)" "$(AAX_32BIT_PATH)" "$(AAX_64BIT_PATH)" "$(CLAP_32BIT_PATH)" "$(CLAP_64BIT_PATH)" "$(BUILD_DIR)" "$(VST_ICON)" "$(AAX_ICON)" "$(SolutionDir)..\..\..\Scripts\create_bundle.bat" "$(ICUDAT_PATH)"</Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\Dependencies\IPlug\VST3_SDK\base\source\baseiids.cpp" />
@@ -399,6 +374,5 @@
     <None Include="..\config\LXR-win.props" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets"></ImportGroup>
 </Project>
