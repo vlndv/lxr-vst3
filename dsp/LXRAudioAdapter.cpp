@@ -5,32 +5,44 @@ namespace lxr
 
 void LXRAudioAdapter::reset() noexcept
 {
-  // Remove any cached samples left from the previous processing state.
+  // Discard any cached native engine samples.
   mST1Left.fill(0);
   mST1Right.fill(0);
   mST2Left.fill(0);
   mST2Right.fill(0);
 
-  // Force a fresh Engine render when the next native sample is
-  // requested.
   mReadIndex = kEngineBlockSize;
+
+  // Discard FIR history, but retain configuration.
+  mResampler.reset();
+}
+
+bool LXRAudioAdapter::configure(
+  double hostSampleRate
+) noexcept
+{
+  // Invalid rates are rejected.
+  if (!mResampler.configure(hostSampleRate))
+  {
+    return false;
+  }
+
+  // The next sample must come from a fresh engine block.
+  mReadIndex = kEngineBlockSize;
+
+  return true;
 }
 
 void LXRAudioAdapter::renderNextEngineBlock(
   Engine& engine
-)
+) noexcept
 {
-  // Clear all output buffers defensively before rendering.
+  // Preserve the original four-output Engine contract.
   mST1Left.fill(0);
   mST1Right.fill(0);
   mST2Left.fill(0);
   mST2Right.fill(0);
 
-  // Render exactly one native LXR Engine block.
-  //
-  // The Engine owns synthesis/DSP.
-  // LXRAudioAdapter owns only buffering and, in later phases,
-  // conversion to the host's processing domain.
   engine.processBlock(
     mST1Left.data(),
     mST1Right.data(),
@@ -38,7 +50,6 @@ void LXRAudioAdapter::renderNextEngineBlock(
     mST2Right.data()
   );
 
-  // Start consuming the freshly rendered block from sample zero.
   mReadIndex = 0;
 }
 
@@ -46,10 +57,9 @@ void LXRAudioAdapter::getNextST1Sample(
   Engine& engine,
   int16_t& left,
   int16_t& right
-)
+) noexcept
 {
-  // Refill the native cache only after every sample from the previous
-  // Engine block has been consumed.
+  // Refill only after consuming the current 32 frames.
   if (mReadIndex >= kEngineBlockSize)
   {
     renderNextEngineBlock(engine);
@@ -59,6 +69,43 @@ void LXRAudioAdapter::getNextST1Sample(
   right = mST1Right[mReadIndex];
 
   ++mReadIndex;
+}
+
+void LXRAudioAdapter::getNextHostST1Sample(
+  Engine& engine,
+  double& left,
+  double& right
+) noexcept
+{
+  // Native PCM producer for the resampler.
+  auto source =
+    [this, &engine](
+      double& sourceLeft,
+      double& sourceRight
+    ) noexcept
+    {
+      int16_t nativeLeft = 0;
+      int16_t nativeRight = 0;
+
+      getNextST1Sample(
+        engine,
+        nativeLeft,
+        nativeRight
+      );
+
+      // Signed PCM to normalized floating-point.
+      sourceLeft =
+        static_cast<double>(nativeLeft) / 32768.0;
+
+      sourceRight =
+        static_cast<double>(nativeRight) / 32768.0;
+    };
+
+  mResampler.next(
+    source,
+    left,
+    right
+  );
 }
 
 } // namespace lxr
