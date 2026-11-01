@@ -1,0 +1,16 @@
+{
+  "iplug2": {"repository": "iPlug2/iPlug2", "revision": "d54f69050f517e43b941d88c2a170f0a840b9ee4", "archive_sha256": "DB587C465547A27EB166E95829E882500413217BC7E886E2686D589423DE51DA"},
+  "sdk": {"repository": "steinbergmedia/vst3sdk", "revision": "3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96"},
+  "sdk_modules": {
+    "base": ["steinbergmedia/vst3_base", "fcf9da0bd27a16f7f03773a3a39822f28f5c8477"],
+    "cmake": ["steinbergmedia/vst3_cmake", "054c9143cbb8d47fc4694e473f2ee3b4d951a8f5"],
+    "doc": ["steinbergmedia/vst3_doc", "8bfca19d3b76a61d093951ba9297047f544caea1"],
+    "pluginterfaces": ["steinbergmedia/vst3_pluginterfaces", "4f547e8e102b47de4a8b8aaf343c73b700786372"],
+    "public.sdk": ["steinbergmedia/vst3_public_sdk", "586dc5e6c8012c3e4b01c79389375cbe96bdb1da"],
+    "tutorials": ["steinbergmedia/vst3_tutorials", "33b73dfbb87f3fde3bce8c0a10cae934dc66ad34"],
+    "vstgui4": ["steinbergmedia/vstgui", "5db272256172557818b6158cf0bb2c4410bddb25"]
+  },
+  "firmware": {"repository": "SonicPotions/LXR", "revision": "dee49689f3f0cdf8f9b7b5e79628cfdca1b79394"},
+  "framework_patch": {"path": "IPlug/VST3/IPlugVST3_Common.h", "sha256": "4AD9986250B87869160A5D49F0832FCD140F134026A8E99BF0EB00AD575A654C", "normalized_lf_sha256": "D37C3C2A3C413B38F09E9356E455F07D4FFFCF1C32C38363E5F2CC1750995F58"},
+  "certified_binary_sha256": "89F6DF598EBC88F580A6013D83DA10053A177ECBBFC89CA88AC474E2C3E7FF82"
+}

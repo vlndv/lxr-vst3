@@ -10,6 +10,24 @@
 # Ignore build output directories
 out/
 build/
+
+# Checkpoint verification outputs and downloaded dependencies.
+/vst3-validator-build/
+/LXR-build-latest.txt
+/LXR-preprocessed.xml
+/LXR-validator-report.txt
+__pycache__/
+*.pyc
+/vendor/iPlug2/*
+!/vendor/iPlug2/Examples/
+!/vendor/iPlug2/IPlug/
+/vendor/iPlug2/Examples/*
+!/vendor/iPlug2/Examples/LXR/
+/vendor/iPlug2/IPlug/*
+!/vendor/iPlug2/IPlug/VST3/
+/vendor/iPlug2/IPlug/VST3/*
+!/vendor/iPlug2/IPlug/VST3/IPlugVST3_Common.h
+/vendor/iPlug2/Examples/LXR/**/*.bak
 .vs/
 .vscode/
 
