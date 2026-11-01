@@ -2,7 +2,7 @@
 # LXR — Production VST3 Resource Packaging
 # P12b-4b.2
 #
-# Copies and verifies the five native DSP resources into:
+# Copies and verifies the native DSP resources into:
 #   1. The generated VST3 bundle
 #   2. The installed VST3 bundle
 #
@@ -38,6 +38,8 @@ try {
         "tri_table.bin"    = 22528
         "rec_table.bin"    = 22528
         "crash_sample.bin" = 32768
+        "transient_data.bin" = 26460
+        "transient_volume_table.bin" = 276
     }
 
     # Validate the source directory.

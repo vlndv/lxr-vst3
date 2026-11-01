@@ -1,0 +1,1 @@
+/* Host differential harness supplies trigger stubs. */

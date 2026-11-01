@@ -1,5 +1,6 @@
 // FILE: dsp/Engine.cpp
 #include "Engine.h"
+#include "TransientTables.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -55,6 +56,10 @@ bool Engine::loadAssets(const char* dataDir) {
     snprintf(path, sizeof(path), "%s/crash_sample.bin", dataDir);
     if (!readBin(path, crashBuf, sizeof(crashBuf))) return false;
     tables.crash = crashBuf;
+
+    // Transient sample tables are part of the native voice resource contract.
+    // Loading occurs during plugin initialization, never on the audio thread.
+    if (!gTransientTables.load(dataDir)) return false;
 
     return true;
 }

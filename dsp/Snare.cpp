@@ -18,7 +18,8 @@ void SnareVoice::init() {
     osc.midiFreq = 70 << 8; osc.modNodeValue = 1.f;
     
     distortion.init();
-    distortion.setShape(64);
+    // ORIGINAL QUIRK: Snare_init passes 2.f to a uint8_t parameter.
+    distortion.setShape(2);
     volumeMod = 1;
     
     transGen.init();
@@ -50,7 +51,9 @@ void SnareVoice::trigger(uint8_t vel, uint8_t note, const float* noteFreq) {
     velo = vel / 127.0f;
     
     osc_setBaseNote(&osc, note, noteFreq);
-    osc_setBaseNote(&noiseOsc, note, noteFreq);
+    // ORIGINAL QUIRK: the firmware leaves the pitched-noise frequency
+    // independent of the triggering MIDI note ("TODO noise muss mit
+    // transponiert werden").
     
     transGen.trigger();
     snapEg.trigger();
@@ -73,11 +76,40 @@ void SnareVoice::calcAsync(const float* noteFreq) {
 }
 
 void SnareVoice::calcSyncBlock(int16_t* buf, uint8_t size, const OscTables& tables) {
-    // Safe stub: outputs silence to prevent link errors while isolating VST3 shell issues.
-    // TODO: Implement full snare chain: noise -> filter, +transient, mix with tonal osc, x velocity x vol x ampEG, distortion.
+    int16_t tonalAndTransient[32];
+
+    // Keep the firmware's operation and conversion order: pitched S&H noise
+    // is attenuated before filtering, and the transient is added to this path
+    // before the noise/tonal mix is applied.
+    calcNoiseBlock(&noiseOsc, buf, size, 0.9f, rng);
+    filter.calcBlockZDF(filterType, buf, size);
+
+    transGen.calcBlock(tonalAndTransient, size);
     for (uint8_t i = 0; i < size; ++i) {
-        buf[i] = 0;
+        int32_t sum = static_cast<int32_t>(buf[i]) + tonalAndTransient[i];
+        if (sum > 32767) sum = 32767;
+        else if (sum < -32768) sum = -32768;
+        buf[i] = static_cast<int16_t>(sum);
     }
+
+    calcNextOscSampleBlock(&osc, tonalAndTransient, size, 1.0f - mix,
+                           tables, rng);
+
+    const float gain = (volumeMod ? velo : 1.0f) * vol * egValueOscVol;
+    for (uint8_t i = 0; i < size; ++i) {
+        // ORIGINAL QUIRK: compound assignment narrows the noise/transient
+        // product to int16 before the saturating tonal addition.
+        buf[i] = static_cast<int16_t>(buf[i] * mix);
+        int32_t sum = static_cast<int32_t>(buf[i]) + tonalAndTransient[i];
+        if (sum > 32767) sum = 32767;
+        else if (sum < -32768) sum = -32768;
+        buf[i] = static_cast<int16_t>(sum);
+
+        // ORIGINAL QUIRK: SN/CY/HH use one envelope value for the block.
+        buf[i] = static_cast<int16_t>(buf[i] * gain);
+    }
+
+    distortion.calcBlock(buf, size);
 }
 
 } // namespace lxr

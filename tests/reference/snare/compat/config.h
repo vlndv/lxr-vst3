@@ -1,0 +1,1 @@
+/* Host differential harness supplies the required firmware constants. */
