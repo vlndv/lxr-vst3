@@ -38,13 +38,19 @@ void ParameterArray::init() {
     values[9] = values[11] = values[13] = values[15] = values[17] = values[19] = 63;
     for (int i = 37; i <= 42; i++) values[i] = 64;
     for (int i = 43; i <= 48; i++) values[i] = 64;
-    for (int i = 49; i <= 59; i += 2) values[i] = 127;
+    // Plugin initial patch policy, not an extracted firmware startup kit.
+    // ORIGINAL QUIRK: attack 127 maps to zero and cannot rise from silence.
+    for (int i = 49; i <= 59; i += 2) values[i] = 0;
     for (int i = 50; i <= 61; i += 2) values[i] = 64;
+    values[61] = 64; // Open hi-hat decay, matching the host descriptor.
     for (int i = 62; i <= 67; i++) values[i] = 0;
     for (int i = 88; i <= 93; i++) values[i] = 100;
     values[94] = values[95] = values[96] = 63;
     values[99] = values[100] = values[101] = 63;
     for (int i = 102; i <= 107; i++) values[i] = 0;
+    // ORIGINAL QUIRK: decimation 0 freezes the initially zero held sample.
+    // Start all six voices and the global decimator at full native rate.
+    for (int i = 108; i <= 114; i++) values[i] = 127;
     for (int i = 191; i <= 196; i++) values[i] = 0;
     values[134] = values[135] = values[136] = 1;
     for (int i = 137; i <= 142; i++) values[i] = 1;
