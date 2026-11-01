@@ -1,5 +1,19 @@
 # Filter reference vectors (P3)
 
+## Current portable procedure (P12c-R3)
+
+Use `tools/verification/run_checkpoint_tests.py --suite native --output <new-directory>`;
+see `docs/build_and_test.md` for prerequisites and overrides. The tested runner
+builds this differential at O0/O2 with the four tracked host compatibility
+headers in `tests/reference/filter/compat/`, GNU11 C semantics and FP contraction
+disabled. It does not require the old locally generated stub directory.
+
+## Historical individual commands
+
+The commands below record the original P3 procedure. Their `stub/` path was a
+local prerequisite, not a tracked fixture; use the current runner above for
+source-reproducible checkpoint verification.
+
 `harness.c` compiles the ORIGINAL `ResonantFilter.c` (unchanged) with small stub headers and prints the expected values used in `prompts/P3_filter.md`.
 `expected_output.txt` is the output I got with gcc x86-64.
 
