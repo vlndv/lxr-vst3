@@ -1,0 +1,135 @@
+{
+  "schema": "lxr-checkpoint-plan-v1",
+  "base_commit": "280279debe94cb26810ea89b89f36b9bf965a747",
+  "staging_authorized": true,
+  "allocation_correction": "R4 resume: unchanged dsp/FIRLatency.h moves from commit 4 to commit 3 for the snare test's direct include; historical R3 allocation is preserved in out/p12c-r4-20261101-005932/plan.json",
+  "fixture_allocation_correction": "R4 resume 2: unchanged docs/p12c_state_serialization.md and docs/p12c_r1_concurrency_hardening.md move from commit 6 to commit 5 for required portable-path/generator reads; previous allocation preserved in out/p12c-r4-20261101-005932/resume/plan.json",
+  "commits": [
+    {
+      "title": "build: pin framework inputs and preserve state-reader hardening",
+      "depends_on": [],
+      "files": [
+        ".gitignore",
+        "tools/verification/dependencies.json",
+        "tools/verification/prepare_dependencies.py",
+        "vendor/iPlug2/Examples/LXR/LXRParamContract.h",
+        "vendor/iPlug2/IPlug/VST3/IPlugVST3_Common.h"
+      ]
+    },
+    {
+      "title": "fix(lxr): preserve certified startup defaults",
+      "depends_on": [
+        1
+      ],
+      "files": [
+        "dsp/ParameterArray.cpp",
+        "tests/P12b4cDefaultStateDiagnostic.cpp",
+        "tests/P12b4cNativeAudioDiagnostic.cpp"
+      ]
+    },
+    {
+      "title": "fix(snare): restore original renderer and transient resources",
+      "depends_on": [
+        1,
+        2
+      ],
+      "files": [
+        "dsp/Snare.cpp",
+        "dsp/Engine.cpp",
+        "dsp/FIRLatency.h",
+        "vendor/iPlug2/Examples/LXR/scripts/package-resources.ps1",
+        "tests/P12b4cSnareRenderTest.cpp",
+        "tests/reference/snare/compat/MidiNoteNumbers.h",
+        "tests/reference/snare/compat/MidiParser.h",
+        "tests/reference/snare/compat/TriggerOut.h",
+        "tests/reference/snare/compat/config.h",
+        "tests/reference/snare/compat/sequencer.h",
+        "tests/reference/snare/original_snare_harness.c",
+        "tests/reference/snare/original_snare_harness.h",
+        "docs/snare_renderer_repair.md"
+      ]
+    },
+    {
+      "title": "fix(lxr): preserve certified FIR and P12c-R2 state pipeline",
+      "depends_on": [
+        1,
+        2,
+        3
+      ],
+      "files": [
+        "dsp/LXRAudioAdapter.h",
+        "dsp/PolyphaseResampler.h",
+        "dsp/FixedFifo.h",
+        "dsp/ParameterStateAuthority.h",
+        "vendor/iPlug2/Examples/LXR/LXR.cpp",
+        "vendor/iPlug2/Examples/LXR/LXR.h",
+        "vendor/iPlug2/Examples/LXR/config.h",
+        "vendor/iPlug2/Examples/LXR/LXRState.h",
+        "tests/P12b4cLatencyTest.cpp",
+        "tests/P12b4cRuntimeSilenceTest.cpp",
+        "tests/P12b4cVST3RuntimeTest.cpp",
+        "tests/P12cStateSerializationTest.cpp",
+        "tests/P12cVST3StateTest.cpp",
+        "tests/P12cR1ConcurrencyTest.cpp",
+        "tests/P12cR2ControllerSyncTest.cpp"
+      ]
+    },
+    {
+      "title": "test: add portable source builds and REAPER helper configuration",
+      "depends_on": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "files": [
+        "tools/run_tests.bat",
+        "tools/verification/run_checkpoint_tests.py",
+        "tools/verification/test_manifest.json",
+        "tools/verification/test_portable_paths.py",
+        "tests/reference/filter/README.md",
+        "tests/reference/filter/compat/config.h",
+        "tests/reference/filter/compat/datatypes.h",
+        "tests/reference/filter/compat/globals.h",
+        "tests/reference/filter/compat/stm32f4xx.h",
+        "tools/reaper/checkpoint_paths.lua",
+        "tools/reaper/p12b4c_pdc_smoke.lua",
+        "tools/reaper/p12b4c_pdc_test.lua",
+        "tools/reaper/p12b4c_snare_other_voice.lua",
+        "tools/reaper/p12b4c_snare_other_voice_final.lua",
+        "tools/reaper/p12b4c_snare_reaper.lua",
+        "tools/reaper/p12b4c_snare_reaper_final.lua",
+        "tools/reaper/p12b4c_snare_transport_probe.lua",
+        "tools/reaper/p12b4c_snare_transport_probe_final.lua",
+        "tools/reaper/p12b4c_transport_probe.lua",
+        "tools/reaper/p12c_fir_pdc_regression.lua",
+        "tools/reaper/p12c_r1_analyze_certification.py",
+        "tools/reaper/p12c_r1_final_certification.py",
+        "tools/reaper/p12c_r1_state_test.lua",
+        "tools/reaper/p12c_state_test.lua",
+        "docs/p12c_state_serialization.md",
+        "docs/p12c_r1_concurrency_hardening.md"
+      ]
+    },
+    {
+      "title": "docs: close P12c-R3 checkpoint gates and record provenance",
+      "depends_on": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "files": [
+        "docs/phase_log.md",
+        "docs/p12b4c_runtime_silence.md",
+        "docs/p12c_r1_final_certification.md",
+        "docs/p12c_r2_controller_sync_repair.md",
+        "docs/p12c_r2_certified_baseline.md",
+        "docs/p12c_r3_checkpoint_gate_closure.md",
+        "docs/build_and_test.md",
+        "tools/verification/checkpoint_files.json"
+      ]
+    }
+  ]
+}

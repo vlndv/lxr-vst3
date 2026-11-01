@@ -249,3 +249,359 @@ Reason: filter and mappings are self-contained and testable first; voices need a
   - iPlug2 plugin shell integration
   - State serialization (save/load)
   - Sequencer/global parameter wiring (depends on P16)
+
+### P12b-4c Runtime silence investigation — BLOCKED — 2026-10-21
+- Report: `docs/p12b4c_runtime_silence.md` (reproduction, original-C evidence,
+  exact edited files, numeric results, build and manual REAPER acceptance steps).
+- Confirmed two independent initial-patch faults: amp attack 127 maps to zero;
+  voice/global decimation 0 freezes an initially zero held sample. Attack-only
+  override 64 still yields peak 0; attack 64 plus full-rate decimation yields
+  ST1 peak 5826. Preserved all original DSP equations and FIR coefficients.
+- New-instance defaults: attack 0, decimation 127 in ParameterArray and host
+  descriptors; native PAR 61 aligned with host decay 64. All 228 defaults agree.
+  Existing restored patch values are not migrated. Existing wrapper MIDI channel
+  fix was already present and preserved.
+- Native default diagnostics: ST1 peak 1639, ST2 peak 0, 3097/3200 nonzero ST1
+  frames. Existing 13 DSP suites passed; original-C filter differential 80000
+  blocks with zero mismatches at each of O0/O2; FIR functional 7/7 and quality
+  38/38 at each level, alias rejection -77.74 dB. Release x64 v145 MSBuild exit 0;
+  installed resources hash-match originals.
+- First installed VST3 offline-host test: 252/252, finite nonzero D1 at
+  32/44.1/48/96/192 kHz (peak about 0.0500), silent patch restore preserved.
+  Expanded host test compiles but execution is blocked by Windows Application
+  Control; no bypass attempted. Extra host channel-isolation, full state-roundtrip
+  and missing-assets execution remain pending.
+- New native/adapter suite: 418 pass / 1 fail, zero counted rendering C++
+  allocations. Failure retained: existing SnareVoice render is a silence stub;
+  channel routing itself passes. Snare implementation is outside this repair.
+- IntelliSense aligned to evaluated Release/x64 v145 build; matching syntax-only
+  MSVC check passed. Editor diagnostics not directly observed.
+- Open: REAPER playback/render acceptance; FIR delay reporting (23.5 native
+  frames, plugin reports 0); snare stub; expanded host tests under normal policy;
+  unsupported-rate transition readiness and broader instance/thread safety audit.
+  P12b-4c is NOT closed. No next phase started, staged changes, commit or push.
+
+### P12b-4c FIR latency reporting and validation — BLOCKED — 2026-10-26
+- Full evidence and remaining manual acceptance: final section of
+  `docs/p12b4c_runtime_silence.md`. User confirmed earlier audible REAPER playback.
+- New `dsp/FIRLatency.h` computes nominal host frames, nearest integer latency
+  (ties upward) and milliseconds; invalid/unsupported/NaN/infinite rates return
+  zero. Resampler now uses `kEngineSampleRate` rather than a repeated literal.
+- Verified indexing: y[n]=sum h_p[k]x[floor(n*Fs/Fh)-k], sinc centered on
+  k+p-23.5. Native impulse symmetry/first moment measures 23.5 source frames at
+  Fs=44002.7578125 Hz, nominal 0.534057435676 ms. Demand-filled 32-frame cache
+  adds no fixed 32-frame wait. No separate physical delay was added.
+- Host rates 32000/44100/48000/88200/96000/192000: nominal frames
+  17.089837942/23.551932913/25.634756912/47.103865827/51.269513825/102.539027650;
+  measured startup peaks and reported counts 17/24/26/47/51/103. Nominal signed
+  residuals after PDC +0.089838/-0.448067/-0.365243/+0.103866/+0.269514/-0.460972
+  host frames. Fractional-phase windowing/phase quantization also affect measured
+  response; no claim of exact linear-phase group delay at every frequency.
+- `OnReset` reports through installed iPlug2 `SetLatency`; VST3 stores count and
+  calls `restartComponent(kLatencyChanged)` on an attached component handler.
+  Initial `PLUG_LATENCY` stays 0. Only changed counts notify. Same-rate processing
+  stops retain coefficients; rate changes configure while inactive via VST3
+  setupProcessing. Invalid transitions now invalidate FIR readiness, silence
+  output and report zero; supported-rate recovery passes. ProcessBlock unchanged.
+- New latency suite: 220/220 at O0/O2, including six local pre-task PCM identity
+  checks (214 normal standalone checks), independent impulse/PCM math, invalid
+  rates, resets/rate changes and zero counted rendering C++ allocations. FIR
+  functional 7 cases and quality 38/38 pass at both levels; alias -77.74 dB.
+- Actual installed VST3 host: 1101/1101, exit 0; handler notifications and all
+  six counts verified, finite MIDI audio, reset silence, invalid-rate recovery,
+  channel isolation and audible/silent 228-value state restoration. Separate
+  missing-assets bundle: 1101/1101, exit 0. Prior expanded-host policy block did
+  not recur. Steinberg validator: 47 passed / 0 failed, exit 0.
+- MSBuild 18.10 Release x64 v145: exit 0, linked/packaged/installed bundle; all
+  five resource assets hash-match. Existing warnings/build flags unchanged.
+- Current DSP batch: 11/13 programs pass; Device Guard blocks LfoModulation and
+  ParameterArray execution. Original-C filter O2: 80000 blocks / zero mismatches;
+  O0 executable blocked by Application Control. No policy bypass; blocked launches
+  are not passes even when a shell/native-exit variable is zero.
+- Runtime suite at O0/O2: 418 pass / 1 fail each, exit 1. Snare silence stub is
+  inherited from main (c750a03/07d18be, before FIR branch); no snare changes.
+  Audibility assertion retained; routing passes. Separate snare follow-up remains.
+- REAPER v7.80 started in an isolated unsaved test project; LXR listed in chooser.
+  FX selection failed with target-window mismatch after documented refresh/retry.
+  New PDC at 44.1/48/96 kHz, playback timing and saved-project reopen NOT RUN;
+  precise manual checklist is in the report. Earlier user listening confirmation
+  is preserved, not substituted for new PDC acceptance.
+- Open: REAPER acceptance, Device Guard-blocked debug checks, independent snare
+  repair; wider multi-instance/parameter-thread safety and inherited build-flag
+  policy audit. Phase-wide interface acceptance remains open. No P12b-4d/P15/P16/
+  P17 work, staging, commit, push, merge or PR. P12b-4c is NOT DONE.
+
+### P12b-4c Automated REAPER PDC verification — PASS (host scope) — 2026-10-26
+- Harness: `tools/reaper/p12b4c_pdc_test.lua`; smoke wrapper and transport/reload
+  probe are adjacent in `tools/reaper/`.
+- Actual REAPER 7.80/x64 offline renders at 44100/48000/96000 Hz confirmed by
+  WAV headers. Intended installed VST3i loaded via its exact path/class identity.
+- Plugin/chain reporting matched 24/26/51 samples. REAPER chain actual value was
+  1024 in normal mode and 0 in ignore-PDC mode; reporting remained 24/26/51.
+- Independently measured normal-vs-ignore render shifts were exactly 24/26/51
+  frames, zero alignment error and zero shifted-waveform RMS error. Nominal
+  residuals were -0.448067/-0.365243/+0.269514 frames.
+- Finite nonzero stereo audio: peaks 0.0499936342/0.0499974489/0.0500279665;
+  RMS 0.00120634971/0.00120634792/0.00120634948; frames
+  110250/120000/240000. Two MIDI events per case, channel 1, note 60, velocity 110.
+- Saved isolated project reopened cleanly with six LXR instances; all reported
+  51 samples at saved 96 kHz. Two play/stop cycles passed.
+- Reports: `out/reaper-p12b4c/pdc_results.json` and `pdc_report.md`.
+- Host PDC requirement is closed. Parent P12/P12b-4c remains DOING/BLOCKED for
+  the previously recorded Device Guard checks, inherited snare stub, and broader
+  phase/interface issues; none was changed or reclassified here.
+
+### P12b-4c Snare renderer restoration — BLOCKED (environment only) — 2026-10-26
+- Authoritative source: Sonic Potions LXR 0.37 `Snare.c` and dependencies at
+  commit `dee49689f3f0cdf8f9b7b5e79628cfdca1b79394`; Catalyst was not used.
+- Replaced the inherited zero-fill snare stub with the original noise/filter/
+  transient/tonal/envelope/velocity/volume/distortion pipeline and preserved
+  operation order, signed-16-bit narrowing, saturation and firmware quirks.
+- Engine asset loading and Windows packaging now include both transient tables;
+  no audio-thread allocation or I/O was introduced.
+- Independent original-C differential: 61/61 at O0 and O2; 12 cases, 4,864
+  samples per level, zero mismatches/max difference/RMS difference, zero counted
+  render allocations and intact buffer canaries.
+- Runtime suite: 419/419 at O0/O2. Snare/Cymbal/HiHat: 47/47 at O0/O2. Filter
+  differential: 80,000 blocks/zero mismatches. FIR functional and latency suites
+  pass unchanged. All runnable DSP tests pass.
+- Release x64 v145 MSBuild and packaging pass. Installed VST3 SHA-256 is
+  `F51FF17924512FD364ADE5704E0A6CEFBFCD930AE91F803E576343F8DF0DA5B8`;
+  installed-host test 1,143/1,143 and Steinberg validator 47/47.
+- Fresh isolated REAPER 7.80/x64 48 kHz channel-4 render: peak 0.410337090492249,
+  RMS 0.00756627536108755, finite/nonzero. Repeated hits decay; channel-1 control
+  remains audible. Plugin/chain PDC is 26 samples and independently measured
+  normal-vs-ignore shift is 26 with zero alignment error. Reload and two
+  transport start/stop cycles pass. Subjective listening is NOT RUN.
+- Strict classification remains BLOCKED: Windows Application Control blocks the
+  required O0 mixer executable and O2 FIR-quality executable. No policy bypass
+  was attempted; there are no observed test failures. Full evidence:
+  `docs/snare_renderer_repair.md` and `out/reaper-p12b4c/snare_repair_final_*`.
+- No sequencer, preset, UI or unrelated voice work; no staging, commit or push.
+
+### P12c VST3 state serialization — BLOCKED (environment only) — 2026-10-26
+- Full engineering report: `docs/p12c_state_serialization.md`.
+- Added one authoritative versioned state format: `LXRS`, version 1, 24-byte
+  little-endian header, 228-byte ID-ordered 7-bit payload, CRC-32, 252-byte LXR
+  state plus iPlug2's four-byte VST3 bypass suffix. Unknown/corrupt/truncated/
+  oversized/trailing state is rejected before mutation. Exact legacy 228-double
+  iPlug2 state migrates safely.
+- All active IDs 1-227 and reserved slot 0 are preserved. Restore publishes a
+  validated fixed-size atomic candidate and rebuilds runtime Engine/FIR history/
+  MIDI state at a processing boundary. Host automation and native MIDI CC/NRPN
+  changes converge on the same `IParam`/`ParameterArray` values without locks,
+  allocation, I/O or logging in the callback.
+- Codec/native tests pass 29/29 at O0 and O2 with exact controlled six-voice PCM.
+  Installed VST3 state host passes 322/322; VST3 runtime 1143/1143; validator
+  47/47. Release x64 v145 MSBuild/package/install passes. Final DLL SHA-256:
+  `617D4CFDF77AD8AB4B07177CB3C61D06824FD6B8304A59C64A15EF86F6750B5F`.
+- REAPER 7.80/x64 isolated save/reopen passes at verified 48 kHz: two distinct
+  instances, 456/456 native slots restored, zero mismatches, exact pre/post
+  deterministic render samples, finite/nonzero peak 0.000640034676 and RMS
+  0.000142555836, two transport cycles. Both instances expose 26-sample PDC.
+- Fresh post-build PDC regression measures 26 frames, zero alignment error and
+  -0.365243-frame nominal fractional residual. Final reports are
+  `out/reaper-p12c/p12c_results_final.json` and
+  `out/reaper-p12b4c/p12c_fir_pdc_final_48000_results.json`.
+- Regression preservation passes for snare differential, 419-test runtime, FIR
+  functional/quality/latency, filter differential, installed VST3 runtime and
+  validator. Windows Application Control blocks fresh O0 LfoModulation and O2
+  ResonantFilter/TransientGen executables; no bypass attempted. No assertion
+  failure is observed, but these mandatory launches prevent DONE/PASS phase
+  classification.
+- No sequencer, kit-file import, preset browser, UI, staging, commit or push.
+
+### P12c final certification audit — BLOCKED — 2026-10-26
+- Baseline remained branch `p12b-4c-fir-resampler` at
+  `280279debe94cb26810ea89b89f36b9bf965a747`; existing tracked/untracked work
+  and all reports were preserved. No staging, commit, push, clean, reset, or
+  process termination occurred.
+- The exact O0 LfoModulation binary now runs normally and passes 18/18. All 13
+  O0 broad suites pass. O2 passes 11/13; exact ResonantFilter and TransientGen
+  binaries remain BLOCKED by Code Integrity events 3033/3077 under policy
+  `VerifiedAndReputableDesktop` (GUID
+  `{0283ac0f-fff1-49ae-ada1-8a933130cad6}`). Both are unsigned; AppLocker has
+  no matching event. No policy or file workaround was attempted.
+- Fresh focused regression passes: codec 29/29 O0/O2, snare differential 61/61
+  O0/O2, runtime 419/419 O0/O2, FIR functional/quality/latency O0/O2, and
+  original-C filter differential 80000 blocks/zero mismatches O0/O2.
+- Forced MSBuild 18.10.1 Release x64 v145 rebuild, link, seven-resource package,
+  install, installed-state 322/322, runtime 1143/1143, and validator 47/47 pass.
+  Built/installed SHA-256:
+  `45750AA46CCFBD3BBF080DBE81B682874038CC24C27B82AEE85A419A721B494F`.
+- Fresh REAPER 7.80/x64 evidence for that exact hash passes: two instances,
+  456/456 slots, exact deterministic samples, finite nonzero audio, two
+  transport cycles, reported latency 26, independently measured PDC shift 26,
+  zero alignment error. Reports use the `cert_45750aa4` suffix under
+  `out/reaper-p12c/` and `out/reaper-p12b4c/`.
+- Shared iPlug2 `SetState()` hardening is a necessary global fix for propagating
+  negative plugin decode positions and rejecting failed seek/short bypass reads.
+  Valid/bypass serialization is unchanged; no LXR-local return hook exists.
+  Keep it isolated and pin the vendor revision. Dedicated failed-seek and short-
+  bypass unit branches remain desirable.
+- Safety audit confirms corrupt payloads cannot partially publish, but identifies
+  two unresolved concurrency gaps: serialization has no cross-parameter snapshot
+  generation during concurrent automation, and a CC/NRPN event can overlap an
+  odd restore publication and temporarily/persistently diverge `IParam` from
+  Engine/`ParameterArray`. These need a plugin-local lock-free authority protocol
+  and stress test before strict acceptance.
+- Classification is **BLOCKED**, not DONE: two O2 policy-controlled launches and
+  the two concurrency findings remain. P16/sequencer work was not started.
+
+### P12c-R1 state concurrency hardening — BLOCKED (certification environment) — 2026-10-26
+- Full report: `docs/p12c_r1_concurrency_hardening.md`.
+- Deterministically reproduced both audited defects: the old independent atomic
+  scan yields a forced mixed-generation patch, and old odd-restore early return
+  permits MIDI/restore host-native divergence.
+- Replaced competing mutable state with one plugin-local 228-slot atomic
+  authority. A lock-free writer gate, all-atomic payload, odd/even 64-bit
+  generation, bounded readers, and explicit failure semantics provide coherent
+  LXRS snapshots without a C++ data race or unbounded audio-thread wait.
+- Restore is one batch generation. Host/controller automation uses the same
+  authority; colliding callbacks enter generation-ticketed mailboxes. CC/NRPN
+  takes the authority writer before host/native mutation. MIDI overlapping a
+  restore enters a preallocated 4,096-event FIFO and replays in order after the
+  complete patch. Stale `OnIdle()` generations are dropped.
+- Focused concurrency/oracle: 35/35 O0 and O2, including forced barriers,
+  concurrent producers/serialization, ordering, failure/overflow, invalid
+  state, deterministic bytes, and zero counted authority allocations. TSan was
+  not available and is not claimed.
+- LXRS v1 remains byte-compatible. Native codec 29/29 O0/O2; installed state
+  322/322; installed runtime 1101/1101; snare 61/61 O0/O2; runtime 419/419
+  O0/O2; FIR functional/quality/latency and 80,000-block filter differential
+  pass. Validator 47/47.
+- MSBuild 18.10.1 Release x64 v145 compile/link/package/install and all seven
+  resources pass. Built/installed SHA-256:
+  `B170E00911A4031B04616C0B75E2B2A7CE5902E5CF46F22A23F1D2DD93A6F953`.
+- Broad DSP: 13/13 O0 PASS; 11/13 O2 PASS; O2 ResonantFilter and TransientGen
+  remain BLOCKED by the established Windows Code Integrity enterprise-signing
+  policy. No bypass was attempted.
+- A fresh isolated REAPER 7.80 instance was launched against the pre-final R1
+  build after confirming none was running, but native automation timed out while
+  importing the unique R1 harness. No result artifact was created and the
+  task-created process was not terminated. Final-hash persistence/render/PDC
+  therefore remain unverified.
+- Classification stays **BLOCKED**, not FAIL: concurrency repairs and runnable
+  assertions pass, but current-hash REAPER and two mandatory O2 launches are
+  unavailable. P12c is not DONE and P16 was not started.
+
+### P12c-R1 final-hash certification — FAIL (controller projection) — 2026-10-29
+- Full report: `docs/p12c_r1_final_certification.md`; raw evidence and JSON/Markdown
+  reports: `out/p12c-r1-final-20261029/`. Branch/HEAD remain unchanged. Starting
+  tracked/untracked work and earlier reports were preserved; no Git mutation,
+  plugin rebuild/install, production change or framework widening occurred.
+- Built and installed binaries are 727552 bytes and match expected SHA-256
+  `B170E00911A4031B04616C0B75E2B2A7CE5902E5CF46F22A23F1D2DD93A6F953`.
+  Seven resources match source/built/installed sizes and hashes. Process module
+  paths/hashes tie the new REAPER instances to this exact executable.
+- Fresh REAPER 7.80/x64 state-only checkpoint passes: all 228 slots explicitly
+  set per instance, 456/456 after recreation/reopen, reserved 77/0, zero
+  mismatches; full expected/actual arrays retained. Deterministic A PCM is exact
+  (67200 stereo frames, 48 kHz, maximum/RMS sample error 0); both patches render
+  finite/nonzero audio. Two actual advancing transport start/stop cycles pass.
+- Fresh PDC and reload pass at confirmed 48 kHz: direct plugin report 26,
+  independently measured shift 26, aligned onset error 0 and waveform RMS error
+  0. Block-rounded chain actual 1024 is distinguished from direct PDC 26.
+- Both formerly denied exact O2 executables now execute in place through normal
+  PowerShell: filter fail=0/warn=0, transient 17/17, exits 0. Hashes/signatures
+  were not changed; Code Integrity/user-mode enforcement remains 2. No policy
+  change/bypass or administrator exception was used. The reason current policy
+  accepts the files is not established; read-only CiTool policy listing is denied.
+- Fresh required regressions pass: concurrency 35/35 O0/O2; codec 29/29 O0/O2;
+  installed state 322/322; runtime 1101/1101; snare differential 61/61 O0/O2;
+  native runtime 419/419 O0/O2; FIR functional/quality (38/38)/latency (220/220)
+  O0/O2; original-C filter 80000 blocks/zero mismatches O0/O2; validator 47/47.
+  Existing test executables were freshly run, not rebuilt or cited as historical.
+- **New failure:** REAPER MIDI controller values remain 100/0 instead of 77/45.
+  An isolated installed-DLL verifier reproduces serialized authority 77/45 but
+  `IEditController::getParamNormalized` 100/0 after 500 ms timer dispatch and two
+  idle notifications: 34 assertions pass, 2 fail, exit 1. The VST3 controller
+  cache is separate from IParam/authority; the current OnIdle notification route
+  does not synchronize it. Existing 322-state assertions covered serialization,
+  not this readback. Smallest proposed repair only is recorded; production work
+  stopped. REAPER desired-value MIDI save/reopen and forced host overlap remain
+  uncompleted/unclaimed.
+- Historical PID 15300 was absent; no user REAPER session existed at task start.
+  Seven task instances closed gracefully. Task PIDs 34036/13544/16836 refused
+  normal close requests and remain; no force termination or dialog discard was
+  attempted. Force termination would require explicit user approval.
+- Classification is **FAIL**, superseding the earlier environmental BLOCKED
+  status because an executed plugin assertion fails. The policy gap is closed;
+  MIDI controller convergence is an outstanding code defect. P12c-R1 is not
+  DONE; P16 and other feature phases were not begun.
+
+### P12c-R2 MIDI controller synchronization repair — PASS — 2026-10-30
+- Full report: `docs/p12c_r2_controller_sync_repair.md`; preserved evidence,
+  independent `verification.json`, and `focused-verification.json` under
+  `out/p12c-r2-20261030/`. Branch/HEAD remain
+  `p12b-4c-fir-resampler` / `280279debe94cb26810ea89b89f36b9bf965a747`.
+- Reproduced the unchanged installed R1 verifier: 34 PASS / 2 FAIL. IDs 88/128
+  serialize 77/45 while IEditController reads 100/0, despite two idle gestures.
+  Confirmed separate controller cache and an API parameter queue not drained by
+  this non-distributed VST3 adapter. Historical failures are preserved.
+- Plugin-local idle now projects durable per-slot authority generations under
+  the bounded writer gate, releases it before host cache invalidation, and
+  acknowledges only successful same-connection notifications. Reconnect performs
+  one full reconciliation. No DAW automation gestures or new vendor patch.
+- Real REAPER investigation also exposed float-precision MIDI proxy truncation:
+  CC98=1 becomes selector 0. A read-only loaded-parser trace and independent
+  float-rounded VST3 fixture reproduce it. Callback-scoped local VST3 queue
+  views canonicalize only MIDI CC wire values before framework dispatch.
+- Exact original assertions now 36/36; external controller verifier 955/955;
+  loaded authority/ParameterArray/IParam/Engine/FIFO probe 1033/1033. Includes
+  all 128 wire values, retry/reentry, generations, reconnect, actual concurrent
+  process/save/restore/UI, ordered deferred NRPN replay and 4096+1 overflow.
+- All 30 mandatory suite runs PASS: R1 concurrency 35/35 O0/O2; codec 29/29
+  O0/O2; snare 61/61 O0/O2; runtime 419/419 O0/O2; FIR functional/quality/latency,
+  80000-block filter differential, MIDI, mixer, filter/transient O0/O2; installed
+  state 322/322, runtime 1101/1101 and validator 47/47. Corrected standalone
+  snare fixture initialization to match zeroed original-C globals; algorithms
+  and all 61 DSP source/header files remain unchanged from R1.
+- VS Community 18 / MSBuild 18.10.1 / Release x64 / v145 compile, link,
+  seven-resource package and installation PASS. All executable copies are
+  729600 bytes, SHA-256
+  `89F6DF598EBC88F580A6013D83DA10053A177ECBBFC89CA88AC474E2C3E7FF82`.
+- Fresh REAPER 7.80 on that canonical installed path/hash passes MIDI 77/45
+  readback and save/reopen, two distinct instances, 456/456 slots at baseline
+  and MIDI checkpoints, exact 67200-frame tonal audio, two advancing transport
+  cycles, and 26-sample reported/measured PDC with zero aligned error after
+  reload. Formatted FX values are "77"/"45". Save occurs before later observed
+  host stop/reset CC messages; those legitimate updates are recorded separately.
+- User explicitly authorized termination only of historical task PIDs 13544 and
+  16836; identities were rechecked. All subsequent task closures use saved,
+  clean projects and normal REAPER quit. No Windows policy change/bypass,
+  unrelated project manipulation, staging, commit or push. TSan and whole-DLL
+  heap instrumentation remain unclaimed optional checks. LXRS v1 and legacy
+  migration remain compatible. P16/morphing/preset-browser/UI work not started.
+
+
+### P12c-R3 checkpoint gate closure - READY (Git execution not authorized) - 2026-10-31
+- Reports: `docs/p12c_r3_checkpoint_gate_closure.md`, updated certified baseline,
+  and `docs/build_and_test.md`; exact checkpoint list in
+  `tools/verification/checkpoint_files.json`.
+- Portable REAPER helper configuration and explicit overrides; historical paths
+  and earlier test classifications preserved. Path regression: 32/32 PASS.
+- Explicit source-test runner and tracked filter compatibility headers replace
+  undocumented local prerequisites. Independently acquired pinned source tree,
+  paths with spaces, fresh objects/SDK hosting/MemoryStream/validator: 47/47
+  source-built suites PASS, including O0/O2 native codec/concurrency/synthesis,
+  snare/filter differential and FIR. Portable latency is 214 assertions; the
+  preserved 220-assertion historical snapshot suite separately passes.
+- Original mandatory 30-suite matrix freshly rerun PASS; read-only R2 REAPER
+  state/MIDI/audio/PDC artifact analysis PASS. No fresh REAPER session claimed.
+- Safe narrow ignore rules applied; all 70 checkpoint source paths remain
+  eligible. Immutable archive acquisition preserves current vendor topology,
+  exact iPlug2 d54f6905/SDK pins and the one intentional state-reader patch.
+- Exception/RTTI disposition RETAIN for the certified third-party shell;
+  active iPlug2 casts reject disabled RTTI in a controlled compile. Native DSP
+  objects disable exceptions/RTTI, with the existing DrumVoice fixture's catch
+  requiring an explicitly documented test-translation-unit exception override.
+- Source/functional reproducibility demonstrated; byte-identical DLL builds are
+  unestablished and are not a repository checkpoint requirement. All nine
+  binary tables re-exported from pinned original C hash-match tracked data.
+- Production DSP/plugin/state/MIDI/controller/FIR code, runtime build settings,
+  assets and installed certified hash 89F6DF59...E7FF82 unchanged. No new DSP
+  interface is introduced by this infrastructure phase. P12 remains larger scope.
+- All technical checkpoint gates closed. Separate explicit authorization is
+  still required for staging/commits/push. No such Git operations or P15-M1/P16,
+  sequencing, morphing, preset-management or GUI implementation occurred.
