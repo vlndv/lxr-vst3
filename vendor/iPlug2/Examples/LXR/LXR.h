@@ -2,11 +2,17 @@
 
 #include "IPlug_include_in_plug_hdr.h"
 #include "LXRParamContract.h"
+#include "LXRState.h"
 
 #include "../../../../../dsp/Engine.h"
+#include "../../../../../dsp/FixedFifo.h"
 #include "../../../../../dsp/ParameterArray.h"
+#include "../../../../../dsp/ParameterStateAuthority.h"
 #include "../../../../../dsp/MidiParser.h"
 #include "../../../../../dsp/LXRAudioAdapter.h"
+
+#include <array>
+#include <atomic>
 
 class LXR final : public iplug::Plugin
 {
@@ -35,7 +41,33 @@ public:
     int paramIdx
   ) override;
 
+  void OnParamChangeUI(
+    int paramIdx,
+    iplug::EParamSource source
+  ) override;
+
+  bool SerializeState(
+    iplug::IByteChunk& chunk
+  ) const override;
+
+  int UnserializeState(
+    const iplug::IByteChunk& chunk,
+    int startPos
+  ) override;
+
+  void OnIdle() override;
+
+#if defined(VST3_API)
+  Steinberg::tresult PLUGIN_API process(
+    Steinberg::Vst::ProcessData& data) override;
+  Steinberg::tresult PLUGIN_API setComponentHandler(
+    Steinberg::Vst::IComponentHandler* handler) override;
+#endif
+
 private:
+  // Test-only access to the exact loaded component; adds no ABI or runtime API.
+  friend struct LXRControllerSyncTestProbe;
+
   // Native LXR synthesis/DSP engine.
   lxr::Engine mEngine;
 
@@ -50,7 +82,46 @@ private:
   lxr::LXRAudioAdapter mAudioAdapter;
   bool mAssetsLoaded = false;
 
+  using StateAuthority =
+    lxr::ParameterStateAuthority<lxr::state::kParameterCount>;
+
+  // The sole logical parameter authority. IParam mirrors host-visible values;
+  // ParameterArray and Engine are processing-thread projections.
+  StateAuthority mState;
+  std::atomic<uint64_t> mPendingRestoreGeneration {0};
+  uint64_t mAppliedRestoreGeneration = 0;
+  uint64_t mAppliedStateGeneration = 0;
+
+  // A host/UI parameter callback that overlaps the bounded writer gate stores
+  // its latest value here. Bit 8 marks a pending 7-bit value. Processing drains
+  // all mailboxes as one explicitly defined boundary generation.
+  std::array<std::atomic<uint64_t>, lxr::state::kParameterCount>
+    mDeferredHostValues {};
+  std::atomic<uint64_t> mDeferredHostOrder {1};
+
+  // Main-thread-only acknowledgement of authority generations projected into
+  // the separate VST3 controller cache. The authority itself retains pending
+  // values; no audio-to-main notification queue can overflow or lose an edit.
+  std::array<uint64_t, lxr::state::kParameterCount>
+    mControllerSyncGenerations {};
+  bool mControllerNeedsReconcile = true;
+  bool mControllerSyncBusy = false;
+  uint64_t mControllerConnection = 0;
+
+  // VST3 invokes ProcessMidiMsg() serially on the processing thread before
+  // ProcessBlock(). Events that meet an in-progress restore are retained in
+  // this fixed FIFO and replayed after that restore. Overflow rejects the new
+  // event without changing host or native state and is observable in tests.
+  static constexpr std::size_t kDeferredMidiCapacity = 4096;
+  lxr::FixedFifo<iplug::IMidiMsg, kDeferredMidiCapacity> mDeferredMidi;
+  std::atomic<uint64_t> mDeferredMidiOverflows {0};
+
   // Reset Engine and adapter state, then reconstruct the Engine from
-  // the current host parameter values.
+  // one coherent authoritative state snapshot.
   void ResetEngineState();
+  bool ApplyPendingStateAndParameters();
+  bool FlushDeferredHostParameters();
+  bool ProcessMidiMsgNow(const iplug::IMidiMsg& msg);
+  bool EnqueueDeferredMidi(const iplug::IMidiMsg& msg) noexcept;
+  void DrainDeferredMidi();
 };

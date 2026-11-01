@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include "Engine.h"
+
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -18,14 +20,19 @@ public:
   static constexpr std::size_t kPhases = 512;
   static constexpr std::size_t kHistory = 128;
 
-  // Match the float constant in Engine.h exactly.
+  // Use the native Engine rate as the single source of truth.
   static constexpr double kSourceRate =
-    static_cast<double>(44002.7573529412f);
+    static_cast<double>(kEngineSampleRate);
 
   // Call outside the audio processing callback.
   // Supported host rates: 32 kHz through 192 kHz.
   bool configure(double rate) noexcept
   {
+    // A failed reconfiguration must never retain a stale rate/readiness.
+    // Coefficients may be partially rewritten if generation fails.
+    mRate = 0.0;
+    reset();
+
     if (!std::isfinite(rate) ||
         rate < 32000.0 ||
         rate > 192000.0)

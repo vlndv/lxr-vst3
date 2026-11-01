@@ -26,6 +26,11 @@ public:
     return mResampler.ready();
   }
 
+  double hostRate() const noexcept
+  {
+    return mResampler.hostRate();
+  }
+
   // Generate one resampled floating-point stereo frame.
   void getNextHostST1Sample(
     Engine& engine,
