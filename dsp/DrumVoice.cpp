@@ -99,8 +99,16 @@ void DrumVoice::calcAsync(const float* noteFreq) {
 
     osc.fmMod = fmModAmount * egPitchVal;
 
-    lastGain = targetGain;
-    targetGain = oscVolEg.calc();
+    // ORIGINAL QUIRK: test the state BEFORE advancing the envelope. At the
+    // instant-attack setting the firmware suppresses interpolation only in
+    // ATTACK/REPEAT, including the tick that transitions into DECAY.
+    if (oscVolEg.attack == 1.0f && (oscVolEg.state == 1 || oscVolEg.state == 3)) {
+        targetGain = oscVolEg.calc();
+        lastGain = targetGain;
+    } else {
+        lastGain = targetGain;
+        targetGain = oscVolEg.calc();
+    }
     
     osc_recalcFreq(&osc, noteFreq);
     osc_recalcFreq(&modOsc, noteFreq);

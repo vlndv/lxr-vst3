@@ -57,7 +57,7 @@ int main() {
         lfo.waveform = lxr::LFO_SAW_UP;
         
         // Tick through one cycle
-        for (int i = 0; i < 44003; i++) {  // ~1 second at 44kHz
+        for (int i = 0; i < 1375; i++) {  // ~1 second at REAL_FS/32
             lfo.tick();
         }
         // After one full cycle, output should be near 1.0 (end of ramp)
@@ -71,11 +71,12 @@ int main() {
         lfo.phaseOffset = 0x80000000u;
         lfo.phase = 0;
         
-        lfo.trigger(1);  // should reset phase
+        lfo.trigger(0);  // zero-based D1, selector1
         check_u32("lfo retrigger phase reset", lfo.phase, 0x80000000u);
         
-        lfo.trigger(2);  // should NOT reset
-        check_u32("lfo no retrigger", lfo.phase, 0x80000000u);
+        lfo.phase = 123;
+        lfo.trigger(1);  // zero-based D2 must NOT reset
+        check_u32("lfo no retrigger", lfo.phase, 123u);
     }
     
     // Modulation tests

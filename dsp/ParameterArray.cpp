@@ -11,7 +11,10 @@ namespace {
 void setWave(OscInfo& osc, uint8_t value) { osc.waveform = value; }
 void setCoarse(OscInfo& osc, uint8_t value) { osc.midiFreq = (value << 8) | (osc.midiFreq & 0xFF); }
 void setFine(OscInfo& osc, uint8_t value) { osc.midiFreq = (osc.midiFreq & 0xFF00) | value; }
-void setFilterFreq(ResonantFilter& filter, uint8_t value) { filter.f = cutoffShape(value); filter.recalcFreq(); }
+void setFilterFreq(ResonantFilter& filter, uint8_t value) {
+    // Firmware SVF_directSetFilterValue applies 0.5f*0.90f AFTER shaping.
+    filter.directSetFilterValue(cutoffShape(value));
+}
 void setFilterReso(ResonantFilter& filter, uint8_t value) {
     float q = 1.0f - value / 127.0f;
     filter.q = (q < 0.1f) ? 0.02f : q;
@@ -85,28 +88,29 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 8: setCoarse(engine.drums[0].osc, value); break;
         case 10: setCoarse(engine.drums[1].osc, value); break;
         case 12: setCoarse(engine.drums[2].osc, value); break;
-        case 14: setCoarse(engine.snare.osc, value); break;
-        case 16: setCoarse(engine.cymbal.osc, value); break;
-        case 18: setCoarse(engine.hihat.osc, value); break;
+        // Firmware writes Hz immediately; phaseInc still updates at async.
+        case 14: setCoarse(engine.snare.osc, value); osc_recalcFreq(&engine.snare.osc, engine.noteFreq); break;
+        case 16: setCoarse(engine.cymbal.osc, value); osc_recalcFreq(&engine.cymbal.osc, engine.noteFreq); break;
+        case 18: setCoarse(engine.hihat.osc, value); osc_recalcFreq(&engine.hihat.osc, engine.noteFreq); break;
         
         case 9: setFine(engine.drums[0].osc, value); break;
         case 11: setFine(engine.drums[1].osc, value); break;
         case 13: setFine(engine.drums[2].osc, value); break;
-        case 15: setFine(engine.snare.osc, value); break;
-        case 17: setFine(engine.cymbal.osc, value); break;
-        case 19: setFine(engine.hihat.osc, value); break;
+        case 15: setFine(engine.snare.osc, value); osc_recalcFreq(&engine.snare.osc, engine.noteFreq); break;
+        case 17: setFine(engine.cymbal.osc, value); osc_recalcFreq(&engine.cymbal.osc, engine.noteFreq); break;
+        case 19: setFine(engine.hihat.osc, value); osc_recalcFreq(&engine.hihat.osc, engine.noteFreq); break;
         
         case 27: engine.snare.noiseOsc.freq = noiseFrequencyHz(value); break;
         case 28: engine.snare.mix = value / 127.0f; break;
         
-        case 29: engine.cymbal.modOsc.freq = noiseFrequencyHz(value); break;
-        case 30: engine.cymbal.modOsc2.freq = noiseFrequencyHz(value); break;
+        case 29: setCoarse(engine.cymbal.modOsc, value); osc_recalcFreq(&engine.cymbal.modOsc, engine.noteFreq); break;
+        case 30: setCoarse(engine.cymbal.modOsc2, value); osc_recalcFreq(&engine.cymbal.modOsc2, engine.noteFreq); break;
         case 31: engine.cymbal.fmModAmount1 = value / 127.0f; break;
         case 32: engine.cymbal.fmModAmount2 = value / 127.0f; break;
-        case 33: engine.drums[0].modOsc.freq = noiseFrequencyHz(value); break;
-        case 34: engine.drums[1].modOsc.freq = noiseFrequencyHz(value); break;
-        case 35: engine.drums[2].modOsc.freq = noiseFrequencyHz(value); break;
-        case 36: engine.hihat.modOsc.freq = noiseFrequencyHz(value); break;
+        case 33: setCoarse(engine.hihat.modOsc, value); osc_recalcFreq(&engine.hihat.modOsc, engine.noteFreq); break;
+        case 34: setCoarse(engine.hihat.modOsc2, value); osc_recalcFreq(&engine.hihat.modOsc2, engine.noteFreq); break;
+        case 35: engine.hihat.fmModAmount1 = value / 127.0f; break;
+        case 36: engine.hihat.fmModAmount2 = value / 127.0f; break;
         
         case 37: setFilterFreq(engine.drums[0].filter, value); break;
         case 38: setFilterFreq(engine.drums[1].filter, value); break;
@@ -198,12 +202,12 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 113: engine.mixer.setDecimationRate(5, decimationRate(value)); break;
         case 114: engine.mixer.setGlobalDecimationRate(decimationRate(value)); break;
         
-        case 115: engine.drums[0].lfo.setRate(lfoFrequencyFromMidi(value)); break;
-        case 116: engine.drums[1].lfo.setRate(lfoFrequencyFromMidi(value)); break;
-        case 117: engine.drums[2].lfo.setRate(lfoFrequencyFromMidi(value)); break;
-        case 118: engine.snare.lfo.setRate(lfoFrequencyFromMidi(value)); break;
-        case 119: engine.cymbal.lfo.setRate(lfoFrequencyFromMidi(value)); break;
-        case 120: engine.hihat.lfo.setRate(lfoFrequencyFromMidi(value)); break;
+        case 115: engine.drums[0].lfo.setRate(lfoFrequencyFromMidi(value),engine.nativeTempo()); break;
+        case 116: engine.drums[1].lfo.setRate(lfoFrequencyFromMidi(value),engine.nativeTempo()); break;
+        case 117: engine.drums[2].lfo.setRate(lfoFrequencyFromMidi(value),engine.nativeTempo()); break;
+        case 118: engine.snare.lfo.setRate(lfoFrequencyFromMidi(value),engine.nativeTempo()); break;
+        case 119: engine.cymbal.lfo.setRate(lfoFrequencyFromMidi(value),engine.nativeTempo()); break;
+        case 120: engine.hihat.lfo.setRate(lfoFrequencyFromMidi(value),engine.nativeTempo()); break;
         
         case 121: engine.drums[0].lfo.amount = value / 127.0f; break;
         case 122: engine.drums[1].lfo.amount = value / 127.0f; break;
@@ -257,12 +261,12 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         case 177: engine.cymbal.lfo.retrigger = value; break;
         case 178: engine.hihat.lfo.retrigger = value; break;
         
-        case 179: engine.drums[0].lfo.sync = value; break;
-        case 180: engine.drums[1].lfo.sync = value; break;
-        case 181: engine.drums[2].lfo.sync = value; break;
-        case 182: engine.snare.lfo.sync = value; break;
-        case 183: engine.cymbal.lfo.sync = value; break;
-        case 184: engine.hihat.lfo.sync = value; break;
+        case 179: engine.drums[0].lfo.setSync(value,engine.nativeTempo()); break;
+        case 180: engine.drums[1].lfo.setSync(value,engine.nativeTempo()); break;
+        case 181: engine.drums[2].lfo.setSync(value,engine.nativeTempo()); break;
+        case 182: engine.snare.lfo.setSync(value,engine.nativeTempo()); break;
+        case 183: engine.cymbal.lfo.setSync(value,engine.nativeTempo()); break;
+        case 184: engine.hihat.lfo.setSync(value,engine.nativeTempo()); break;
         
         case 185: engine.drums[0].lfo.phaseOffset = lfoPhaseOffsetFromMidi(value); break;
         case 186: engine.drums[1].lfo.phaseOffset = lfoPhaseOffsetFromMidi(value); break;
@@ -310,6 +314,7 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         
         default: break;
     }
+    engine.velocityBaseParameterChanged(modulation_contract::HostParameterId::fromRaw(par));
 }
 
 uint8_t ParameterArray::get(uint8_t par) const {

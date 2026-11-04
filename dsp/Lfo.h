@@ -18,7 +18,9 @@ enum LfoWave : uint8_t {
 
 struct Lfo {
     uint32_t phase = 0;
-    uint32_t phaseInc = 0;
+    uint32_t phaseInc = 1;
+    float frequency = 1.f;
+    float modNodeValue = 1.f;
     uint8_t waveform = LFO_SINE;
     uint8_t retrigger = 0;
     uint8_t sync = 0;
@@ -31,10 +33,12 @@ struct Lfo {
     OscRng rng; // Per-instance PRNG for S&H (replaces unsafe global rand())
 
     void init();
-    void setRate(float hz);
+    void setRate(float hz, uint16_t nativeBpm = 120);
+    void setSync(uint8_t value, uint16_t nativeBpm = 120);
     void setTempoSync(uint8_t syncValue, float bpm);
     void trigger(uint8_t voiceNum);
-    void tick();
+    // Immutable original table supplied by the processing owner's asset view.
+    void tick(const int16_t* sine = nullptr);
     float getOutput();
 };
 

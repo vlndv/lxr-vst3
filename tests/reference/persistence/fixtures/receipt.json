@@ -1,0 +1,43 @@
+{
+  "method": "Independent Python struct little-endian fields and standard-library zlib CRC; no C++ model import",
+  "original_table": "C:\\Projects\\lxr-vst3\\ref\\LXR-0.37\\front\\LxrAvr\\Menu\\Cc2Text.c",
+  "original_table_sha256": "9A264F0DFD6B3EE6C88D884A3859270AFCEB7B9F4FB0F25B75CCD02C74CF11AE",
+  "target_csv_sha256": "2CAD85689480EC14DEADEE822DBDD818DE0E60F84BB791525CEB2291B2C4A71A",
+  "active_indices": [
+    34,
+    68,
+    102,
+    135,
+    169,
+    203,
+    34,
+    68,
+    102,
+    135,
+    169,
+    203
+  ],
+  "patch_formula": "(id*37+11)%128",
+  "files": {
+    "v2_active.bin": {
+      "size": 520,
+      "sha256": "7441F29A0C2FD4F6E0A8537197B7592790300D74DB8AD9ED4BB6FFF44149E659"
+    },
+    "v2_off.bin": {
+      "size": 516,
+      "sha256": "B01084D6A35FF40D96BFAB82C8A0097A6578DD7ED486D72AA050072163F5947C"
+    },
+    "v1.bin": {
+      "size": 256,
+      "sha256": "5AE79AA10951D7456081CAF72697CD84553CE7C0F25E70529446B0F36DD4090E"
+    },
+    "legacy.bin": {
+      "size": 1828,
+      "sha256": "CCE3CB68F8C390AE2DF1418A4A6EA456D441359B42057547A1F78C6129E22B52"
+    },
+    "table_sha256.bin": {
+      "size": 32,
+      "sha256": "F6548BF4B8757AA45F82721D2BB722FCAD5C340302D4552565EBCD19D1349EFA"
+    }
+  }
+}
