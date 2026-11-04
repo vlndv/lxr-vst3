@@ -219,7 +219,6 @@ class Runner:
         common = ["/nologo", "/std:c++17", "/O2", "/MD", "/GR-", "/EHs-c-", "/DNDEBUG", "/I" + str(sdk)]
         memory = hostout / "memorystream.obj"
         self.command("compile-memorystream", [cl, *common, "/c", sdk / "public.sdk/source/common/memorystream.cpp", "/Fo" + str(memory)], env=env)
-        cases = [(name, []) for name in MANIFEST["host_tests"]]
         definitions = ["VST3_API", "IPLUG_EDITOR=1", "IPLUG_DSP=1", "IGRAPHICS_NANOVG", "IGRAPHICS_GL2",
                        "WIN32", "_CRT_SECURE_NO_DEPRECATE", "_CRT_NONSTDC_NO_DEPRECATE", "NOMINMAX", "_WINDLL", "_MBCS", "LXR_R2_INTERNAL_PROBE"]
         includes = ["WDL", "IPlug", "IPlug/VST3", "IPlug/Extras", "IPlug/Extras/OSC", "IPlug/Extras/Synth",
@@ -228,6 +227,8 @@ class Runner:
                     "Dependencies/IGraphics/NanoSVG/src", "Dependencies/IGraphics/STB", "Dependencies/IGraphics/glad_GL2/include"]
         probe = ["/D" + definition for definition in definitions] + ["/I" + str(iplug / path) for path in includes]
         probe += ["/I" + str(self.source / "vendor/iPlug2/Examples/LXR")]
+        cases = [(name, probe if name == "P15M2GVST3StateTest" else [])
+                 for name in MANIFEST["host_tests"]]
         cases.append(("ControllerSyncProbe", probe))
         for name, flags in cases:
             source = "P12cR2ControllerSyncTest" if name == "ControllerSyncProbe" else name

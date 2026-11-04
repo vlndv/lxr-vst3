@@ -58,6 +58,10 @@ public:
   void OnIdle() override;
 
 #if defined(VST3_API)
+  Steinberg::tresult PLUGIN_API setState(
+    Steinberg::IBStream* state) override;
+  Steinberg::tresult PLUGIN_API getState(
+    Steinberg::IBStream* state) override;
   Steinberg::tresult PLUGIN_API process(
     Steinberg::Vst::ProcessData& data) override;
   Steinberg::tresult PLUGIN_API setComponentHandler(
@@ -67,12 +71,17 @@ public:
 private:
   // Test-only access to the exact loaded component; adds no ABI or runtime API.
   friend struct LXRControllerSyncTestProbe;
+  friend struct P15M2GStateIntegrationTestProbe;
 
   // Native LXR synthesis/DSP engine.
   lxr::Engine mEngine;
+  // Inactive fixed staging bank. Complete restore candidates are constructed
+  // here before the processing owner selects them.
+  lxr::Engine mStagingEngine;
 
   // Canonical 228-entry raw LXR parameter state.
   lxr::ParameterArray mParams;
+  lxr::ParameterArray mStagingParams;
 
   // Native LXR MIDI parser and dispatcher.
   lxr::MidiParser mMidiParser;
@@ -88,9 +97,13 @@ private:
   // The sole logical parameter authority. IParam mirrors host-visible values;
   // ParameterArray and Engine are processing-thread projections.
   StateAuthority mState;
-  std::atomic<uint64_t> mPendingRestoreGeneration {0};
-  uint64_t mAppliedRestoreGeneration = 0;
+  // Separate fixed routing authority and shared patch+routing coordinator.
+  mutable lxr::RoutingStateAuthority mRoutingState;
+  lxr::PersistentRoutingState mAppliedRouting =
+    lxr::MakeDisabledRoutingState();
+  uint64_t mAppliedRestoreGeneration = 0; // Routing restore epoch.
   uint64_t mAppliedStateGeneration = 0;
+  uint64_t mAppliedJointGeneration = 0;
 
   // A host/UI parameter callback that overlaps the bounded writer gate stores
   // its latest value here. Bit 8 marks a pending 7-bit value. Processing drains
@@ -98,6 +111,7 @@ private:
   std::array<std::atomic<uint64_t>, lxr::state::kParameterCount>
     mDeferredHostValues {};
   std::atomic<uint64_t> mDeferredHostOrder {1};
+  std::atomic<uint64_t> mRestoreOrderCutoff {0};
 
   // Main-thread-only acknowledgement of authority generations projected into
   // the separate VST3 controller cache. The authority itself retains pending
@@ -120,7 +134,25 @@ private:
   // one coherent authoritative state snapshot.
   void ResetEngineState();
   bool ApplyPendingStateAndParameters();
-  bool FlushDeferredHostParameters();
+  bool FlushDeferredHostParameters(
+    uint64_t maximumOrder = UINT64_MAX);
+  bool TryPersistentSnapshot(
+    StateAuthority::Values& parameters,
+    uint64_t& parameterGeneration,
+    lxr::RoutingStateAuthority::Snapshot& routing) const;
+  bool PublishPersistentRestore(
+    const StateAuthority::Values& parameters,
+    const lxr::PersistentRoutingState& routing);
+  bool StageCompleteRestore(
+    const StateAuthority::Values& parameters,
+    const lxr::PersistentRoutingState& routing);
+  bool ApplyRoutesToEngine(
+    lxr::Engine& engine,
+    const std::array<lxr::PersistentRouteRecord,
+                     lxr::kPersistentRouteCount>& routes) noexcept;
+  bool ConfigureRouteForTest(
+    const lxr::PersistentRouteRecord& route,
+    uint64_t expectedEpoch) noexcept;
   bool ProcessMidiMsgNow(const iplug::IMidiMsg& msg);
   bool EnqueueDeferredMidi(const iplug::IMidiMsg& msg) noexcept;
   void DrainDeferredMidi();

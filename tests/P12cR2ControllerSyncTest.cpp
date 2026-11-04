@@ -288,7 +288,10 @@ int main(int argc, char** argv)
             MemoryStream stream;
             if (h.component->getState(&stream) == kResultOk) {
                 std::array<uint8_t, 228> values {};
-                auto result = lxr::state::Decode(reinterpret_cast<const uint8_t*>(stream.getData()), stream.getSize(), values, true);
+                auto routing = lxr::MakeDisabledRoutingState();
+                auto result = lxr::state::DecodePersistentState(
+                    reinterpret_cast<const uint8_t*>(stream.getData()),
+                    stream.getSize(), values, routing, true);
                 if (!result) ++incoherent;
                 ++snapshots;
             }

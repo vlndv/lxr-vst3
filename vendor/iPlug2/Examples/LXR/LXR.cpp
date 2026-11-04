@@ -183,6 +183,18 @@ void ClearAudioOutputs(
     }
 }
 
+bool SameRoute(const lxr::PersistentRouteRecord& a,
+               const lxr::PersistentRouteRecord& b) noexcept
+{
+    return a.owner == b.owner && a.source == b.source &&
+           a.flags == b.flags && a.identityNamespace == b.identityNamespace &&
+           a.originalIndex == b.originalIndex &&
+           a.firmwareParameter == b.firmwareParameter &&
+           a.valueType == b.valueType && a.scope == b.scope &&
+           a.physicalKey == b.physicalKey &&
+           a.menuVoiceHint == b.menuVoiceHint && a.reserved == b.reserved;
+}
+
 } // namespace
 
 // ---------------------------------------------------------
@@ -249,6 +261,8 @@ LXR::LXR(
         mDeferredHostValues[index].store(0, std::memory_order_relaxed);
     }
     mState.initialize(initialState);
+    mRoutingState.initialize();
+    mAppliedRouting = lxr::MakeDisabledRoutingState();
 
     // Clear native cache and resampler state.
     // Host-rate configuration occurs in OnReset().
@@ -276,45 +290,83 @@ LXR::LXR(
 // Restore the native Engine from current host parameters.
 // ---------------------------------------------------------
 
+bool LXR::TryPersistentSnapshot(
+    StateAuthority::Values& parameters,
+    uint64_t& parameterGeneration,
+    lxr::RoutingStateAuthority::Snapshot& routing) const
+{
+    lxr::RoutingStateAuthority::Guard guard;
+    if (!mRoutingState.tryAcquire(guard))
+        return false;
+    if (!mState.trySnapshot(parameters, &parameterGeneration, 1))
+        return false;
+    return mRoutingState.copyLocked(guard, routing);
+}
+
+bool LXR::ApplyRoutesToEngine(
+    lxr::Engine& engine,
+    const std::array<lxr::PersistentRouteRecord,
+                     lxr::kPersistentRouteCount>& routes) noexcept
+{
+    using namespace lxr::modulation_contract;
+    for (std::size_t i = 0; i < routes.size(); ++i)
+    {
+        const auto& route = routes[i];
+        const SourceIdentity source {
+            route.source == 0u ? SourceKind::Velocity : SourceKind::Lfo,
+            voiceFromZeroBased(route.owner)
+        };
+        const auto target = OriginalTargetIndex::fromRaw(route.originalIndex);
+        const auto status = route.source == 0u
+            ? engine.configureVelocityDestination(source, target)
+            : engine.configureLfoDestination(source, target);
+        if (status != lxr::VelocityRouteStatus::Ok)
+            return false;
+    }
+    return true;
+}
+
+bool LXR::StageCompleteRestore(
+    const StateAuthority::Values& parameters,
+    const lxr::PersistentRoutingState& routing)
+{
+    // Copy only the fixed Engine bank. Asset views are non-owning and remain
+    // resident; init performs no allocation or resource loading.
+    mStagingEngine = mEngine;
+    mStagingEngine.init();
+    mStagingParams.init();
+    for (std::size_t i = 0; i < parameters.size(); ++i)
+    {
+        mStagingParams.set(static_cast<uint8_t>(i), parameters[i],
+                           mStagingEngine);
+    }
+    if (!ApplyRoutesToEngine(mStagingEngine, routing.routes))
+        return false;
+
+    // Selection is the processing-boundary linearization point. No renderer or
+    // event consumer runs between these fixed assignments.
+    mEngine = mStagingEngine;
+    mParams = mStagingParams;
+    mAppliedRouting = routing;
+    mAudioAdapter.reset();
+    mMidiParser = lxr::MidiParser();
+    return true;
+}
+
 void LXR::ResetEngineState()
 {
     StateAuthority::Values parameters {};
-    uint64_t generation = 0;
-    if (!mState.trySnapshot(parameters, &generation, 64))
-    {
-        // Host callback thread context is not guaranteed here. A concurrent
-        // writer leaves the previous complete runtime state intact; the next
-        // processing boundary retries without blocking.
+    uint64_t parameterGeneration = 0;
+    lxr::RoutingStateAuthority::Snapshot routing;
+    if (!TryPersistentSnapshot(parameters, parameterGeneration, routing))
         return;
-    }
 
-    // Reset DSP voices, modulation and mixer.
-    mEngine.init();
+    if (!StageCompleteRestore(parameters, routing.state))
+        return;
 
-    // Discard cached audio and FIR history.
-    // Preserve the configured host sample rate.
-    mAudioAdapter.reset();
-
-    // Discard any incomplete MIDI controller sequence.
-    mMidiParser = lxr::MidiParser();
-
-    // Initialize the native parameter array.
-    mParams.init();
-
-    // Reapply one coherent authoritative generation.
-    for (int paramIdx = 0; paramIdx < lxr::vst::kNumParams; ++paramIdx)
-    {
-        mParams.set(
-            static_cast<uint8_t>(paramIdx),
-            parameters[static_cast<std::size_t>(paramIdx)],
-            mEngine
-        );
-    }
-    mAppliedStateGeneration = generation;
-    const uint64_t restoreGeneration =
-        mPendingRestoreGeneration.load(std::memory_order_acquire);
-    if (restoreGeneration <= generation)
-        mAppliedRestoreGeneration = restoreGeneration;
+    mAppliedStateGeneration = parameterGeneration;
+    mAppliedRestoreGeneration = routing.restoreEpoch;
+    mAppliedJointGeneration = routing.generation;
 
     // ORIGINAL QUIRK:
     // Internal engine timing and native PCM processing
@@ -326,38 +378,72 @@ void LXR::ResetEngineState()
 // boundary without locking or allocating on the audio thread.
 // ---------------------------------------------------------
 
-bool LXR::FlushDeferredHostParameters()
+bool LXR::FlushDeferredHostParameters(uint64_t maximumOrder)
 {
     bool pending = false;
+    const uint64_t cutoff = mRestoreOrderCutoff.load(std::memory_order_acquire);
     for (const auto& value : mDeferredHostValues)
-        pending |= value.load(std::memory_order_acquire) != 0;
+    {
+        const uint64_t encoded = value.load(std::memory_order_acquire);
+        const uint64_t order = encoded >> 9u;
+        pending |= (encoded & 0x100u) != 0u &&
+                   (order <= cutoff || order <= maximumOrder);
+    }
     if (!pending)
         return true;
 
+    lxr::RoutingStateAuthority::Guard outer;
+    if (!mRoutingState.tryAcquire(outer) ||
+        !mRoutingState.canPublishLocked(outer))
+        return false;
     StateAuthority::WriteHandle writer;
     if (!mState.tryBeginWrite(writer))
         return false;
 
     bool changed = false;
+    bool complete = true;
     for (std::size_t i = 0; i < mDeferredHostValues.size(); ++i)
     {
-        const uint64_t encoded =
-            mDeferredHostValues[i].exchange(0, std::memory_order_acq_rel);
-        if ((encoded & 0x100u) == 0u)
-            continue;
-        const uint8_t value = static_cast<uint8_t>(encoded & 0x7fu);
-        mState.write(writer, i, value);
-        auto* param = GetParam(static_cast<int>(i));
-        if (param != nullptr)
-            param->Set(static_cast<double>(value));
-        changed = true;
+        auto& mailbox = mDeferredHostValues[i];
+        uint64_t encoded = mailbox.load(std::memory_order_acquire);
+        bool consumed = false;
+        for (unsigned attempt = 0; attempt < 4u; ++attempt)
+        {
+            if ((encoded & 0x100u) == 0u)
+                break;
+            const uint64_t order = encoded >> 9u;
+            if (order > cutoff && order > maximumOrder)
+                break;
+            if (mailbox.compare_exchange_weak(
+                    encoded, 0, std::memory_order_acq_rel,
+                    std::memory_order_acquire))
+            {
+                consumed = true;
+                if (order > cutoff)
+                {
+                    const uint8_t value = static_cast<uint8_t>(encoded & 0x7fu);
+                    mState.write(writer, i, value);
+                    auto* param = GetParam(static_cast<int>(i));
+                    if (param != nullptr)
+                        param->Set(static_cast<double>(value));
+                    changed = true;
+                }
+                break;
+            }
+        }
+        if (!consumed && (encoded & 0x100u) != 0u &&
+            ((encoded >> 9u) <= cutoff || (encoded >> 9u) <= maximumOrder))
+            complete = false;
     }
 
     if (changed)
+    {
         mState.commit(writer);
+        mRoutingState.commitPatchLocked(outer);
+    }
     else
         mState.cancelUnmodified(writer);
-    return true;
+    return complete;
 }
 
 bool LXR::ApplyPendingStateAndParameters()
@@ -366,39 +452,50 @@ bool LXR::ApplyPendingStateAndParameters()
         return false;
 
     StateAuthority::Values candidate {};
-    uint64_t generation = 0;
-    if (!mState.trySnapshot(candidate, &generation))
+    uint64_t parameterGeneration = 0;
+    lxr::RoutingStateAuthority::Snapshot routing;
+    if (!TryPersistentSnapshot(candidate, parameterGeneration, routing))
         return false;
 
-    const uint64_t restoreGeneration =
-        mPendingRestoreGeneration.load(std::memory_order_acquire);
-    if (restoreGeneration > generation)
-        return false;
-
-    if (restoreGeneration != mAppliedRestoreGeneration)
+    if (routing.restoreEpoch != mAppliedRestoreGeneration)
     {
-        // A successful state recall reconstructs runtime-only state from the
-        // validated parameter candidate. Assets and FIR coefficients remain
-        // resident; only voice/cache/history state is cleared.
-        mEngine.init();
-        mAudioAdapter.reset();
-        mMidiParser = lxr::MidiParser();
-        mParams.init();
-        for (std::size_t i = 0; i < candidate.size(); ++i)
-            mParams.set(static_cast<uint8_t>(i), candidate[i], mEngine);
-        mAppliedRestoreGeneration = restoreGeneration;
+        if (!StageCompleteRestore(candidate, routing.state))
+            return false;
+        mAppliedRestoreGeneration = routing.restoreEpoch;
     }
-    else if (generation != mAppliedStateGeneration)
+    else if (routing.generation != mAppliedJointGeneration)
     {
-        // Individually ordered automation generations do not reset voices.
+        mStagingEngine = mEngine;
+        mStagingParams = mParams;
         for (std::size_t i = 0; i < candidate.size(); ++i)
         {
             const uint8_t index = static_cast<uint8_t>(i);
-            if (mParams.get(index) != candidate[i])
-                mParams.set(index, candidate[i], mEngine);
+            if (mStagingParams.get(index) != candidate[i])
+                mStagingParams.set(index, candidate[i], mStagingEngine);
         }
+        for (std::size_t i = 0; i < routing.state.routes.size(); ++i)
+        {
+            if (SameRoute(mAppliedRouting.routes[i], routing.state.routes[i]))
+                continue;
+            const auto& route = routing.state.routes[i];
+            using namespace lxr::modulation_contract;
+            const SourceIdentity source {
+                route.source == 0u ? SourceKind::Velocity : SourceKind::Lfo,
+                voiceFromZeroBased(route.owner)
+            };
+            const auto target = OriginalTargetIndex::fromRaw(route.originalIndex);
+            const auto status = route.source == 0u
+                ? mStagingEngine.configureVelocityDestination(source, target)
+                : mStagingEngine.configureLfoDestination(source, target);
+            if (status != lxr::VelocityRouteStatus::Ok)
+                return false;
+        }
+        mEngine = mStagingEngine;
+        mParams = mStagingParams;
+        mAppliedRouting = routing.state;
     }
-    mAppliedStateGeneration = generation;
+    mAppliedStateGeneration = parameterGeneration;
+    mAppliedJointGeneration = routing.generation;
     return true;
 }
 
@@ -408,17 +505,68 @@ bool LXR::ApplyPendingStateAndParameters()
 
 bool LXR::SerializeState(iplug::IByteChunk& chunk) const
 {
-    StateAuthority::Values parameters {};
-    if (!mState.trySnapshot(parameters, nullptr, 32))
+    const uint64_t watermark =
+        mDeferredHostOrder.load(std::memory_order_acquire) - 1u;
+    if (!const_cast<LXR*>(this)->FlushDeferredHostParameters(watermark))
         return false;
 
-    std::array<uint8_t, lxr::state::kEncodedSize> encoded {};
-    if (!lxr::state::Encode(parameters, encoded))
+    StateAuthority::Values parameters {};
+    uint64_t parameterGeneration = 0;
+    lxr::RoutingStateAuthority::Snapshot routing;
+    if (!TryPersistentSnapshot(parameters, parameterGeneration, routing))
+        return false;
+    (void)parameterGeneration;
+    routing.state.bypass = GetBypassed();
+
+    std::array<uint8_t, lxr::state::kMaximumStateSize> encoded {};
+    std::size_t encodedSize = 0;
+    if (!lxr::state::EncodeV2(parameters, routing.state, encoded,
+                              encodedSize, false))
+        return false;
+
+    return chunk.PutBytes(encoded.data(), static_cast<int>(encodedSize)) > 0;
+}
+
+bool LXR::PublishPersistentRestore(
+    const StateAuthority::Values& parameters,
+    const lxr::PersistentRoutingState& routing)
+{
+    const uint64_t restoreOrder =
+        mDeferredHostOrder.fetch_add(1, std::memory_order_acq_rel);
+    if (restoreOrder == 0u)
+        return false;
+
+    lxr::RoutingStateAuthority::Guard outer;
+    if (!mRoutingState.tryAcquire(outer) ||
+        mRoutingState.validateRestoreLocked(outer, routing, restoreOrder) !=
+            lxr::PersistentRouteStatus::Ok)
     {
         return false;
     }
+    StateAuthority::WriteHandle writer;
+    if (!mState.tryBeginWrite(writer))
+        return false;
+    if (!mState.writeAll(writer, parameters))
+    {
+        mState.cancelUnmodified(writer);
+        return false;
+    }
 
-    return chunk.PutBytes(encoded.data(), static_cast<int>(encoded.size())) > 0;
+    mState.commit(writer);
+    if (mRoutingState.commitRestoreLocked(outer, routing, restoreOrder) == 0u)
+        return false; // Preflight above makes this unreachable without corruption.
+    mRestoreOrderCutoff.store(restoreOrder, std::memory_order_release);
+
+    // Logical publication is complete before any host-facing projection.
+    for (std::size_t i = 0; i < parameters.size(); ++i)
+    {
+        auto* param = GetParam(static_cast<int>(i));
+        if (param != nullptr)
+            param->Set(static_cast<double>(parameters[i]));
+    }
+    SetBypassed(routing.bypass);
+    mControllerNeedsReconcile = true;
+    return true;
 }
 
 int LXR::UnserializeState(const iplug::IByteChunk& chunk, int startPos)
@@ -428,60 +576,44 @@ int LXR::UnserializeState(const iplug::IByteChunk& chunk, int startPos)
         return -1;
     }
 
-    std::array<uint8_t, lxr::state::kParameterCount> candidate {};
-    const auto result = lxr::state::Decode(
+    StateAuthority::Values candidate {};
+    lxr::PersistentRoutingState routing = lxr::MakeDisabledRoutingState();
+    auto result = lxr::state::DecodePersistentState(
         chunk.GetData() + startPos,
         static_cast<std::size_t>(chunk.Size() - startPos),
-        candidate,
-        true // iPlug2 VST3 appends a four-byte bypass value to plugin state.
+        candidate, routing, true
     );
     if (!result)
     {
+        result = lxr::state::DecodePersistentState(
+            chunk.GetData() + startPos,
+            static_cast<std::size_t>(chunk.Size() - startPos),
+            candidate, routing, false);
+        if (!result)
+            return -1;
+        // Core-only formats do not carry bypass state.
+        routing.bypass = GetBypassed();
+    }
+    if (!PublishPersistentRestore(candidate, routing))
         return -1;
-    }
-
-    StateAuthority::WriteHandle writer;
-    if (!mState.tryBeginWrite(writer))
-        return -1;
-
-    // Parameter callbacks that linearized before this restore are superseded
-    // by the complete patch. Tickets claimed after this boundary remain in
-    // their mailboxes and are ordered after the restore.
-    const uint64_t restoreOrder =
-        mDeferredHostOrder.fetch_add(1, std::memory_order_acq_rel);
-    for (auto& deferred : mDeferredHostValues)
-    {
-        uint64_t encoded = deferred.load(std::memory_order_acquire);
-        while ((encoded & 0x100u) != 0u && (encoded >> 9u) < restoreOrder &&
-               !deferred.compare_exchange_weak(
-                   encoded, 0, std::memory_order_acq_rel,
-                   std::memory_order_acquire))
-        {
-        }
-    }
-
-    if (!mState.writeAll(writer, candidate))
-    {
-        mState.cancelUnmodified(writer);
-        return -1;
-    }
-
-    for (std::size_t i = 0; i < candidate.size(); ++i)
-    {
-        auto* param = GetParam(static_cast<int>(i));
-        if (param != nullptr)
-        {
-            param->Set(static_cast<double>(candidate[i]));
-        }
-    }
-
-    // Publish the reset marker before the even state generation. An acquiring
-    // snapshot can therefore never treat a restore payload as ordinary
-    // automation and expose it to the Engine without the required reset.
-    mPendingRestoreGeneration.store(
-        writer.generation(), std::memory_order_release);
-    mState.commit(writer);
     return startPos + static_cast<int>(result.consumed);
+}
+
+bool LXR::ConfigureRouteForTest(
+    const lxr::PersistentRouteRecord& route,
+    uint64_t expectedEpoch) noexcept
+{
+    const uint64_t ticket =
+        mDeferredHostOrder.fetch_add(1, std::memory_order_acq_rel);
+    if (ticket == 0u)
+        return false;
+    lxr::RoutingStateAuthority::Guard outer;
+    if (!mRoutingState.tryAcquire(outer))
+        return false;
+    const auto status = mRoutingState.commitRouteLocked(
+        outer, route, ticket, expectedEpoch);
+    return status == lxr::PersistentRouteStatus::Ok ||
+           status == lxr::PersistentRouteStatus::Disabled;
 }
 
 // ---------------------------------------------------------
@@ -577,8 +709,11 @@ void LXR::OnParamChange(
     }
 
     const uint8_t value = GetRawLXRParameterValue(param);
+    lxr::RoutingStateAuthority::Guard outer;
     StateAuthority::WriteHandle writer;
-    if (!mState.tryBeginWrite(writer))
+    if (!mRoutingState.tryAcquire(outer) ||
+        !mRoutingState.canPublishLocked(outer) ||
+        !mState.tryBeginWrite(writer))
     {
         // A restore or another host producer already owns the bounded writer
         // gate. The latest callback value is accepted at the next processing
@@ -607,6 +742,7 @@ void LXR::OnParamChange(
     }
     mState.write(writer, index, value);
     mState.commit(writer);
+    mRoutingState.commitPatchLocked(outer);
 }
 
 void LXR::OnParamChangeUI(int paramIdx, iplug::EParamSource source)
@@ -623,6 +759,81 @@ void LXR::OnParamChangeUI(int paramIdx, iplug::EParamSource source)
 // ---------------------------------------------------------
 
 #if defined(VST3_API)
+Steinberg::tresult PLUGIN_API LXR::getState(Steinberg::IBStream* state)
+{
+    if (state == nullptr)
+        return Steinberg::kInvalidArgument;
+    const uint64_t watermark =
+        mDeferredHostOrder.load(std::memory_order_acquire) - 1u;
+    if (!FlushDeferredHostParameters(watermark))
+        return Steinberg::kResultFalse;
+
+    StateAuthority::Values parameters {};
+    uint64_t parameterGeneration = 0;
+    lxr::RoutingStateAuthority::Snapshot routing;
+    if (!TryPersistentSnapshot(parameters, parameterGeneration, routing))
+        return Steinberg::kResultFalse;
+    (void)parameterGeneration;
+    routing.state.bypass = GetBypassed();
+
+    std::array<uint8_t, lxr::state::kMaximumStateSize> encoded {};
+    std::size_t encodedSize = 0;
+    if (!lxr::state::EncodeV2(parameters, routing.state, encoded,
+                              encodedSize, true))
+        return Steinberg::kResultFalse;
+    Steinberg::int32 written = 0;
+    const auto result = state->write(encoded.data(),
+        static_cast<Steinberg::int32>(encodedSize), &written);
+    return (result == Steinberg::kResultOk || result == Steinberg::kResultTrue) &&
+           written == static_cast<Steinberg::int32>(encodedSize)
+        ? Steinberg::kResultOk : Steinberg::kResultFalse;
+}
+
+Steinberg::tresult PLUGIN_API LXR::setState(Steinberg::IBStream* state)
+{
+    if (state == nullptr)
+        return Steinberg::kInvalidArgument;
+
+    // Read at most one byte beyond the contract ceiling so oversize streams
+    // are rejected without an unbounded allocation.
+    std::array<uint8_t, lxr::state::kMaximumStateSize + 1u> bytes {};
+    std::size_t size = 0;
+    for (;;)
+    {
+        const std::size_t remaining = bytes.size() - size;
+        if (remaining == 0u)
+            return Steinberg::kResultFalse;
+        const Steinberg::int32 request = static_cast<Steinberg::int32>(
+            remaining > 128u ? 128u : remaining);
+        Steinberg::int32 bytesRead = 0;
+        const auto readResult = state->read(bytes.data() + size, request,
+                                            &bytesRead);
+        if (bytesRead < 0 || bytesRead > request)
+            return Steinberg::kResultFalse;
+        if (bytesRead == 0)
+            break;
+        size += static_cast<std::size_t>(bytesRead);
+        if (size > lxr::state::kMaximumStateSize)
+            return Steinberg::kResultFalse;
+        if (readResult != Steinberg::kResultOk &&
+            readResult != Steinberg::kResultTrue && GetHost() != iplug::kHostWaveLab)
+            return Steinberg::kResultFalse;
+    }
+
+    StateAuthority::Values parameters {};
+    auto routing = lxr::MakeDisabledRoutingState();
+    const auto decoded = lxr::state::DecodePersistentState(
+        bytes.data(), size, parameters, routing, true);
+    if (!decoded || !PublishPersistentRestore(parameters, routing))
+        return Steinberg::kResultFalse;
+
+    // Update the framework's separate controller cache only after the complete
+    // patch+routing+bypass transaction has committed.
+    UpdateParams(this, routing.bypass ? 1 : 0);
+    OnRestoreState();
+    return Steinberg::kResultOk;
+}
+
 Steinberg::tresult PLUGIN_API LXR::process(Steinberg::Vst::ProcessData& data)
 {
     if (data.inputParameterChanges == nullptr)
@@ -655,8 +866,10 @@ void LXR::OnIdle()
     if (mControllerSyncBusy)
         return;
 
+    lxr::RoutingStateAuthority::Guard outer;
     StateAuthority::WriteHandle projection;
-    if (!mState.tryBeginWrite(projection))
+    if (!mRoutingState.tryAcquire(outer) ||
+        !mState.tryBeginWrite(projection))
         return; // Retain every unacknowledged generation for the next idle.
 
     mControllerSyncBusy = true;
@@ -680,6 +893,7 @@ void LXR::OnIdle()
         pending = true;
     }
     mState.cancelUnmodified(projection);
+    mRoutingState.release(outer);
 
     // Release the gate before any host callback: it may synchronously read the
     // cache, restore state, or deliver automation. Newer generations then remain
@@ -793,8 +1007,12 @@ bool LXR::ProcessMidiMsgNow(const iplug::IMidiMsg& msg)
     event.data2 = data2;
 
     const bool mayChangeParameters = (event.status & 0xF0u) == 0xB0u;
+    lxr::RoutingStateAuthority::Guard outer;
     StateAuthority::WriteHandle writer;
-    if (mayChangeParameters && !mState.tryBeginWrite(writer))
+    if (mayChangeParameters &&
+        (!mRoutingState.tryAcquire(outer) ||
+         !mRoutingState.canPublishLocked(outer) ||
+         !mState.tryBeginWrite(writer)))
         return false;
 
     std::array<uint8_t, lxr::state::kParameterCount> valuesBefore {};
@@ -831,7 +1049,10 @@ bool LXR::ProcessMidiMsgNow(const iplug::IMidiMsg& msg)
         }
 
         const uint64_t generation = mState.commit(writer);
+        const uint64_t jointGeneration =
+            mRoutingState.commitPatchLocked(outer);
         mAppliedStateGeneration = generation;
+        mAppliedJointGeneration = jointGeneration;
     }
     return true;
 }

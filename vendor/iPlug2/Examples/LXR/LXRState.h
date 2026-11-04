@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "../../../../dsp/RoutingStateAuthority.h"
+
 namespace lxr::state
 {
 
@@ -32,7 +34,15 @@ enum class DecodeStatus
   InvalidLength,
   InvalidChecksum,
   InvalidParameter,
-  UnexpectedTrailingBytes
+  UnexpectedTrailingBytes,
+  MissingRoutingModule,
+  UnsupportedMandatoryTag,
+  UnsupportedRoutingProfile,
+  InvalidRoutingTable,
+  InvalidRoutingRecord,
+  DuplicateTag,
+  InvalidTagOrder,
+  ReservedField
 };
 
 struct DecodeResult
@@ -202,6 +212,338 @@ inline DecodeResult Decode(const std::uint8_t* data,
 
   parameters = candidate;
   return {DecodeStatus::Ok, stateSize, false};
+}
+
+// LXRS v2 is a bounded production container. The v1 constants and Encode()/
+// Decode() API above remain immutable for old fixtures and migration tests.
+inline constexpr std::uint16_t kV2FormatVersion = 2;
+inline constexpr std::size_t kV2HeaderSize = 32;
+inline constexpr std::size_t kV2TlvHeaderSize = 16;
+inline constexpr std::size_t kV2RoutingHeaderSize = 48;
+inline constexpr std::size_t kV2RouteSize = 16;
+inline constexpr std::size_t kV2RoutingBodySize = 240;
+inline constexpr std::size_t kV2EncodedSize = 516;
+inline constexpr std::size_t kV2VST3EncodedSize = 520;
+inline constexpr std::size_t kMaximumPluginStateSize =
+    kMaximumStateSize - kVST3BypassSize;
+inline constexpr std::uint32_t kRoutingTag = 1;
+inline constexpr std::uint16_t kRequiredTlvFlag = 1;
+
+struct PersistentDecodeResult
+{
+  DecodeStatus status = DecodeStatus::InvalidHeader;
+  std::size_t consumed = 0;
+  bool legacy = false;
+  std::uint16_t version = 0;
+
+  explicit operator bool() const noexcept { return status == DecodeStatus::Ok; }
+};
+
+inline std::uint32_t Crc32V2(const std::uint8_t* data,
+                            std::size_t size) noexcept
+{
+  std::uint32_t crc = 0xffffffffu;
+  for (std::size_t i = 0; i < size; ++i)
+  {
+    const std::uint8_t value = (i >= 24u && i < 28u) ? 0u : data[i];
+    crc ^= value;
+    for (int bit = 0; bit < 8; ++bit)
+    {
+      const std::uint32_t mask = 0u - (crc & 1u);
+      crc = (crc >> 1u) ^ (0xedb88320u & mask);
+    }
+  }
+  return ~crc;
+}
+
+inline void WriteRoute(std::uint8_t* destination,
+                       const PersistentRouteRecord& route) noexcept
+{
+  destination[0] = route.owner;
+  destination[1] = route.source;
+  PutU16LE(destination + 2, route.flags);
+  PutU16LE(destination + 4, route.identityNamespace);
+  PutU16LE(destination + 6, route.originalIndex);
+  PutU16LE(destination + 8, route.firmwareParameter);
+  destination[10] = route.valueType;
+  destination[11] = route.scope;
+  PutU16LE(destination + 12, route.physicalKey);
+  destination[14] = route.menuVoiceHint;
+  destination[15] = route.reserved;
+}
+
+inline PersistentRouteRecord ReadRoute(const std::uint8_t* source) noexcept
+{
+  PersistentRouteRecord route {};
+  route.owner = source[0];
+  route.source = source[1];
+  route.flags = GetU16LE(source + 2);
+  route.identityNamespace = GetU16LE(source + 4);
+  route.originalIndex = GetU16LE(source + 6);
+  route.firmwareParameter = GetU16LE(source + 8);
+  route.valueType = source[10];
+  route.scope = source[11];
+  route.physicalKey = GetU16LE(source + 12);
+  route.menuVoiceHint = source[14];
+  route.reserved = source[15];
+  return route;
+}
+
+inline DecodeStatus ValidateOpaqueOptionalTlvs(
+    const PersistentRoutingState& routing) noexcept
+{
+  if (routing.optionalTlvBytes > routing.optionalTlvs.size())
+    return DecodeStatus::InvalidLength;
+  std::size_t position = 0;
+  std::uint32_t previousTag = kRoutingTag;
+  unsigned count = 1; // The mandatory routing TLV is always first.
+  while (position < routing.optionalTlvBytes)
+  {
+    if (++count > 16u ||
+        routing.optionalTlvBytes - position < kV2TlvHeaderSize)
+      return DecodeStatus::InvalidLength;
+    const auto* tlv = routing.optionalTlvs.data() + position;
+    const std::uint32_t tag = GetU32LE(tlv);
+    const std::uint16_t flags = GetU16LE(tlv + 6);
+    const std::uint32_t bodyBytes = GetU32LE(tlv + 8);
+    if (tag <= previousTag)
+      return tag == previousTag ? DecodeStatus::DuplicateTag
+                                : DecodeStatus::InvalidTagOrder;
+    if (flags != 0u || GetU32LE(tlv + 12) != 0u)
+      return DecodeStatus::ReservedField;
+    if (bodyBytes > routing.optionalTlvBytes - position - kV2TlvHeaderSize)
+      return DecodeStatus::InvalidLength;
+    previousTag = tag;
+    position += kV2TlvHeaderSize + static_cast<std::size_t>(bodyBytes);
+  }
+  return position == routing.optionalTlvBytes
+      ? DecodeStatus::Ok : DecodeStatus::InvalidLength;
+}
+
+inline bool EncodeV2(
+    const std::array<std::uint8_t, kParameterCount>& parameters,
+    const PersistentRoutingState& routing,
+    std::array<std::uint8_t, kMaximumStateSize>& encoded,
+    std::size_t& encodedSize,
+    bool includeVST3BypassSuffix = false) noexcept
+{
+  encodedSize = 0;
+  for (const auto value : parameters)
+  {
+    if (value > 127u)
+      return false;
+  }
+  if (ValidatePersistentRoutes(routing.routes) != PersistentRouteStatus::Ok ||
+      ValidateOpaqueOptionalTlvs(routing) != DecodeStatus::Ok)
+    return false;
+
+  const std::size_t pluginBytes = kV2EncodedSize + routing.optionalTlvBytes;
+  const std::size_t totalBytes = pluginBytes +
+      (includeVST3BypassSuffix ? kVST3BypassSize : 0u);
+  if (pluginBytes > kMaximumPluginStateSize || totalBytes > encoded.size())
+    return false;
+
+  encoded.fill(0);
+  auto* data = encoded.data();
+  std::memcpy(data, kMagic.data(), kMagic.size());
+  PutU16LE(data + 4, kV2FormatVersion);
+  PutU16LE(data + 6, static_cast<std::uint16_t>(kV2HeaderSize));
+  PutU32LE(data + 8, static_cast<std::uint32_t>(pluginBytes));
+  PutU16LE(data + 12, static_cast<std::uint16_t>(kParameterCount));
+  PutU16LE(data + 14, 0);
+  PutU32LE(data + 16, static_cast<std::uint32_t>(kPayloadSize));
+  PutU32LE(data + 20, static_cast<std::uint32_t>(pluginBytes - 260u));
+  PutU32LE(data + 24, 0);
+  PutU32LE(data + 28, 0);
+  std::memcpy(data + kV2HeaderSize, parameters.data(), parameters.size());
+
+  auto* tlv = data + 260;
+  PutU32LE(tlv, kRoutingTag);
+  PutU16LE(tlv + 4, 1);
+  PutU16LE(tlv + 6, kRequiredTlvFlag);
+  PutU32LE(tlv + 8, static_cast<std::uint32_t>(kV2RoutingBodySize));
+  PutU32LE(tlv + 12, 0);
+
+  auto* body = tlv + kV2TlvHeaderSize;
+  PutU16LE(body, 1);
+  PutU16LE(body + 2, static_cast<std::uint16_t>(kV2RouteSize));
+  PutU16LE(body + 4, static_cast<std::uint16_t>(kPersistentRouteCount));
+  PutU16LE(body + 6, 1);
+  PutU32LE(body + 8, 1);
+  std::memcpy(body + 12, kOriginalRoutingTableSha256.data(),
+              kOriginalRoutingTableSha256.size());
+  PutU32LE(body + 44, 0);
+  for (std::size_t i = 0; i < routing.routes.size(); ++i)
+    WriteRoute(body + kV2RoutingHeaderSize + i * kV2RouteSize,
+               routing.routes[i]);
+
+  if (routing.optionalTlvBytes != 0)
+  {
+    std::memcpy(data + kV2EncodedSize, routing.optionalTlvs.data(),
+                routing.optionalTlvBytes);
+  }
+  PutU32LE(data + 24, Crc32V2(data, pluginBytes));
+  if (includeVST3BypassSuffix)
+    PutU32LE(data + pluginBytes, routing.bypass ? 1u : 0u);
+  encodedSize = totalBytes;
+  return true;
+}
+
+inline PersistentDecodeResult DecodePersistentState(
+    const std::uint8_t* data,
+    std::size_t size,
+    std::array<std::uint8_t, kParameterCount>& parameters,
+    PersistentRoutingState& routing,
+    bool requireVST3BypassSuffix = false) noexcept
+{
+  if (data == nullptr || size == 0)
+    return {DecodeStatus::Empty, 0, false, 0};
+  if (size > kMaximumStateSize)
+    return {DecodeStatus::TooLarge, 0, false, 0};
+
+  const bool hasMagic = size >= kMagic.size() &&
+      std::memcmp(data, kMagic.data(), kMagic.size()) == 0;
+  if (hasMagic && size < 8u)
+    return {DecodeStatus::InvalidLength, 0, false, 0};
+  const std::uint16_t version = hasMagic && size >= 6u
+      ? GetU16LE(data + 4) : 0u;
+  if (!hasMagic || version == kFormatVersion)
+  {
+    std::array<std::uint8_t, kParameterCount> patchCandidate {};
+    const auto old = Decode(data, size, patchCandidate,
+                            requireVST3BypassSuffix);
+    if (!old)
+      return {old.status, 0, old.legacy, version};
+    PersistentRoutingState routingCandidate = MakeDisabledRoutingState();
+    if (requireVST3BypassSuffix)
+      routingCandidate.bypass = GetU32LE(data + old.consumed) != 0u;
+    parameters = patchCandidate;
+    routing = routingCandidate;
+    return {DecodeStatus::Ok, old.consumed, old.legacy,
+            static_cast<std::uint16_t>(old.legacy ? 0u : kFormatVersion)};
+  }
+  if (version != kV2FormatVersion)
+    return {DecodeStatus::UnsupportedVersion, 0, false, version};
+  if (size < kV2HeaderSize)
+    return {DecodeStatus::InvalidLength, 0, false, version};
+
+  const std::uint16_t headerBytes = GetU16LE(data + 6);
+  const std::uint32_t pluginBytes32 = GetU32LE(data + 8);
+  const std::uint16_t parameterCount = GetU16LE(data + 12);
+  const std::uint16_t flags = GetU16LE(data + 14);
+  const std::uint32_t parameterBytes = GetU32LE(data + 16);
+  const std::uint32_t extensionBytes = GetU32LE(data + 20);
+  if (headerBytes != kV2HeaderSize || parameterCount != kParameterCount ||
+      flags != 0u || parameterBytes != kPayloadSize || GetU32LE(data + 28) != 0u)
+    return {DecodeStatus::InvalidHeader, 0, false, version};
+  if (pluginBytes32 > kMaximumPluginStateSize)
+    return {DecodeStatus::TooLarge, 0, false, version};
+  if (pluginBytes32 < 260u || extensionBytes != pluginBytes32 - 260u)
+    return {DecodeStatus::InvalidLength, 0, false, version};
+  const std::size_t pluginBytes = pluginBytes32;
+  const std::size_t expectedSize = pluginBytes +
+      (requireVST3BypassSuffix ? kVST3BypassSize : 0u);
+  if (size < expectedSize)
+    return {DecodeStatus::InvalidLength, 0, false, version};
+  if (size != expectedSize)
+    return {DecodeStatus::UnexpectedTrailingBytes, 0, false, version};
+  if (Crc32V2(data, pluginBytes) != GetU32LE(data + 24))
+    return {DecodeStatus::InvalidChecksum, 0, false, version};
+
+  std::array<std::uint8_t, kParameterCount> patchCandidate {};
+  std::memcpy(patchCandidate.data(), data + kV2HeaderSize,
+              patchCandidate.size());
+  for (const auto value : patchCandidate)
+  {
+    if (value > 127u)
+      return {DecodeStatus::InvalidParameter, 0, false, version};
+  }
+
+  PersistentRoutingState routingCandidate = MakeDisabledRoutingState();
+  bool foundRouting = false;
+  std::uint32_t previousTag = 0;
+  unsigned tlvCount = 0;
+  std::size_t optionalBytes = 0;
+  std::size_t position = 260;
+  while (position < pluginBytes)
+  {
+    if (++tlvCount > 16u || pluginBytes - position < kV2TlvHeaderSize)
+      return {DecodeStatus::InvalidLength, 0, false, version};
+    const auto* tlv = data + position;
+    const std::uint32_t tag = GetU32LE(tlv);
+    const std::uint16_t recordVersion = GetU16LE(tlv + 4);
+    const std::uint16_t tlvFlags = GetU16LE(tlv + 6);
+    const std::uint32_t bodyBytes32 = GetU32LE(tlv + 8);
+    if (tag == 0u || (tlvFlags & ~kRequiredTlvFlag) != 0u ||
+        GetU32LE(tlv + 12) != 0u)
+      return {DecodeStatus::ReservedField, 0, false, version};
+    if (tag <= previousTag)
+      return {tag == previousTag ? DecodeStatus::DuplicateTag
+                                 : DecodeStatus::InvalidTagOrder,
+              0, false, version};
+    if (bodyBytes32 > pluginBytes - position - kV2TlvHeaderSize)
+      return {DecodeStatus::InvalidLength, 0, false, version};
+    const std::size_t tlvBytes = kV2TlvHeaderSize + bodyBytes32;
+    const auto* body = tlv + kV2TlvHeaderSize;
+    previousTag = tag;
+
+    if (tag == kRoutingTag)
+    {
+      if (foundRouting)
+        return {DecodeStatus::DuplicateTag, 0, false, version};
+      if (recordVersion != 1u)
+        return {DecodeStatus::UnsupportedVersion, 0, false, version};
+      if (tlvFlags != kRequiredTlvFlag || bodyBytes32 != kV2RoutingBodySize)
+        return {DecodeStatus::InvalidLength, 0, false, version};
+      if (GetU16LE(body) != 1u)
+        return {DecodeStatus::UnsupportedVersion, 0, false, version};
+      if (GetU16LE(body + 2) != kV2RouteSize ||
+          GetU16LE(body + 4) != kPersistentRouteCount)
+        return {DecodeStatus::InvalidLength, 0, false, version};
+      if (GetU16LE(body + 6) != 1u)
+        return {DecodeStatus::UnsupportedRoutingProfile, 0, false, version};
+      if (GetU32LE(body + 8) != 1u ||
+          std::memcmp(body + 12, kOriginalRoutingTableSha256.data(),
+                      kOriginalRoutingTableSha256.size()) != 0)
+        return {DecodeStatus::InvalidRoutingTable, 0, false, version};
+      if (GetU32LE(body + 44) != 0u)
+        return {DecodeStatus::ReservedField, 0, false, version};
+      for (std::size_t i = 0; i < routingCandidate.routes.size(); ++i)
+      {
+        const auto record = ReadRoute(
+            body + kV2RoutingHeaderSize + i * kV2RouteSize);
+        const auto routeStatus = ValidatePersistentRoute(record);
+        if ((routeStatus != PersistentRouteStatus::Ok &&
+             routeStatus != PersistentRouteStatus::Disabled) ||
+            static_cast<std::size_t>(record.source) * 6u + record.owner != i)
+        {
+          return {DecodeStatus::InvalidRoutingRecord, 0, false, version};
+        }
+        routingCandidate.routes[i] = record;
+      }
+      foundRouting = true;
+    }
+    else
+    {
+      if ((tlvFlags & kRequiredTlvFlag) != 0u)
+        return {DecodeStatus::UnsupportedMandatoryTag, 0, false, version};
+      if (tlvBytes > routingCandidate.optionalTlvs.size() - optionalBytes)
+        return {DecodeStatus::TooLarge, 0, false, version};
+      std::memcpy(routingCandidate.optionalTlvs.data() + optionalBytes,
+                  tlv, tlvBytes);
+      optionalBytes += tlvBytes;
+    }
+    position += tlvBytes;
+  }
+  if (!foundRouting)
+    return {DecodeStatus::MissingRoutingModule, 0, false, version};
+  routingCandidate.optionalTlvBytes = static_cast<std::uint16_t>(optionalBytes);
+  if (requireVST3BypassSuffix)
+    routingCandidate.bypass = GetU32LE(data + pluginBytes) != 0u;
+
+  parameters = patchCandidate;
+  routing = routingCandidate;
+  return {DecodeStatus::Ok, pluginBytes, false, version};
 }
 
 } // namespace lxr::state

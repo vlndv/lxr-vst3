@@ -2,7 +2,7 @@
   "dsp_sources": ["Cymbal", "Decimator", "Distortion", "DrumVoice", "Engine", "Envelopes", "HiHat", "Lfo", "LXRAudioAdapter", "LXRResourceLocator", "MidiParser", "Mixer", "Modulation", "Oscillator", "OscTables", "ParameterArray", "ParamMapEnv", "ParamMapMisc", "ResonantFilter", "Snare", "TransientGen", "TransientTables"],
   "core_tests": ["DistortionDecimator", "DrumVoice", "Envelopes", "LfoModulation", "MidiParser", "Mixer", "Oscillator", "ParameterArray", "ParamMapEnv", "ParamMapMisc", "ResonantFilter", "SnareCymbalHiHat", "TransientGen"],
   "native_tests": ["P12b4cResamplerTest", "P12b4cFIRQualityTest", "P12b4cLatencyTest", "P12b4cRuntimeSilenceTest", "P12cStateSerializationTest", "P12cR1ConcurrencyTest"],
-  "host_tests": ["P12cVST3StateTest", "P12b4cVST3RuntimeTest", "P12cR2ControllerSyncTest"],
+  "host_tests": ["P12cVST3StateTest", "P12b4cVST3RuntimeTest", "P12cR2ControllerSyncTest", "P15M2GVST3StateTest"],
   "configurations": ["O0", "O2"],
   "native_flags": ["-std=c++17", "-g", "-fno-exceptions", "-fno-rtti", "-ffp-contract=off", "-Wall", "-Wextra", "-pthread"],
   "test_flag_overrides": {"DrumVoiceTest": ["-fexceptions"]},

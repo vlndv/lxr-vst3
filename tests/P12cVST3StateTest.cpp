@@ -238,8 +238,10 @@ AudioRender renderD1(HostInstance& instance)
 bool decodeSaved(const std::vector<uint8_t>& saved,
                  std::array<uint8_t, lxr::state::kParameterCount>& parameters)
 {
-    const auto decoded = lxr::state::Decode(saved.data(), saved.size(), parameters, true);
-    return decoded && decoded.consumed == lxr::state::kEncodedSize;
+    auto routing = lxr::MakeDisabledRoutingState();
+    const auto decoded = lxr::state::DecodePersistentState(
+        saved.data(), saved.size(), parameters, routing, true);
+    return decoded && decoded.consumed >= lxr::state::kEncodedSize;
 }
 
 std::vector<uint8_t> makeLegacy(const std::array<uint8_t, 228>& parameters)
@@ -307,8 +309,8 @@ int main(int argc, char** argv)
 
         saved = original.saveState();
         const auto savedAgain = original.saveState();
-        check("VST3 state is 252-byte LXR payload plus bypass",
-              saved.size() == lxr::state::kEncodedSize + lxr::state::kVST3BypassSize);
+        check("VST3 state is 516-byte LXRS v2 plus bypass",
+              saved.size() == lxr::state::kV2VST3EncodedSize);
         check("repeated VST3 serialization is deterministic", saved == savedAgain);
         check("decode actual VST3 state", decodeSaved(saved, originalParameters));
         check("all edited parameters encoded", originalParameters[8] == 57 &&
@@ -378,7 +380,7 @@ int main(int argc, char** argv)
         require("restore legacy 228-double state", legacy.loadState(legacyBytes));
         std::array<uint8_t, 228> migrated {};
         const auto migratedState = legacy.saveState();
-        check("legacy state migrates to version 1", decodeSaved(migratedState, migrated));
+        check("legacy state migrates to version 2", decodeSaved(migratedState, migrated));
         check("legacy migration preserves all parameters", migrated == originalParameters);
     }
 
@@ -429,7 +431,7 @@ int main(int argc, char** argv)
     }
 
     std::printf("VST3_STATE bytes=%zu format=%u params=%zu peak=%.12f rms=%.12f\n",
-                saved.size(), static_cast<unsigned>(lxr::state::kFormatVersion),
+                saved.size(), static_cast<unsigned>(lxr::state::kV2FormatVersion),
                 lxr::state::kActiveParameterCount, originalAudio.peak, originalAudio.rms);
     factory->release();
     exitDll();
