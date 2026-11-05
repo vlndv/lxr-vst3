@@ -10,6 +10,7 @@
 #include "../../../../../dsp/ParameterStateAuthority.h"
 #include "../../../../../dsp/MidiParser.h"
 #include "../../../../../dsp/LXRAudioAdapter.h"
+#include "../../../../../dsp/RouteHostControls.h"
 
 #include <array>
 #include <atomic>
@@ -58,6 +59,9 @@ public:
   void OnIdle() override;
 
 #if defined(VST3_API)
+  Steinberg::tresult PLUGIN_API setParamNormalized(
+    Steinberg::Vst::ParamID tag,
+    Steinberg::Vst::ParamValue value) override;
   Steinberg::tresult PLUGIN_API setState(
     Steinberg::IBStream* state) override;
   Steinberg::tresult PLUGIN_API getState(
@@ -72,6 +76,7 @@ private:
   // Test-only access to the exact loaded component; adds no ABI or runtime API.
   friend struct LXRControllerSyncTestProbe;
   friend struct P15M2GStateIntegrationTestProbe;
+  friend struct P15M2HHostControlsTestProbe;
 
   // Native LXR synthesis/DSP engine.
   lxr::Engine mEngine;
@@ -110,13 +115,19 @@ private:
   // all mailboxes as one explicitly defined boundary generation.
   std::array<std::atomic<uint64_t>, lxr::state::kParameterCount>
     mDeferredHostValues {};
+  // Route proxy mailboxes use bit16 as present, bits0..15 as the exact token,
+  // and bits17..63 as the monotonic order ticket.
+  std::array<std::atomic<uint64_t>, lxr::route_host::kParameterCount>
+    mDeferredRouteValues {};
+  std::array<std::atomic<uint64_t>, lxr::route_host::kParameterCount>
+    mDeferredRouteRejections {};
   std::atomic<uint64_t> mDeferredHostOrder {1};
   std::atomic<uint64_t> mRestoreOrderCutoff {0};
 
   // Main-thread-only acknowledgement of authority generations projected into
   // the separate VST3 controller cache. The authority itself retains pending
   // values; no audio-to-main notification queue can overflow or lose an edit.
-  std::array<uint64_t, lxr::state::kParameterCount>
+  std::array<uint64_t, lxr::vst::kNumParams>
     mControllerSyncGenerations {};
   bool mControllerNeedsReconcile = true;
   bool mControllerSyncBusy = false;
@@ -153,6 +164,17 @@ private:
   bool ConfigureRouteForTest(
     const lxr::PersistentRouteRecord& route,
     uint64_t expectedEpoch) noexcept;
+  bool PublishRouteHostToken(
+    std::size_t routeSlot,
+    lxr::route_host::RouteToken16 token,
+    uint64_t ticket) noexcept;
+  bool RejectRouteHostValue(
+    std::size_t routeSlot,
+    uint64_t ticket) noexcept;
+  void DeferRouteHostToken(
+    std::size_t routeSlot,
+    lxr::route_host::RouteToken16 token,
+    uint64_t ticket) noexcept;
   bool ProcessMidiMsgNow(const iplug::IMidiMsg& msg);
   bool EnqueueDeferredMidi(const iplug::IMidiMsg& msg) noexcept;
   void DrainDeferredMidi();

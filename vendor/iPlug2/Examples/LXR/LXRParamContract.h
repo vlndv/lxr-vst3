@@ -36,7 +36,9 @@ struct ParamDescriptor
   ParamSemantic semantic;
 };
 
-inline constexpr int kNumParams = 228;
+inline constexpr int kNativeNumParams = 228;
+inline constexpr int kRouteNumParams = 12;
+inline constexpr int kNumParams = kNativeNumParams + kRouteNumParams;
 inline constexpr int kNumPresets = 1;
 
 constexpr ParamDescriptor P(
@@ -47,7 +49,7 @@ constexpr ParamDescriptor P(
   return {name, defaultValue, 0, 127, semantic};
 }
 
-inline constexpr std::array<ParamDescriptor, kNumParams> kParamDescriptors {{
+inline constexpr std::array<ParamDescriptor, kNativeNumParams> kParamDescriptors {{
   P("RESERVED", 0, ParamSemantic::Reserved),                 // 0
 
   P("OSC_WAVE_DRUM1", 1, ParamSemantic::Waveform),           // 1
@@ -316,7 +318,7 @@ inline constexpr std::array<ParamDescriptor, kNumParams> kParamDescriptors {{
 }};
 
 static_assert(
-  kParamDescriptors.size() == static_cast<std::size_t>(kNumParams),
+  kParamDescriptors.size() == static_cast<std::size_t>(kNativeNumParams),
   "LXR parameter descriptor table must contain exactly 228 entries"
 );
 

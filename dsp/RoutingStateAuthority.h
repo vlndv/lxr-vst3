@@ -211,6 +211,7 @@ public:
     struct Snapshot
     {
         PersistentRoutingState state = MakeDisabledRoutingState();
+        std::array<std::uint64_t, kPersistentRouteCount> routeGenerations {};
         std::uint64_t generation = 0;
         std::uint64_t restoreEpoch = 0;
         std::uint64_t restoreCutoff = 0;
@@ -224,6 +225,7 @@ public:
         mRestoreEpoch = 0;
         mRestoreCutoff = 0;
         mRouteTickets.fill(0);
+        mRouteGenerations.fill(0);
         mGate.clear(std::memory_order_relaxed);
     }
 
@@ -249,9 +251,23 @@ public:
         if (guard.owner != this)
             return false;
         snapshot.state = mState;
+        snapshot.routeGenerations = mRouteGenerations;
         snapshot.generation = mGeneration.load(std::memory_order_acquire);
         snapshot.restoreEpoch = mRestoreEpoch;
         snapshot.restoreCutoff = mRestoreCutoff;
+        return true;
+    }
+
+    bool routeLocked(const Guard& guard, std::size_t routeSlot,
+                     PersistentRouteRecord& record,
+                     std::uint64_t& routeGeneration,
+                     std::uint64_t& restoreEpoch) const noexcept
+    {
+        if (guard.owner != this || routeSlot >= kPersistentRouteCount)
+            return false;
+        record = mState.routes[routeSlot];
+        routeGeneration = mRouteGenerations[routeSlot];
+        restoreEpoch = mRestoreEpoch;
         return true;
     }
 
@@ -299,6 +315,7 @@ public:
         mRestoreCutoff = cutoff;
         ++mRestoreEpoch;
         mRouteTickets.fill(cutoff);
+        mRouteGenerations.fill(next);
         mGeneration.store(next, std::memory_order_release);
         return next;
     }
@@ -327,8 +344,29 @@ public:
             return PersistentRouteStatus::GenerationExhausted;
         mState.routes[slot] = record;
         mRouteTickets[slot] = ticket;
+        mRouteGenerations[slot] = next;
         mGeneration.store(next, std::memory_order_release);
         return validation;
+    }
+
+    PersistentRouteStatus republishRouteLocked(
+        const Guard& guard, std::size_t routeSlot,
+        std::uint64_t ticket, std::uint64_t expectedEpoch) noexcept
+    {
+        if (guard.owner != this)
+            return PersistentRouteStatus::Busy;
+        if (routeSlot >= kPersistentRouteCount)
+            return PersistentRouteStatus::InvalidOwner;
+        if (expectedEpoch != mRestoreEpoch || ticket <= mRestoreCutoff ||
+            ticket <= mRouteTickets[routeSlot])
+            return PersistentRouteStatus::Stale;
+        const std::uint64_t next = nextGeneration();
+        if (next == 0)
+            return PersistentRouteStatus::GenerationExhausted;
+        mRouteTickets[routeSlot] = ticket;
+        mRouteGenerations[routeSlot] = next;
+        mGeneration.store(next, std::memory_order_release);
+        return PersistentRouteStatus::Ok;
     }
 
     std::uint64_t generation() const noexcept
@@ -352,6 +390,7 @@ private:
 
     PersistentRoutingState mState = MakeDisabledRoutingState();
     std::array<std::uint64_t, kPersistentRouteCount> mRouteTickets {};
+    std::array<std::uint64_t, kPersistentRouteCount> mRouteGenerations {};
     std::uint64_t mRestoreEpoch = 0;
     std::uint64_t mRestoreCutoff = 0;
     std::atomic<std::uint64_t> mGeneration {0};

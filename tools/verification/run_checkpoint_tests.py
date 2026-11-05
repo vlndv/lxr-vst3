@@ -227,7 +227,7 @@ class Runner:
                     "Dependencies/IGraphics/NanoSVG/src", "Dependencies/IGraphics/STB", "Dependencies/IGraphics/glad_GL2/include"]
         probe = ["/D" + definition for definition in definitions] + ["/I" + str(iplug / path) for path in includes]
         probe += ["/I" + str(self.source / "vendor/iPlug2/Examples/LXR")]
-        cases = [(name, probe if name == "P15M2GVST3StateTest" else [])
+        cases = [(name, probe if name in ("P15M2GVST3StateTest", "P15M2HVST3ControllerTest") else [])
                  for name in MANIFEST["host_tests"]]
         cases.append(("ControllerSyncProbe", probe))
         for name, flags in cases:

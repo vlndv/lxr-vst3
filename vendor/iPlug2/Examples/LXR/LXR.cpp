@@ -75,10 +75,65 @@ public:
                                           Steinberg::int32&) override { return Steinberg::kNotImplemented; }
 };
 
+bool DecodeNormalizedRouteToken(
+    LXR& plug, Steinberg::Vst::ParamID tag,
+    Steinberg::Vst::ParamValue normalized,
+    lxr::route_host::RouteToken16& token) noexcept
+{
+    const auto id = lxr::route_host::RouteHostParamId::fromRaw(tag);
+    if (!id.valid() || !std::isfinite(normalized) ||
+        normalized < 0.0 || normalized > 1.0)
+        return false;
+    const auto* param = plug.GetParam(static_cast<int>(tag));
+    if (param == nullptr)
+        return false;
+    const double plain = param->FromNormalized(normalized);
+    if (!std::isfinite(plain) || plain < 0.0 ||
+        plain > static_cast<double>(lxr::route_host::kMaximumToken))
+        return false;
+    token = lxr::route_host::RouteToken16::fromRaw(
+        static_cast<std::uint32_t>(plain));
+    return token.valid() && static_cast<bool>(lxr::route_host::decode(id, token));
+}
+
+class RouteValueQueue final : public Steinberg::Vst::IParamValueQueue
+{
+public:
+    LXR* plug = nullptr;
+    Steinberg::Vst::IParamValueQueue* source = nullptr;
+    Steinberg::tresult PLUGIN_API queryInterface(const Steinberg::TUID iid, void** object) override
+    {
+        if (Steinberg::FUnknownPrivate::iidEqual(iid, Steinberg::Vst::IParamValueQueue::iid) ||
+            Steinberg::FUnknownPrivate::iidEqual(iid, Steinberg::FUnknown::iid))
+        {
+            *object = static_cast<Steinberg::Vst::IParamValueQueue*>(this);
+            return Steinberg::kResultOk;
+        }
+        *object = nullptr;
+        return Steinberg::kNoInterface;
+    }
+    Steinberg::uint32 PLUGIN_API addRef() override { return 1; }
+    Steinberg::uint32 PLUGIN_API release() override { return 1; }
+    Steinberg::Vst::ParamID PLUGIN_API getParameterId() override { return source->getParameterId(); }
+    Steinberg::int32 PLUGIN_API getPointCount() override { return source->getPointCount(); }
+    Steinberg::tresult PLUGIN_API getPoint(Steinberg::int32 index, Steinberg::int32& offset,
+                                          Steinberg::Vst::ParamValue& value) override
+    {
+        const auto result = source->getPoint(index, offset, value);
+        lxr::route_host::RouteToken16 token;
+        return result == Steinberg::kResultOk && plug != nullptr &&
+               DecodeNormalizedRouteToken(*plug, getParameterId(), value, token)
+            ? result : Steinberg::kResultFalse;
+    }
+    Steinberg::tresult PLUGIN_API addPoint(Steinberg::int32, Steinberg::Vst::ParamValue,
+                                          Steinberg::int32&) override { return Steinberg::kNotImplemented; }
+};
+
 class MidiParameterChanges final : public Steinberg::Vst::IParameterChanges
 {
 public:
-    explicit MidiParameterChanges(Steinberg::Vst::IParameterChanges& changes) : source(changes) {}
+    MidiParameterChanges(LXR& owner, Steinberg::Vst::IParameterChanges& changes)
+        : plug(owner), source(changes) {}
     Steinberg::tresult PLUGIN_API queryInterface(const Steinberg::TUID iid, void** object) override
     {
         if (Steinberg::FUnknownPrivate::iidEqual(iid, Steinberg::Vst::IParameterChanges::iid) ||
@@ -99,6 +154,12 @@ public:
         if (queue == nullptr)
             return nullptr;
         const auto tag = queue->getParameterId();
+        if (lxr::route_host::RouteHostParamId::fromRaw(tag).valid())
+        {
+            routeQueue.plug = &plug;
+            routeQueue.source = queue;
+            return &routeQueue;
+        }
         if (tag >= iplug::kMIDICCParamStartIdx &&
             tag < iplug::kMIDICCParamStartIdx + VST3_NUM_CC_CHANS * Steinberg::Vst::kCountCtrlNumber &&
             (tag - iplug::kMIDICCParamStartIdx) % Steinberg::Vst::kCountCtrlNumber < 128)
@@ -111,8 +172,10 @@ public:
     Steinberg::Vst::IParamValueQueue* PLUGIN_API addParameterData(const Steinberg::Vst::ParamID&,
                                                                 Steinberg::int32&) override { return nullptr; }
 private:
+    LXR& plug;
     Steinberg::Vst::IParameterChanges& source;
     MidiValueQueue midiQueue;
+    RouteValueQueue routeQueue;
 };
 #endif
 
@@ -195,6 +258,61 @@ bool SameRoute(const lxr::PersistentRouteRecord& a,
            a.menuVoiceHint == b.menuVoiceHint && a.reserved == b.reserved;
 }
 
+const char* RouteSemanticName(lxr::modulation_contract::ValueSemantic semantic) noexcept
+{
+    using S = lxr::modulation_contract::ValueSemantic;
+    switch (semantic)
+    {
+        case S::FrequencyMultiplier: return "pitch";
+        case S::CutoffCyclesPerSample: return "filter cutoff";
+        case S::Resonance: return "filter resonance";
+        case S::EnvelopeStep: return "envelope";
+        case S::SignedSlopeCoefficient: return "envelope slope";
+        case S::PitchEnvelopeAmount: return "pitch envelope";
+        case S::Pan: return "pan";
+        case S::DistortionCoefficient: return "distortion";
+        case S::FilterDrive: return "filter drive";
+        case S::DecimationRate: return "decimation";
+        case S::OscillatorWaveform: return "oscillator waveform";
+        case S::FilterEnumeration: return "filter type";
+        case S::TransientWaveform: return "transient waveform";
+        case S::TransientPitch: return "transient pitch";
+        case S::UnitFloat: return "volume/FM amount";
+        default: return "typed target";
+    }
+}
+
+void FormatRouteHostValue(std::size_t routeSlot, double value,
+                          WDL_String& display)
+{
+    const auto id = lxr::route_host::parameterForSlot(routeSlot);
+    const auto token = lxr::route_host::RouteToken16::fromRaw(
+        value >= 0.0 && value <= lxr::route_host::kMaximumToken
+            ? static_cast<std::uint32_t>(std::round(value))
+            : lxr::route_host::kMaximumToken);
+    const auto decoded = lxr::route_host::decode(id, token);
+    if (decoded.status == lxr::route_host::TokenStatus::Off)
+    {
+        display.Set("Off");
+        return;
+    }
+    if (decoded.status == lxr::route_host::TokenStatus::Reserved)
+    {
+        display.SetFormatted(64, "Reserved 0x%04X", token.value());
+        return;
+    }
+    const auto* target = lxr::modulation_contract::lookup(
+        lxr::modulation_contract::OriginalTargetIndex::fromRaw(token.value()));
+    if (decoded.status != lxr::route_host::TokenStatus::Accepted || target == nullptr)
+    {
+        display.SetFormatted(96, "Unavailable: AVR %u %s", token.value(),
+            target != nullptr ? target->symbol : "invalid");
+        return;
+    }
+    display.SetFormatted(96, "AVR %u: %s", token.value(),
+                         RouteSemanticName(target->semantic));
+}
+
 } // namespace
 
 // ---------------------------------------------------------
@@ -214,18 +332,19 @@ LXR::LXR(
 {
     // Preserve the native parameter contract.
     static_assert(
-        lxr::vst::kNumParams == lxr::kNumParams,
-        "VST and DSP parameter counts must match"
+        lxr::vst::kNativeNumParams == lxr::kNumParams,
+        "Native VST and DSP parameter counts must match"
     );
 
     static_assert(
-        lxr::vst::kNumParams == 228,
-        "Unexpected LXR parameter count"
+        lxr::vst::kNativeNumParams == 228 &&
+        lxr::vst::kNumParams == 240,
+        "Unexpected native/host parameter counts"
     );
 
     // Register each native LXR parameter.
     for (int paramIdx = 0;
-         paramIdx < lxr::vst::kNumParams;
+         paramIdx < lxr::vst::kNativeNumParams;
          ++paramIdx)
     {
         const auto& descriptor =
@@ -250,15 +369,38 @@ LXR::LXR(
         );
     }
 
+    // These twelve integer parameters are host projections of mRoutingState.
+    // They are not appended to ParameterArray or the 228-byte patch payload.
+    for (std::size_t routeSlot = 0;
+         routeSlot < lxr::route_host::kDescriptors.size(); ++routeSlot)
+    {
+        const auto& descriptor = lxr::route_host::kDescriptors[routeSlot];
+        auto* param = GetParam(static_cast<int>(descriptor.id.value()));
+        assert(param != nullptr);
+        if (param == nullptr)
+            continue;
+        param->InitInt(descriptor.name, 0, 0,
+                       static_cast<int>(lxr::route_host::kMaximumToken));
+        param->SetDisplayFunc([routeSlot](double value, WDL_String& display) {
+            FormatRouteHostValue(routeSlot, value, display);
+        });
+    }
+
     // Initialize canonical native parameters.
     mParams.init();
 
     StateAuthority::Values initialState {};
-    for (int paramIdx = 0; paramIdx < lxr::vst::kNumParams; ++paramIdx)
+    for (int paramIdx = 0; paramIdx < lxr::vst::kNativeNumParams; ++paramIdx)
     {
         const std::size_t index = static_cast<std::size_t>(paramIdx);
         initialState[index] = mParams.get(static_cast<uint8_t>(paramIdx));
         mDeferredHostValues[index].store(0, std::memory_order_relaxed);
+    }
+    for (std::size_t routeSlot = 0;
+         routeSlot < lxr::route_host::kParameterCount; ++routeSlot)
+    {
+        mDeferredRouteValues[routeSlot].store(0, std::memory_order_relaxed);
+        mDeferredRouteRejections[routeSlot].store(0, std::memory_order_relaxed);
     }
     mState.initialize(initialState);
     mRoutingState.initialize();
@@ -389,6 +531,18 @@ bool LXR::FlushDeferredHostParameters(uint64_t maximumOrder)
         pending |= (encoded & 0x100u) != 0u &&
                    (order <= cutoff || order <= maximumOrder);
     }
+    for (const auto& value : mDeferredRouteValues)
+    {
+        const uint64_t encoded = value.load(std::memory_order_acquire);
+        const uint64_t order = encoded >> 17u;
+        pending |= (encoded & UINT64_C(0x10000)) != 0u &&
+                   (order <= cutoff || order <= maximumOrder);
+    }
+    for (const auto& value : mDeferredRouteRejections)
+    {
+        const uint64_t order = value.load(std::memory_order_acquire);
+        pending |= order != 0u && (order <= cutoff || order <= maximumOrder);
+    }
     if (!pending)
         return true;
 
@@ -443,6 +597,111 @@ bool LXR::FlushDeferredHostParameters(uint64_t maximumOrder)
     }
     else
         mState.cancelUnmodified(writer);
+
+    // Patch publication is ordered before route slots, then route slots are
+    // consumed in stable velocity0..5/LFO0..5 order.
+    for (std::size_t routeSlot = 0;
+         routeSlot < mDeferredRouteValues.size(); ++routeSlot)
+    {
+        auto& mailbox = mDeferredRouteValues[routeSlot];
+        uint64_t encoded = mailbox.load(std::memory_order_acquire);
+        bool consumed = false;
+        for (unsigned attempt = 0; attempt < 4u; ++attempt)
+        {
+            if ((encoded & UINT64_C(0x10000)) == 0u)
+                break;
+            const uint64_t order = encoded >> 17u;
+            if (order > cutoff && order > maximumOrder)
+                break;
+            if (mailbox.compare_exchange_weak(
+                    encoded, 0, std::memory_order_acq_rel,
+                    std::memory_order_acquire))
+            {
+                consumed = true;
+                lxr::PersistentRouteRecord current;
+                uint64_t routeGeneration = 0;
+                uint64_t restoreEpoch = 0;
+                if (!mRoutingState.routeLocked(
+                        outer, routeSlot, current,
+                        routeGeneration, restoreEpoch))
+                {
+                    complete = false;
+                    break;
+                }
+                (void)routeGeneration;
+                const auto id = lxr::route_host::parameterForSlot(routeSlot);
+                auto* param = GetParam(static_cast<int>(id.value()));
+                if (order > cutoff)
+                {
+                    const auto token = lxr::route_host::RouteToken16::fromRaw(
+                        static_cast<std::uint32_t>(encoded & 0xffffu));
+                    const auto decoded = lxr::route_host::decode(id, token);
+                    const auto status = decoded
+                        ? mRoutingState.commitRouteLocked(
+                              outer, decoded.record, order, restoreEpoch)
+                        : lxr::PersistentRouteStatus::InvalidTarget;
+                    if (status == lxr::PersistentRouteStatus::Ok ||
+                        status == lxr::PersistentRouteStatus::Disabled)
+                        break;
+                }
+                if (param != nullptr)
+                    param->Set(static_cast<double>(
+                        lxr::route_host::encode(current).value()));
+                break;
+            }
+        }
+        if (!consumed && (encoded & UINT64_C(0x10000)) != 0u &&
+            ((encoded >> 17u) <= cutoff ||
+             (encoded >> 17u) <= maximumOrder))
+            complete = false;
+    }
+
+    for (std::size_t routeSlot = 0;
+         routeSlot < mDeferredRouteRejections.size(); ++routeSlot)
+    {
+        auto& mailbox = mDeferredRouteRejections[routeSlot];
+        uint64_t order = mailbox.load(std::memory_order_acquire);
+        bool consumed = false;
+        for (unsigned attempt = 0; attempt < 4u; ++attempt)
+        {
+            if (order == 0u || (order > cutoff && order > maximumOrder))
+                break;
+            if (mailbox.compare_exchange_weak(
+                    order, 0, std::memory_order_acq_rel,
+                    std::memory_order_acquire))
+            {
+                consumed = true;
+                lxr::PersistentRouteRecord current;
+                uint64_t routeGeneration = 0;
+                uint64_t restoreEpoch = 0;
+                if (!mRoutingState.routeLocked(
+                        outer, routeSlot, current,
+                        routeGeneration, restoreEpoch))
+                {
+                    complete = false;
+                    break;
+                }
+                (void)routeGeneration;
+                const auto id = lxr::route_host::parameterForSlot(routeSlot);
+                auto* param = GetParam(static_cast<int>(id.value()));
+                if (param != nullptr)
+                    param->Set(static_cast<double>(
+                        lxr::route_host::encode(current).value()));
+                if (order > cutoff)
+                {
+                    const auto status = mRoutingState.republishRouteLocked(
+                        outer, routeSlot, order, restoreEpoch);
+                    if (status != lxr::PersistentRouteStatus::Ok &&
+                        status != lxr::PersistentRouteStatus::Stale)
+                        complete = false;
+                }
+                break;
+            }
+        }
+        if (!consumed && order != 0u &&
+            (order <= cutoff || order <= maximumOrder))
+            complete = false;
+    }
     return complete;
 }
 
@@ -564,6 +823,15 @@ bool LXR::PublishPersistentRestore(
         if (param != nullptr)
             param->Set(static_cast<double>(parameters[i]));
     }
+    for (std::size_t routeSlot = 0;
+         routeSlot < routing.routes.size(); ++routeSlot)
+    {
+        const auto id = lxr::route_host::parameterForSlot(routeSlot);
+        auto* param = GetParam(static_cast<int>(id.value()));
+        if (param != nullptr)
+            param->Set(static_cast<double>(
+                lxr::route_host::encode(routing.routes[routeSlot]).value()));
+    }
     SetBypassed(routing.bypass);
     mControllerNeedsReconcile = true;
     return true;
@@ -614,6 +882,96 @@ bool LXR::ConfigureRouteForTest(
         outer, route, ticket, expectedEpoch);
     return status == lxr::PersistentRouteStatus::Ok ||
            status == lxr::PersistentRouteStatus::Disabled;
+}
+
+void LXR::DeferRouteHostToken(
+    std::size_t routeSlot, lxr::route_host::RouteToken16 token,
+    uint64_t ticket) noexcept
+{
+    if (routeSlot >= mDeferredRouteValues.size() || !token.valid() ||
+        ticket >= (UINT64_C(1) << 47u))
+        return;
+    auto& mailbox = mDeferredRouteValues[routeSlot];
+    const uint64_t desired = (ticket << 17u) | UINT64_C(0x10000) |
+                             token.value();
+    uint64_t current = mailbox.load(std::memory_order_acquire);
+    for (unsigned attempt = 0; attempt < 4u; ++attempt)
+    {
+        if ((current & UINT64_C(0x10000)) != 0u &&
+            (current >> 17u) >= ticket)
+            return;
+        if (mailbox.compare_exchange_weak(
+                current, desired, std::memory_order_release,
+                std::memory_order_acquire))
+            return;
+    }
+}
+
+bool LXR::PublishRouteHostToken(
+    std::size_t routeSlot, lxr::route_host::RouteToken16 token,
+    uint64_t ticket) noexcept
+{
+    const auto id = lxr::route_host::parameterForSlot(routeSlot);
+    const auto decoded = lxr::route_host::decode(id, token);
+    if (!decoded)
+        return RejectRouteHostValue(routeSlot, ticket);
+
+    lxr::RoutingStateAuthority::Guard outer;
+    if (!mRoutingState.tryAcquire(outer))
+        return false;
+    lxr::PersistentRouteRecord current;
+    uint64_t routeGeneration = 0;
+    uint64_t restoreEpoch = 0;
+    if (!mRoutingState.routeLocked(outer, routeSlot, current,
+                                   routeGeneration, restoreEpoch))
+        return true;
+    (void)routeGeneration;
+    const auto status = mRoutingState.commitRouteLocked(
+        outer, decoded.record, ticket, restoreEpoch);
+    if (status == lxr::PersistentRouteStatus::Ok ||
+        status == lxr::PersistentRouteStatus::Disabled)
+        return true;
+
+    // A restore or newer route already won. Restore the IParam mirror to the
+    // accepted authority; its route generation is projected on main-thread idle.
+    auto* param = GetParam(static_cast<int>(id.value()));
+    if (param != nullptr)
+        param->Set(static_cast<double>(lxr::route_host::encode(current).value()));
+    return true;
+}
+
+bool LXR::RejectRouteHostValue(
+    std::size_t routeSlot, uint64_t ticket) noexcept
+{
+    if (routeSlot >= lxr::route_host::kParameterCount)
+        return true;
+    lxr::RoutingStateAuthority::Guard outer;
+    if (!mRoutingState.tryAcquire(outer))
+    {
+        auto& pending = mDeferredRouteRejections[routeSlot];
+        uint64_t current = pending.load(std::memory_order_acquire);
+        for (unsigned attempt = 0; attempt < 4u && current < ticket; ++attempt)
+            if (pending.compare_exchange_weak(
+                    current, ticket, std::memory_order_release,
+                    std::memory_order_acquire))
+                break;
+        return false;
+    }
+    lxr::PersistentRouteRecord current;
+    uint64_t routeGeneration = 0;
+    uint64_t restoreEpoch = 0;
+    if (!mRoutingState.routeLocked(outer, routeSlot, current,
+                                   routeGeneration, restoreEpoch))
+        return true;
+    (void)routeGeneration;
+    const auto id = lxr::route_host::parameterForSlot(routeSlot);
+    auto* param = GetParam(static_cast<int>(id.value()));
+    if (param != nullptr)
+        param->Set(static_cast<double>(lxr::route_host::encode(current).value()));
+    const auto status = mRoutingState.republishRouteLocked(
+        outer, routeSlot, ticket, restoreEpoch);
+    return status == lxr::PersistentRouteStatus::Ok ||
+           status == lxr::PersistentRouteStatus::Stale;
 }
 
 // ---------------------------------------------------------
@@ -693,9 +1051,32 @@ void LXR::OnParamChange(
     int paramIdx
 )
 {
+    const auto routeId = lxr::route_host::RouteHostParamId::fromRaw(
+        paramIdx >= 0 ? static_cast<std::uint32_t>(paramIdx) : 0u);
+    if (routeId.valid())
+    {
+        const auto routeSlot = lxr::route_host::slot(routeId);
+        auto* param = GetParam(paramIdx);
+        const uint64_t ticket =
+            mDeferredHostOrder.fetch_add(1, std::memory_order_acq_rel);
+        if (param == nullptr || ticket == 0u)
+            return;
+        const auto token = lxr::route_host::RouteToken16::fromRaw(
+            static_cast<std::uint32_t>(param->Int()));
+        const auto decoded = lxr::route_host::decode(routeId, token);
+        if (!decoded)
+        {
+            RejectRouteHostValue(routeSlot, ticket);
+            return;
+        }
+        if (!PublishRouteHostToken(routeSlot, token, ticket))
+            DeferRouteHostToken(routeSlot, token, ticket);
+        return;
+    }
+
     // Only IDs 0..227 belong to the native LXR.
     if (paramIdx < 0 ||
-        paramIdx >= lxr::vst::kNumParams)
+        paramIdx >= lxr::vst::kNativeNumParams)
     {
         return;
     }
@@ -759,6 +1140,26 @@ void LXR::OnParamChangeUI(int paramIdx, iplug::EParamSource source)
 // ---------------------------------------------------------
 
 #if defined(VST3_API)
+Steinberg::tresult PLUGIN_API LXR::setParamNormalized(
+    Steinberg::Vst::ParamID tag,
+    Steinberg::Vst::ParamValue value)
+{
+    const auto id = lxr::route_host::RouteHostParamId::fromRaw(tag);
+    if (!id.valid())
+        return iplug::Plugin::setParamNormalized(tag, value);
+
+    lxr::route_host::RouteToken16 token;
+    if (!DecodeNormalizedRouteToken(*this, tag, value, token))
+    {
+        const uint64_t ticket =
+            mDeferredHostOrder.fetch_add(1, std::memory_order_acq_rel);
+        if (ticket != 0u)
+            RejectRouteHostValue(lxr::route_host::slot(id), ticket);
+        return Steinberg::kResultFalse;
+    }
+    return iplug::Plugin::setParamNormalized(tag, value);
+}
+
 Steinberg::tresult PLUGIN_API LXR::getState(Steinberg::IBStream* state)
 {
     if (state == nullptr)
@@ -838,7 +1239,34 @@ Steinberg::tresult PLUGIN_API LXR::process(Steinberg::Vst::ProcessData& data)
 {
     if (data.inputParameterChanges == nullptr)
         return iplug::Plugin::process(data);
-    MidiParameterChanges changes(*data.inputParameterChanges);
+    // The pinned dispatcher reads only the last point. Preflight that exact
+    // point so rejected route automation republishes canonical readback while
+    // the adapter prevents the invalid value from reaching IParam.
+    const auto queueCount = data.inputParameterChanges->getParameterCount();
+    for (Steinberg::int32 i = 0; i < queueCount; ++i)
+    {
+        auto* queue = data.inputParameterChanges->getParameterData(i);
+        if (queue == nullptr)
+            continue;
+        const auto id = lxr::route_host::RouteHostParamId::fromRaw(
+            queue->getParameterId());
+        const auto pointCount = queue->getPointCount();
+        if (!id.valid() || pointCount <= 0)
+            continue;
+        Steinberg::int32 offset = 0;
+        Steinberg::Vst::ParamValue value = 0.0;
+        lxr::route_host::RouteToken16 token;
+        if (queue->getPoint(pointCount - 1, offset, value) !=
+                Steinberg::kResultOk ||
+            !DecodeNormalizedRouteToken(*this, id.value(), value, token))
+        {
+            const uint64_t ticket =
+                mDeferredHostOrder.fetch_add(1, std::memory_order_acq_rel);
+            if (ticket != 0u)
+                RejectRouteHostValue(lxr::route_host::slot(id), ticket);
+        }
+    }
+    MidiParameterChanges changes(*this, *data.inputParameterChanges);
     auto adapted = data;
     adapted.inputParameterChanges = &changes;
     return iplug::Plugin::process(adapted);
@@ -874,11 +1302,23 @@ void LXR::OnIdle()
 
     mControllerSyncBusy = true;
     auto delivered = mControllerSyncGenerations;
+    lxr::RoutingStateAuthority::Snapshot routeSnapshot;
+    if (!mRoutingState.copyLocked(outer, routeSnapshot))
+    {
+        mState.cancelUnmodified(projection);
+        mControllerSyncBusy = false;
+        return;
+    }
     bool pending = mControllerNeedsReconcile;
     bool complete = true;
     for (std::size_t i = 0; i < delivered.size(); ++i)
     {
-        const uint64_t generation = mState.valueGeneration(i);
+        const bool native = i < lxr::state::kParameterCount;
+        const std::size_t routeSlot = native
+            ? 0u : i - lxr::state::kParameterCount;
+        const uint64_t generation = native
+            ? mState.valueGeneration(i)
+            : routeSnapshot.routeGenerations[routeSlot];
         if (!mControllerNeedsReconcile && delivered[i] == generation)
             continue;
 
@@ -888,7 +1328,10 @@ void LXR::OnIdle()
         // Do not write IParam or call OnParamChange here (no feedback producer).
         complete &= param != nullptr && SetVST3ParamNormalized(
             static_cast<Steinberg::Vst::ParamID>(i),
-            param->ToNormalized(static_cast<double>(mState.value(i))));
+            param->ToNormalized(static_cast<double>(native
+                ? mState.value(i)
+                : lxr::route_host::encode(
+                    routeSnapshot.state.routes[routeSlot]).value())));
         delivered[i] = generation;
         pending = true;
     }
