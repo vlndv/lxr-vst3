@@ -674,3 +674,19 @@ Reason: filter and mappings are self-contained and testable first; voices need a
 - Release x64/v145 private build used `/p:PostBuildEventUseInBuild=false`; DLL SHA708EB4C1FEB55598762E1D4F9EE3C113D3C959FBCE325B580EDB8915371D1DD0. Exact private module path/hash captured from REAPER. Installed certified SHA89F6DF598EBC88F580A6013D83DA10053A177ECBBFC89CA88AC474E2C3E7FF82 and seven resources remain unchanged.
 - REAPER7.80 isolated state/control PASS against the exact private module: two instances, twelve controls, invalid204 rejection, controller readback, all228 patch values,24 route values, bypass and automation save/reopen. Velocity-only, LFO-only and combined active renders each differ from OFF; active pre/post-reopen PCM is bit-identical; transport and26-sample PDC at48kHz pass.
 - Earlier identical active/OFF PCM was a fixture error: both native modulation depths were zero. Final fixture explicitly enables VELO_MOD_AMT_1 and LFO1 amount; no production DSP change or assertion reduction. Windows Application Control separately BLOCKED six native variants (WinError4551), including historical FIR Functional O2; no bypass. Evidence out/p15-m2h/, report docs/p15_m2h_host_modulation_controls.md.
+
+
+### P16-A Original sequencer architecture and timing contract - PASS - 2026-11-05
+- Original LXR0.37 seven-track/eight-pattern model audited:7168 flattened seven-byte step records, separate16-bit main gates, shared hi-hat owner,32-PPQ timing, probability/lock quirks, chaining, performance functions and50361-byte pattern payload. No Catalyst reference or production integration.
+- Selected fixed-point host/internal timeline and next-32-native-frame fidelity boundary; documented explicit host adaptation, immutable ownership and future state migration beyond the current4096-byte cap.
+- Standalone pinned-header/source-contract O0/O2 each64 PASS/0 FAIL, including million-event rational timing, callback partitioning, seek/loop/restart, hat ordering, probability and lock/chain contracts. No production source/build/install/Git operation.
+- Report `docs/p16a_sequencer_architecture.md`; evidence `out/p16a/`. Hardware RNG, exact ARM bitfield ABI and complete SOM user semantics remain qualified.
+
+
+### P16-B Native sequencer core and pattern authority - PASS - 2026-11-05
+- Isolated C++17 core adds explicit seven-byte StepData,8x7x128 PatternBank, source defaults/validation/edit API, seven-track/six-owner mapping, instance-local deterministic RNG and integer-rational native clock. No Engine/MIDI/VST3/LXRS/host/persistence integration.
+- Selected three immutable50418-byte bank slots with reader pins, post-claim race check, single bounded writer, RAII lifetime and explicit Busy backpressure. Authority151344 bytes; no mutable published pointer or per-block bank copy.
+- O0/O2 each1007503 PASS/0 FAIL; one-million-position zero rational drift, chunk invariance, native-block rounding, RNG reset/quirks, corrupt-edit rollback, pinned-slot contention, concurrent two-reader/writer coherence and multi-instance isolation. Measured core operations allocate0 heap blocks.
+- Fresh P16-A O0/O2, P15-M2A..M2F standalone suites and42/42 native checkpoint suites PASS. M2G/M2H unchanged accepted checkpoint; exact historical FIR Functional O2 policy denial remains BLOCKED/not retried.
+- Report `docs/p16b_sequencer_core.md`; evidence `out/p16b/`. P16-C may add only bounded trigger scheduling/Engine boundary integration under separate authorization.
+- Accepted interface facade: `interfaces/SequencerCore.h`.
