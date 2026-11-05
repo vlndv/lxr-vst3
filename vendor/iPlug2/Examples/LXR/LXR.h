@@ -11,6 +11,7 @@
 #include "../../../../../dsp/MidiParser.h"
 #include "../../../../../dsp/LXRAudioAdapter.h"
 #include "../../../../../dsp/RouteHostControls.h"
+#include "../../../../../dsp/TriggerScheduler.h"
 
 #include <array>
 #include <atomic>
@@ -94,6 +95,9 @@ private:
   // Host-independent bridge around the Engine's fixed 32-frame,
   // four-output rendering contract.
   lxr::LXRAudioAdapter mAudioAdapter;
+  // Internal P16-C transport. It is stopped by default and has no host
+  // parameter, host-sync or persistence surface in this milestone.
+  lxr::sequencer::TriggerScheduler mSequencer;
   bool mAssetsLoaded = false;
 
   using StateAuthority =

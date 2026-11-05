@@ -1,4 +1,7 @@
 #include "LXRAudioAdapter.h"
+#include "TriggerScheduler.h"
+
+#include <limits>
 
 namespace lxr
 {
@@ -12,6 +15,7 @@ void LXRAudioAdapter::reset() noexcept
   mST2Right.fill(0);
 
   mReadIndex = kEngineBlockSize;
+  mNativeFrame = 0;
 
   // Discard FIR history, but retain configuration.
   mResampler.reset();
@@ -34,7 +38,8 @@ bool LXRAudioAdapter::configure(
 }
 
 void LXRAudioAdapter::renderNextEngineBlock(
-  Engine& engine
+  Engine& engine,
+  sequencer::TriggerScheduler* scheduler
 ) noexcept
 {
   // Preserve the original four-output Engine contract.
@@ -42,6 +47,13 @@ void LXRAudioAdapter::renderNextEngineBlock(
   mST1Right.fill(0);
   mST2Left.fill(0);
   mST2Right.fill(0);
+
+  // P16-C: the sequencer dispatches a complete ordered batch at the native
+  // boundary immediately before the original modulation/render tick.
+  if (scheduler != nullptr)
+  {
+    (void) scheduler->processNativeBlock(mNativeFrame, engine);
+  }
 
   engine.processBlock(
     mST1Left.data(),
@@ -51,18 +63,27 @@ void LXRAudioAdapter::renderNextEngineBlock(
   );
 
   mReadIndex = 0;
+  if (mNativeFrame <= (std::numeric_limits<std::uint64_t>::max() - kEngineBlockSize))
+  {
+    mNativeFrame += kEngineBlockSize;
+  }
+  else
+  {
+    mNativeFrame = std::numeric_limits<std::uint64_t>::max();
+  }
 }
 
 void LXRAudioAdapter::getNextST1Sample(
   Engine& engine,
   int16_t& left,
-  int16_t& right
+  int16_t& right,
+  sequencer::TriggerScheduler* scheduler
 ) noexcept
 {
   // Refill only after consuming the current 32 frames.
   if (mReadIndex >= kEngineBlockSize)
   {
-    renderNextEngineBlock(engine);
+    renderNextEngineBlock(engine, scheduler);
   }
 
   left = mST1Left[mReadIndex];
@@ -74,12 +95,13 @@ void LXRAudioAdapter::getNextST1Sample(
 void LXRAudioAdapter::getNextHostST1Sample(
   Engine& engine,
   double& left,
-  double& right
+  double& right,
+  sequencer::TriggerScheduler* scheduler
 ) noexcept
 {
   // Native PCM producer for the resampler.
   auto source =
-    [this, &engine](
+    [this, &engine, scheduler](
       double& sourceLeft,
       double& sourceRight
     ) noexcept
@@ -90,7 +112,8 @@ void LXRAudioAdapter::getNextHostST1Sample(
       getNextST1Sample(
         engine,
         nativeLeft,
-        nativeRight
+        nativeRight,
+        scheduler
       );
 
       // Signed PCM to normalized floating-point.

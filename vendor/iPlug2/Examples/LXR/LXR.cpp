@@ -409,6 +409,7 @@ LXR::LXR(
     // Clear native cache and resampler state.
     // Host-rate configuration occurs in OnReset().
     mAudioAdapter.reset();
+    mSequencer.reset(0u);
 
     // Resolve assets relative to the plugin module,
     // never relative to the DAW working directory.
@@ -491,6 +492,7 @@ bool LXR::StageCompleteRestore(
     mParams = mStagingParams;
     mAppliedRouting = routing;
     mAudioAdapter.reset();
+    mSequencer.reset(0u);
     mMidiParser = lxr::MidiParser();
     return true;
 }
@@ -1040,6 +1042,7 @@ void LXR::OnActivate(
     if (!active)
     {
         mAudioAdapter.reset();
+        mSequencer.reset(0u);
     }
 }
 
@@ -1582,7 +1585,8 @@ void LXR::ProcessBlock(
         mAudioAdapter.getNextHostST1Sample(
             mEngine,
             left,
-            right
+            right,
+            &mSequencer
         );
 
         // Mono host configuration.

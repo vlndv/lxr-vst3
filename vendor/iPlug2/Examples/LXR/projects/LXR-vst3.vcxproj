@@ -202,6 +202,10 @@
     <ClCompile Include="..\..\..\WDL\win32_utf8.c" />
     <ClCompile Include="..\..\..\..\..\dsp\Engine.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\LXRAudioAdapter.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\PatternBank.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\PatternStateAuthority.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\SequencerClock.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\TriggerScheduler.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\LXRResourceLocator.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\DrumVoice.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\Snare.cpp" />

@@ -10,6 +10,11 @@
 namespace lxr
 {
 
+namespace sequencer
+{
+class TriggerScheduler;
+}
+
 class LXRAudioAdapter final
 {
 public:
@@ -35,15 +40,22 @@ public:
   void getNextHostST1Sample(
     Engine& engine,
     double& left,
-    double& right
+    double& right,
+    sequencer::TriggerScheduler* scheduler = nullptr
   ) noexcept;
 
   // Preserve the original native PCM interface.
   void getNextST1Sample(
     Engine& engine,
     int16_t& left,
-    int16_t& right
+    int16_t& right,
+    sequencer::TriggerScheduler* scheduler = nullptr
   ) noexcept;
+
+  std::uint64_t nativeFrame() const noexcept
+  {
+    return mNativeFrame;
+  }
 
 private:
   // Native LXR output buffers, 32 frames each.
@@ -53,11 +65,13 @@ private:
   std::array<int16_t, kEngineBlockSize> mST2Right {};
 
   std::size_t mReadIndex = kEngineBlockSize;
+  std::uint64_t mNativeFrame = 0;
 
   PolyphaseResampler mResampler {};
 
   void renderNextEngineBlock(
-    Engine& engine
+    Engine& engine,
+    sequencer::TriggerScheduler* scheduler
   ) noexcept;
 };
 
