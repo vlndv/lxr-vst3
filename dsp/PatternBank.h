@@ -117,5 +117,12 @@ Status SetPatternChain(PatternBank& bank, std::uint8_t pattern,
 Status SetShuffle(PatternBank& bank, std::uint8_t shuffle) noexcept;
 Status CopyPattern(PatternBank& bank, std::uint8_t source,
                    std::uint8_t destination) noexcept;
+Status CopyTrack(PatternBank& bank, std::uint8_t pattern,
+                 std::uint8_t source, std::uint8_t destination) noexcept;
+Status ClearTrack(PatternBank& bank, std::uint8_t pattern,
+                  std::uint8_t track) noexcept;
+Status GenerateEuclidean(PatternBank& bank, std::uint8_t pattern,
+                         std::uint8_t track, std::uint8_t length,
+                         std::uint8_t pulses, std::uint8_t rotation) noexcept;
 
 } // namespace lxr::sequencer

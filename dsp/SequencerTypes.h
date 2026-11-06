@@ -135,7 +135,8 @@ enum class Status : std::uint8_t
     InsufficientCapacity,
     Busy,
     Stale,
-    GenerationExhausted
+    GenerationExhausted,
+    InvalidRollRate
 };
 
 } // namespace lxr::sequencer

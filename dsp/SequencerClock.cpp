@@ -35,6 +35,14 @@ Status SequencerClock::setTempo(std::uint16_t bpm) noexcept
     return Status::Ok;
 }
 
+Status SequencerClock::setShuffle(std::uint8_t shuffle) noexcept
+{
+    if (shuffle > kMaximumShuffle)
+        return Status::InvalidShuffle;
+    mShuffle = shuffle;
+    return Status::Ok;
+}
+
 void SequencerClock::reset(std::uint64_t nativeFrame) noexcept
 {
     mCursor = nativeFrame;
@@ -44,6 +52,7 @@ void SequencerClock::reset(std::uint64_t nativeFrame) noexcept
     mLastFraction = 0u;
     mLastDenominator = mStepDenominator;
     mOrdinal = 0u;
+    mLastQuantized = nativeFrame;
     mRunning = false;
     mHasEmitted = false;
 }
@@ -60,6 +69,7 @@ void SequencerClock::start() noexcept
     mLastFraction = 0u;
     mLastDenominator = mStepDenominator;
     mOrdinal = 0u;
+    mLastQuantized = mCursor;
     mHasEmitted = false;
     mRunning = true;
 }
@@ -98,16 +108,64 @@ void SequencerClock::reanchorNextFromLast() noexcept
 
 std::uint64_t SequencerClock::nextQuantizedFrame() const noexcept
 {
-    std::uint64_t ceiling = mNextWhole;
-    if (mNextFraction != 0u && ceiling != std::numeric_limits<std::uint64_t>::max())
+    std::uint64_t adjustedWhole = 0u;
+    std::uint64_t adjustedFraction = 0u;
+    std::uint64_t adjustedDenominator = 1u;
+    nextAdjusted(adjustedWhole, adjustedFraction, adjustedDenominator);
+    std::uint64_t ceiling = adjustedWhole;
+    if (adjustedFraction != 0u &&
+        ceiling != std::numeric_limits<std::uint64_t>::max())
         ++ceiling;
     const std::uint64_t remainder = ceiling % kNativeBlockFrames;
-    if (remainder == 0u)
-        return ceiling;
-    const std::uint64_t add = kNativeBlockFrames - remainder;
-    return ceiling > std::numeric_limits<std::uint64_t>::max() - add
+    const std::uint64_t add = remainder == 0u
+        ? 0u : kNativeBlockFrames - remainder;
+    std::uint64_t quantized =
+        ceiling > std::numeric_limits<std::uint64_t>::max() - add
         ? std::numeric_limits<std::uint64_t>::max()
         : ceiling + add;
+    // The source timer processes at most one physical position per poll even
+    // when the descending shuffle phase produces a negative nominal delta.
+    // The VST adaptation therefore retains P16-C's one-event-per-native-block
+    // contract and catches back up when the ideal phase moves ahead again.
+    if (mHasEmitted &&
+        mLastQuantized <= std::numeric_limits<std::uint64_t>::max() - kNativeBlockFrames)
+    {
+        const std::uint64_t earliest = mLastQuantized + kNativeBlockFrames;
+        if (quantized < earliest)
+            quantized = earliest;
+    }
+    // A live shuffle decrease can move the ideal next point behind the block
+    // cursor. Dispatch it at the next available native boundary, never with a
+    // timestamp in the already-rendered past.
+    const std::uint64_t cursorRemainder = mCursor % kNativeBlockFrames;
+    const std::uint64_t cursorAdd = cursorRemainder == 0u
+        ? 0u : kNativeBlockFrames - cursorRemainder;
+    const std::uint64_t cursorBoundary =
+        mCursor > std::numeric_limits<std::uint64_t>::max() - cursorAdd
+        ? std::numeric_limits<std::uint64_t>::max() : mCursor + cursorAdd;
+    if (quantized < cursorBoundary)
+        quantized = cursorBoundary;
+    return quantized;
+}
+
+void SequencerClock::nextAdjusted(std::uint64_t& whole,
+                                  std::uint64_t& fraction,
+                                  std::uint64_t& denominator) const noexcept
+{
+    denominator = mStepDenominator * kShuffleOffsetDenominator;
+    const std::uint8_t phase = kShufflePhaseNumerators[
+        static_cast<std::size_t>(mOrdinal & 0x0fu)];
+    const std::uint64_t offsetNumerator =
+        kClockStepNumerator * phase * mShuffle;
+    const std::uint64_t combined =
+        mNextFraction * kShuffleOffsetDenominator + offsetNumerator;
+    whole = mNextWhole + combined / denominator;
+    fraction = combined % denominator;
+    if (whole < mNextWhole)
+    {
+        whole = std::numeric_limits<std::uint64_t>::max();
+        fraction = 0u;
+    }
 }
 
 Status SequencerClock::advanceTo(std::uint64_t endFrame, ClockEvent* events,
@@ -132,7 +190,10 @@ Status SequencerClock::advanceTo(std::uint64_t endFrame, ClockEvent* events,
         }
 
         ClockEvent& event = events[written++];
-        event.exactFrameFloor = mNextWhole;
+        std::uint64_t adjustedFraction = 0u;
+        std::uint64_t adjustedDenominator = 1u;
+        nextAdjusted(event.exactFrameFloor, adjustedFraction,
+                     adjustedDenominator);
         event.quantizedNativeFrame = nextQuantizedFrame();
         event.ordinal = mOrdinal;
         event.physicalPosition = static_cast<std::uint8_t>(
@@ -142,6 +203,7 @@ Status SequencerClock::advanceTo(std::uint64_t endFrame, ClockEvent* events,
         mLastFraction = mNextFraction;
         mLastDenominator = mStepDenominator;
         mHasEmitted = true;
+        mLastQuantized = event.quantizedNativeFrame;
         ++mOrdinal;
         advanceExact();
     }

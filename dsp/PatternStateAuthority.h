@@ -65,6 +65,12 @@ public:
         Status resetPattern(std::uint8_t pattern) noexcept;
         Status resetBank() noexcept;
         Status copyPattern(std::uint8_t source, std::uint8_t destination) noexcept;
+        Status copyTrack(std::uint8_t pattern, std::uint8_t source,
+                         std::uint8_t destination) noexcept;
+        Status clearTrack(std::uint8_t pattern, std::uint8_t track) noexcept;
+        Status generateEuclidean(std::uint8_t pattern, std::uint8_t track,
+                                 std::uint8_t length, std::uint8_t pulses,
+                                 std::uint8_t rotation) noexcept;
         Status replace(const PatternBank& candidate) noexcept;
         const PatternBank& candidate() const noexcept;
         void cancel() noexcept;

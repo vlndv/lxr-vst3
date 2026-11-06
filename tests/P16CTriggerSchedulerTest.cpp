@@ -130,14 +130,17 @@ void configureEngine(Engine& engine)
 void testBatchCapacity()
 {
     TriggerEventBatch batch;
-    for (std::uint8_t track = 0; track < 8u; ++track)
+    for (std::uint8_t track = 0;
+         track < kMaximumTriggerEventsPerNativeBlock + 1u; ++track)
     {
         TriggerEvent event {};
         event.track = track;
         const bool accepted = batch.push(event);
-        check(accepted == (track < 7u), "fixed batch reject-newest policy");
+        check(accepted == (track < kMaximumTriggerEventsPerNativeBlock),
+              "fixed batch reject-newest policy");
     }
-    checkEqual(batch.size(), 7u, "fixed batch capacity seven");
+    checkEqual(batch.size(), kMaximumTriggerEventsPerNativeBlock,
+               "fixed P16-E batch capacity");
     checkEqual(batch.rejected(), 1u, "fixed batch rejection diagnostic");
     for (std::size_t i = 0; i < batch.size(); ++i)
         checkEqual(batch[i].track, i, "fixed batch preserves accepted order");

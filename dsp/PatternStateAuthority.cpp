@@ -117,6 +117,33 @@ Status PatternStateAuthority::WriteHandle::copyPattern(
         ? CopyPattern(*bank, source, destination) : Status::Stale;
 }
 
+Status PatternStateAuthority::WriteHandle::copyTrack(
+    std::uint8_t pattern, std::uint8_t source,
+    std::uint8_t destination) noexcept
+{
+    PatternBank* bank = mutableCandidate();
+    return bank != nullptr
+        ? CopyTrack(*bank, pattern, source, destination) : Status::Stale;
+}
+
+Status PatternStateAuthority::WriteHandle::clearTrack(
+    std::uint8_t pattern, std::uint8_t track) noexcept
+{
+    PatternBank* bank = mutableCandidate();
+    return bank != nullptr
+        ? ClearTrack(*bank, pattern, track) : Status::Stale;
+}
+
+Status PatternStateAuthority::WriteHandle::generateEuclidean(
+    std::uint8_t pattern, std::uint8_t track, std::uint8_t length,
+    std::uint8_t pulses, std::uint8_t rotation) noexcept
+{
+    PatternBank* bank = mutableCandidate();
+    return bank != nullptr
+        ? GenerateEuclidean(*bank, pattern, track, length, pulses, rotation)
+        : Status::Stale;
+}
+
 Status PatternStateAuthority::WriteHandle::replace(
     const PatternBank& candidateBank) noexcept
 {

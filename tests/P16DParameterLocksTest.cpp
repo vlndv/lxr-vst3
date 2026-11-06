@@ -103,11 +103,11 @@ void testIdentity()
 void testCapacity()
 {
     AutomationEventBatch batch;
-    for(std::uint8_t i=0;i<15u;++i) {
+    for(std::uint8_t i=0;i<AutomationEventBatch::capacity()+1u;++i) {
         AutomationEvent event {};event.track=static_cast<std::uint8_t>(i/2u);event.slot=i%2u;
-        check(batch.push(event)==(i<14u),"automation reject-newest capacity");
+        check(batch.push(event)==(i<AutomationEventBatch::capacity()),"automation reject-newest capacity");
     }
-    equal(batch.size(),14u,"automation capacity fourteen");
+    equal(batch.size(),AutomationEventBatch::capacity(),"automation bounded P16-E capacity");
     equal(batch.rejected(),1u,"automation overflow diagnosed");
 }
 

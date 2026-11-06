@@ -2,6 +2,7 @@
 
 #include "SequencerTypes.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -16,6 +17,11 @@ inline constexpr std::uint64_t kClockStepNumerator =
     kNativeRateNumerator * 60u;
 inline constexpr std::uint64_t kClockDenominatorScale =
     kNativeRateDenominator * 32u;
+inline constexpr std::uint64_t kShuffleOffsetDenominator = 1524u;
+inline constexpr std::array<std::uint8_t, 16> kShufflePhaseNumerators {{
+    0u, 1u, 4u, 9u, 16u, 25u, 36u, 49u,
+    64u, 63u, 60u, 55u, 48u, 39u, 28u, 15u
+}};
 
 struct ClockEvent
 {
@@ -32,6 +38,8 @@ public:
 
     Status setTempo(std::uint16_t bpm) noexcept;
     std::uint16_t tempo() const noexcept { return mTempo; }
+    Status setShuffle(std::uint8_t shuffle) noexcept;
+    std::uint8_t shuffle() const noexcept { return mShuffle; }
 
     void reset(std::uint64_t nativeFrame = 0) noexcept;
     void start() noexcept;
@@ -54,6 +62,8 @@ private:
     void configureStep(std::uint16_t bpm) noexcept;
     void advanceExact() noexcept;
     void reanchorNextFromLast() noexcept;
+    void nextAdjusted(std::uint64_t& whole, std::uint64_t& fraction,
+                      std::uint64_t& denominator) const noexcept;
 
     std::uint64_t mCursor = 0;
     std::uint64_t mNextWhole = 0;
@@ -65,7 +75,9 @@ private:
     std::uint64_t mStepRemainder = 0;
     std::uint64_t mStepDenominator = kClockDenominatorScale * kDefaultTempo;
     std::uint64_t mOrdinal = 0;
+    std::uint64_t mLastQuantized = 0;
     std::uint16_t mTempo = kDefaultTempo;
+    std::uint8_t mShuffle = 0;
     bool mRunning = false;
     bool mHasEmitted = false;
 };
