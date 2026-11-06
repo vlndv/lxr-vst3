@@ -10,6 +10,7 @@
 #include "Modulation.h"
 #include "VelocityRouting.h"
 #include "PhysicalModulation.h"
+#include "SequencerParameterLocks.h"
 
 namespace lxr {
 
@@ -40,6 +41,15 @@ public:
                                                         modulation_contract::SevenBitValue value) noexcept;
     const VelocityRouteState* velocityRoute(modulation_contract::Voice voice) const noexcept;
     void velocityBaseParameterChanged(modulation_contract::HostParameterId parameter) noexcept;
+    void authoritativeBaseParameterChanged(
+        modulation_contract::HostParameterId parameter,
+        std::uint8_t rawValue) noexcept;
+    bool applySequencerAutomationPair(
+        std::uint8_t track,
+        const sequencer::AutomationSlotCommand* slot1,
+        const sequencer::AutomationSlotCommand* slot2) noexcept;
+    modulation_contract::HostParameterId sequencerAutomationDestination(
+        std::uint8_t track, std::uint8_t slot) const noexcept;
     // Original mixer stage: restore converted bases, replay held sources, then
     // recalculate affected filter coefficients. Exactly once per native tick.
     void beginVelocityModulationTick() noexcept;
@@ -78,6 +88,9 @@ private:
     uint16_t mNativeTempo=120;
     uint32_t mBaseRevision=0;
     bool mVelocityFilterDirty[6] {};
+    std::uint8_t mAuthoritativeRawParameters[modulation_contract::kSoundSlotCount] {};
+    bool mAuthoritativeRawKnown[modulation_contract::kSoundSlotCount] {};
+    modulation_contract::HostParameterId mSequencerAutomationDestinations[14] {};
     float* velocityFloatField(modulation_contract::FirmwareParameterId parameter) noexcept;
     std::uint8_t* velocityByteField(modulation_contract::FirmwareParameterId parameter) noexcept;
     VelocityRouteStatus configureModulationDestination(unsigned node,
@@ -87,6 +100,11 @@ private:
     void applyModulationValue(VelocityRouteState& route,float depth,float value) noexcept;
     void applyVelocityValue(unsigned voice) noexcept;
     bool triggerVelocity(unsigned voice, std::uint8_t velocity) noexcept;
+    bool applySequencerRawParameter(modulation_contract::HostParameterId parameter,
+                                    std::uint8_t value) noexcept;
+    bool setSequencerAutomationDestination(
+        std::size_t node,
+        const sequencer::AutomationSlotCommand& command) noexcept;
 };
 
 } // namespace lxr

@@ -1,5 +1,6 @@
 // FILE: dsp/Engine.cpp
 #include "Engine.h"
+#include "ParameterArray.h"
 #include "TransientTables.h"
 #include <cmath>
 #include <cstdio>
@@ -14,6 +15,10 @@ Engine::Engine() {
 void Engine::init() {
     mNativeTempo=120; mBaseRevision=0;
     for (auto& base:mPhysicalBases) base=PhysicalModulationBase{};
+    for (auto& value:mAuthoritativeRawParameters) value=0u;
+    for (auto& known:mAuthoritativeRawKnown) known=false;
+    for (auto& destination:mSequencerAutomationDestinations)
+        destination=modulation_contract::HostParameterId{};
     for (unsigned v=0;v<6;++v) {
         mLfoRoutes[v]=LfoRouteState{};
         nativeLfo(v)->heldValue=0.f;
@@ -485,6 +490,95 @@ void Engine::velocityBaseParameterChanged(modulation_contract::HostParameterId i
             r.status=std::isfinite(base.value)?VelocityRouteStatus::Ok:VelocityRouteStatus::NonFiniteBase;
         }
     }
+}
+
+void Engine::authoritativeBaseParameterChanged(
+    modulation_contract::HostParameterId id,
+    std::uint8_t rawValue) noexcept {
+    if(!id.valid()) return;
+    mAuthoritativeRawParameters[id.value()]=rawValue;
+    mAuthoritativeRawKnown[id.value()]=true;
+    // A newer patch/MIDI/host value is immediately effective, matching the
+    // firmware's updateOriginalValue path. Active automation is not replayed.
+    velocityBaseParameterChanged(id);
+}
+
+bool Engine::applySequencerRawParameter(
+    modulation_contract::HostParameterId id,
+    std::uint8_t value) noexcept {
+    if(!id.valid() || value>127u) return false;
+    ApplyRawParameterToEngine(static_cast<std::uint8_t>(id.value()),value,*this);
+    // The sequencer value becomes the physical base restored before velocity
+    // and LFO replay, without changing the authoritative raw patch byte.
+    velocityBaseParameterChanged(id);
+    return true;
+}
+
+bool Engine::setSequencerAutomationDestination(
+    std::size_t node,
+    const sequencer::AutomationSlotCommand& command) noexcept {
+    if(node>=14u) return false;
+    if(command.action==sequencer::AutomationAction::Apply &&
+       (!command.target.valid() ||
+        !mAuthoritativeRawKnown[command.target.value()]))
+        return false;
+    auto& old=mSequencerAutomationDestinations[node];
+    if(old.valid()) {
+        if(!mAuthoritativeRawKnown[old.value()]) return false;
+        if(!applySequencerRawParameter(old,mAuthoritativeRawParameters[old.value()]))
+            return false;
+    }
+    old=command.action==sequencer::AutomationAction::Apply
+        ? command.target : modulation_contract::HostParameterId{};
+    return true;
+}
+
+bool Engine::applySequencerAutomationPair(
+    std::uint8_t track,
+    const sequencer::AutomationSlotCommand* slot1,
+    const sequencer::AutomationSlotCommand* slot2) noexcept {
+    if(track>=7u) return false;
+    const sequencer::AutomationSlotCommand* slots[2]={slot1,slot2};
+    // Preflight the complete pair so a malformed direct caller cannot leave a
+    // half-updated effective state. Scheduler-produced commands already pass
+    // this same typed source/runtime validation.
+    for(const auto* slot:slots) {
+        if(slot==nullptr || slot->action==sequencer::AutomationAction::Clear)
+            continue;
+        if(!slot->target.valid() || !slot->value.valid() ||
+           !sequencer::IsCurrentAutomationRuntimeTarget(slot->target.value()) ||
+           !mAuthoritativeRawKnown[slot->target.value()])
+            return false;
+        const auto* metadata=modulation_contract::lookupFirmwareParameter(
+            modulation_contract::firmwareParameter(slot->target));
+        if(metadata==nullptr ||
+           metadata->runtimePolicy!=modulation_contract::RuntimePolicy::TypedField ||
+           metadata->midi!=modulation_contract::OriginalMidiDisposition::DirectStm32)
+            return false;
+    }
+    // ORIGINAL QUIRK: both old destinations are restored before either new
+    // value is sent. Colliding nodes are not recomposed after a restoration.
+    for(std::size_t slot=0;slot<2u;++slot) {
+        if(slots[slot]==nullptr) continue;
+        if(!setSequencerAutomationDestination(track*2u+slot,*slots[slot]))
+            return false;
+    }
+    for(std::size_t slot=0;slot<2u;++slot) {
+        if(slots[slot]==nullptr ||
+           slots[slot]->action==sequencer::AutomationAction::Clear)
+            continue;
+        if(!applySequencerRawParameter(slots[slot]->target,
+                                      static_cast<std::uint8_t>(slots[slot]->value.value())))
+            return false;
+    }
+    return true;
+}
+
+modulation_contract::HostParameterId Engine::sequencerAutomationDestination(
+    std::uint8_t track, std::uint8_t slot) const noexcept {
+    return track<7u && slot<2u
+        ? mSequencerAutomationDestinations[track*2u+slot]
+        : modulation_contract::HostParameterId{};
 }
 void Engine::applyModulationValue(VelocityRouteState& route,float depth,float value) noexcept {
     if(!route.enabled) return;

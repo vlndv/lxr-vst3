@@ -70,6 +70,7 @@ void TriggerScheduler::stop() noexcept
 {
     mClock.stop();
     mLastBatch.clear();
+    mLastAutomationBatch.clear();
 }
 
 void TriggerScheduler::reset(std::uint64_t nativeFrame) noexcept
@@ -78,6 +79,7 @@ void TriggerScheduler::reset(std::uint64_t nativeFrame) noexcept
     mRng.reset();
     mProbability.reset(0u);
     mLastBatch.clear();
+    mLastAutomationBatch.clear();
     for (auto& position : mTrackPositions)
         position = -1;
     for (auto& length : mTrackLengthCodes)
@@ -139,6 +141,39 @@ void TriggerScheduler::generateEvents(
         event.velocity = StepVelocity(step);
         if (!mLastBatch.push(event))
             incrementSaturating(mDiagnostics.rejectedOverflowEvents);
+        else
+            generateAutomationEvents(clockEvent,snapshot,event,step);
+    }
+}
+
+void TriggerScheduler::generateAutomationEvents(
+    const ClockEvent& clockEvent,
+    const PatternStateAuthority::ReadHandle& snapshot,
+    const TriggerEvent& trigger,
+    const StepData& step) noexcept
+{
+    const std::uint8_t selectors[2]={step.parameter1,step.parameter2};
+    const std::uint8_t values[2]={step.value1,step.value2};
+    for(std::uint8_t slot=0;slot<2u;++slot) {
+        const AutomationDecodeResult decoded=
+            DecodeAutomationSlot(selectors[slot],values[slot]);
+        if(!decoded) {
+            incrementSaturating(mDiagnostics.rejectedAutomationEvents);
+            continue;
+        }
+        AutomationEvent event {};
+        event.nativeBoundary=clockEvent.quantizedNativeFrame;
+        event.clockOrdinal=clockEvent.ordinal;
+        event.snapshotGeneration=snapshot.generation();
+        event.stableOrder=(trigger.stableOrder*2u)+slot;
+        event.pattern=trigger.pattern;
+        event.track=trigger.track;
+        event.synthesisOwner=trigger.synthesisOwner;
+        event.physicalPosition=trigger.physicalPosition;
+        event.slot=slot;
+        event.command=decoded.command;
+        if(!mLastAutomationBatch.push(event))
+            incrementSaturating(mDiagnostics.rejectedAutomationOverflowEvents);
     }
 }
 
@@ -175,6 +210,7 @@ Status TriggerScheduler::processNativeBlock(
 {
     incrementSaturating(mDiagnostics.processedNativeBlocks);
     mLastBatch.clear();
+    mLastAutomationBatch.clear();
 
     ClockEvent clockEvent {};
     std::size_t written = 0;
@@ -207,8 +243,23 @@ Status TriggerScheduler::processNativeBlock(
 
     generateEvents(clockEvent, snapshot);
     snapshot.release();
+    std::size_t automationIndex=0;
     for (const TriggerEvent& event : mLastBatch)
     {
+        const AutomationSlotCommand* slots[2]={nullptr,nullptr};
+        std::uint8_t automationCount=0u;
+        while(automationIndex<mLastAutomationBatch.size() &&
+              mLastAutomationBatch[automationIndex].track==event.track) {
+            const AutomationEvent& automation=mLastAutomationBatch[automationIndex++];
+            if(automation.slot<2u) slots[automation.slot]=&automation.command;
+            ++automationCount;
+        }
+        if(engine.applySequencerAutomationPair(event.track,slots[0],slots[1])) {
+            for(std::uint8_t i=0u;i<automationCount;++i)
+                incrementSaturating(mDiagnostics.emittedAutomationEvents);
+        } else {
+            incrementSaturating(mDiagnostics.engineAutomationApplicationFailures);
+        }
         dispatch(event, engine);
         incrementSaturating(mDiagnostics.emittedEvents);
     }

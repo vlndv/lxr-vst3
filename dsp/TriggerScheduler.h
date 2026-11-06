@@ -2,6 +2,7 @@
 
 #include "PatternStateAuthority.h"
 #include "SequencerClock.h"
+#include "SequencerParameterLocks.h"
 #include "SequencerRng.h"
 
 #include <array>
@@ -17,6 +18,52 @@ namespace sequencer
 {
 
 inline constexpr std::size_t kMaximumTriggerEventsPerNativeBlock = kTrackCount;
+inline constexpr std::size_t kMaximumAutomationEventsPerNativeBlock =
+    kTrackCount * 2u;
+
+struct AutomationEvent
+{
+    std::uint64_t nativeBoundary = 0;
+    std::uint64_t clockOrdinal = 0;
+    std::uint64_t snapshotGeneration = 0;
+    std::uint64_t stableOrder = 0;
+    std::uint8_t pattern = 0;
+    std::uint8_t track = 0;
+    std::uint8_t synthesisOwner = 0;
+    std::uint8_t physicalPosition = 0;
+    std::uint8_t slot = 0;
+    AutomationSlotCommand command {};
+};
+
+class AutomationEventBatch final
+{
+public:
+    static constexpr std::size_t capacity() noexcept
+    {
+        return kMaximumAutomationEventsPerNativeBlock;
+    }
+    void clear() noexcept { mSize=0; mRejected=0; }
+    bool push(const AutomationEvent& event) noexcept
+    {
+        if(mSize>=mEvents.size()) {
+            if(mRejected!=std::numeric_limits<std::uint64_t>::max()) ++mRejected;
+            return false;
+        }
+        mEvents[mSize++]=event;
+        return true;
+    }
+    std::size_t size() const noexcept {return mSize;}
+    bool empty() const noexcept {return mSize==0;}
+    std::uint64_t rejected() const noexcept {return mRejected;}
+    const AutomationEvent& operator[](std::size_t index) const noexcept
+    {return mEvents[index];}
+    const AutomationEvent* begin() const noexcept {return mEvents.data();}
+    const AutomationEvent* end() const noexcept {return mEvents.data()+mSize;}
+private:
+    std::array<AutomationEvent,kMaximumAutomationEventsPerNativeBlock> mEvents {};
+    std::size_t mSize=0;
+    std::uint64_t mRejected=0;
+};
 
 struct TriggerEvent
 {
@@ -83,6 +130,10 @@ struct TriggerSchedulerDiagnostics
     std::uint64_t duePhysicalPositions = 0;
     std::uint64_t emittedEvents = 0;
     std::uint64_t rejectedOverflowEvents = 0;
+    std::uint64_t emittedAutomationEvents = 0;
+    std::uint64_t rejectedAutomationEvents = 0;
+    std::uint64_t rejectedAutomationOverflowEvents = 0;
+    std::uint64_t engineAutomationApplicationFailures = 0;
     std::uint64_t snapshotBusyBoundaries = 0;
     std::uint64_t clockCapacityFaults = 0;
     std::uint64_t nonMonotonicBoundaries = 0;
@@ -117,6 +168,8 @@ public:
         unsigned snapshotAttempts = PatternStateAuthority::kDefaultAcquireAttempts) noexcept;
 
     const TriggerEventBatch& lastBatch() const noexcept { return mLastBatch; }
+    const AutomationEventBatch& lastAutomationBatch() const noexcept
+    { return mLastAutomationBatch; }
     const TriggerSchedulerDiagnostics& diagnostics() const noexcept
     {
         return mDiagnostics;
@@ -131,6 +184,10 @@ private:
     void advanceTrack(std::size_t track, std::uint8_t lengthCode) noexcept;
     void generateEvents(const ClockEvent& clockEvent,
                         const PatternStateAuthority::ReadHandle& snapshot) noexcept;
+    void generateAutomationEvents(const ClockEvent& clockEvent,
+                                  const PatternStateAuthority::ReadHandle& snapshot,
+                                  const TriggerEvent& trigger,
+                                  const StepData& step) noexcept;
     static void dispatch(const TriggerEvent& event, Engine& engine) noexcept;
 
     PatternStateAuthority mPatterns {};
@@ -138,6 +195,7 @@ private:
     DeterministicRng mRng {};
     ClusterProbability mProbability {};
     TriggerEventBatch mLastBatch {};
+    AutomationEventBatch mLastAutomationBatch {};
     TriggerSchedulerDiagnostics mDiagnostics {};
     std::array<std::int16_t, kTrackCount> mTrackPositions {};
     std::array<std::uint8_t, kTrackCount> mTrackLengthCodes {};

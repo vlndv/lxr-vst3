@@ -16,4 +16,8 @@ public:
     void applyAllToEngine(Engine& engine);
 };
 
+// Apply a raw firmware parameter value to the effective Engine only. This does
+// not modify ParameterArray and is used by transient sequencer automation.
+void ApplyRawParameterToEngine(uint8_t par, uint8_t value, Engine& engine) noexcept;
+
 } // namespace lxr

@@ -66,10 +66,7 @@ void ParameterArray::init() {
     for (int i = 215; i <= 220; i++) values[i] = 0;
 }
 
-void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
-    if (par >= kNumParams) return;
-    values[par] = value;
-    
+void ApplyRawParameterToEngine(uint8_t par, uint8_t value, Engine& engine) noexcept {
     switch (par) {
         case 1: setWave(engine.drums[0].osc, value); break;
         case 2: setWave(engine.drums[1].osc, value); break;
@@ -314,7 +311,14 @@ void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
         
         default: break;
     }
-    engine.velocityBaseParameterChanged(modulation_contract::HostParameterId::fromRaw(par));
+}
+
+void ParameterArray::set(uint8_t par, uint8_t value, Engine& engine) {
+    if (par >= kNumParams) return;
+    values[par] = value;
+    ApplyRawParameterToEngine(par, value, engine);
+    engine.authoritativeBaseParameterChanged(
+        modulation_contract::HostParameterId::fromRaw(par), value);
 }
 
 uint8_t ParameterArray::get(uint8_t par) const {

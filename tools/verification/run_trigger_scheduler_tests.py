@@ -19,7 +19,7 @@ PRODUCTION = [
     "Cymbal", "Decimator", "Distortion", "DrumVoice", "Engine",
     "Envelopes", "HiHat", "Lfo", "LXRAudioAdapter", "Mixer", "Modulation",
     "Oscillator", "OscTables", "ParamMapEnv", "ParamMapMisc", "PatternBank",
-    "PatternStateAuthority", "ResonantFilter", "SequencerClock", "Snare",
+    "ParameterArray", "PatternStateAuthority", "ResonantFilter", "SequencerClock", "Snare",
     "TransientGen", "TransientTables", "TriggerScheduler",
 ]
 
