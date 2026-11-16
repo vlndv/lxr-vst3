@@ -12,7 +12,7 @@
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 
 #include "../dsp/Engine.h"
-#include "../vendor/iPlug2/Examples/LXR/LXRState.h"
+#include "../vendor/iPlug2/Examples/LXR/LXRProjectState.h"
 
 #include <algorithm>
 #include <array>
@@ -107,10 +107,10 @@ struct HostInstance
         component->release();
     }
 
-    void setup(double sampleRate)
+    void setup(double sampleRate, int maximumFrames = 256)
     {
         stop();
-        ProcessSetup setupInfo {kOffline, kSample64, 256, sampleRate};
+        ProcessSetup setupInfo {kOffline, kSample64, maximumFrames, sampleRate};
         require("setup processing rate", processor->setupProcessing(setupInfo) == kResultOk);
         require("activate component", component->setActive(true) == kResultOk);
         require("start processing", processor->setProcessing(true) == kResultOk);
@@ -238,10 +238,10 @@ AudioRender renderD1(HostInstance& instance)
 bool decodeSaved(const std::vector<uint8_t>& saved,
                  std::array<uint8_t, lxr::state::kParameterCount>& parameters)
 {
-    auto routing = lxr::MakeDisabledRoutingState();
-    const auto decoded = lxr::state::DecodePersistentState(
-        saved.data(), saved.size(), parameters, routing, true);
-    return decoded && decoded.consumed >= lxr::state::kEncodedSize;
+    lxr::state::ProjectCandidate candidate;
+    if (!lxr::state::DecodeProject(saved.data(), saved.size(), candidate, true)) return false;
+    parameters = candidate.patch;
+    return true;
 }
 
 std::vector<uint8_t> makeLegacy(const std::array<uint8_t, 228>& parameters)
@@ -310,7 +310,7 @@ int main(int argc, char** argv)
         saved = original.saveState();
         const auto savedAgain = original.saveState();
         check("VST3 state is 516-byte LXRS v2 plus bypass",
-              saved.size() == lxr::state::kV2VST3EncodedSize);
+              saved.size() == lxr::state::kV3CanonicalStreamBytes);
         check("repeated VST3 serialization is deterministic", saved == savedAgain);
         check("decode actual VST3 state", decodeSaved(saved, originalParameters));
         check("all edited parameters encoded", originalParameters[8] == 57 &&
@@ -380,7 +380,7 @@ int main(int argc, char** argv)
         require("restore legacy 228-double state", legacy.loadState(legacyBytes));
         std::array<uint8_t, 228> migrated {};
         const auto migratedState = legacy.saveState();
-        check("legacy state migrates to version 2", decodeSaved(migratedState, migrated));
+        check("legacy state migrates to version 3", decodeSaved(migratedState, migrated));
         check("legacy migration preserves all parameters", migrated == originalParameters);
     }
 
@@ -431,7 +431,7 @@ int main(int argc, char** argv)
     }
 
     std::printf("VST3_STATE bytes=%zu format=%u params=%zu peak=%.12f rms=%.12f\n",
-                saved.size(), static_cast<unsigned>(lxr::state::kV2FormatVersion),
+                saved.size(), static_cast<unsigned>(3u),
                 lxr::state::kActiveParameterCount, originalAudio.peak, originalAudio.rms);
     factory->release();
     exitDll();

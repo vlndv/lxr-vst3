@@ -41,7 +41,8 @@ public:
     Engine& engine,
     double& left,
     double& right,
-    sequencer::TriggerScheduler* scheduler = nullptr
+    sequencer::TriggerScheduler* scheduler = nullptr,
+    std::int32_t hostSampleOffset = -1
   ) noexcept;
 
   // Preserve the original native PCM interface.
@@ -49,7 +50,8 @@ public:
     Engine& engine,
     int16_t& left,
     int16_t& right,
-    sequencer::TriggerScheduler* scheduler = nullptr
+    sequencer::TriggerScheduler* scheduler = nullptr,
+    std::int32_t hostSampleOffset = -1
   ) noexcept;
 
   std::uint64_t nativeFrame() const noexcept
@@ -71,7 +73,8 @@ private:
 
   void renderNextEngineBlock(
     Engine& engine,
-    sequencer::TriggerScheduler* scheduler
+    sequencer::TriggerScheduler* scheduler,
+    std::int32_t hostSampleOffset
   ) noexcept;
 };
 

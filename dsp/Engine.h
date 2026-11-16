@@ -48,6 +48,9 @@ public:
         std::uint8_t track,
         const sequencer::AutomationSlotCommand* slot1,
         const sequencer::AutomationSlotCommand* slot2) noexcept;
+    // Host transport adaptation: restore every temporary lock from the newest
+    // authoritative base without changing patch or modulation-route state.
+    bool clearSequencerAutomation() noexcept;
     modulation_contract::HostParameterId sequencerAutomationDestination(
         std::uint8_t track, std::uint8_t slot) const noexcept;
     // Original mixer stage: restore converted bases, replay held sources, then

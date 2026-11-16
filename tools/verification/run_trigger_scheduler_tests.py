@@ -17,7 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIRMWARE = ROOT / "ref/LXR-0.37/mainboard/LxrStm32/src/Sequencer"
 PRODUCTION = [
     "Cymbal", "Decimator", "Distortion", "DrumVoice", "Engine",
-    "Envelopes", "HiHat", "Lfo", "LXRAudioAdapter", "Mixer", "Modulation",
+    "Envelopes", "HiHat", "HostTransport", "Lfo", "LXRAudioAdapter", "Mixer", "Modulation",
     "Oscillator", "OscTables", "ParamMapEnv", "ParamMapMisc", "PatternBank",
     "ParameterArray", "PatternStateAuthority", "ResonantFilter", "SequencerClock", "Snare",
     "TransientGen", "TransientTables", "TriggerScheduler",

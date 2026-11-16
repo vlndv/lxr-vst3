@@ -109,8 +109,10 @@ bool decodeState(const std::vector<std::uint8_t>& bytes,
                  std::array<std::uint8_t, 228>& patch,
                  lxr::PersistentRoutingState& routes)
 {
-  return static_cast<bool>(lxr::state::DecodePersistentState(
-    bytes.data(), bytes.size(), patch, routes, true));
+  lxr::state::ProjectCandidate candidate;
+  if (!lxr::state::DecodeProject(bytes.data(), bytes.size(), candidate, true)) return false;
+  patch = candidate.patch; routes = candidate.routing;
+  return true;
 }
 
 void processBoundary(HostInstance& host)
@@ -351,7 +353,7 @@ int main(int argc, char** argv)
     for (std::size_t slot = 0; slot < kFixtureTokens.size(); ++slot)
       setAutomation(host, static_cast<ParamID>(228 + slot), kFixtureTokens[slot]);
     activeState = host.saveState();
-    check("host route state remains exact 520 bytes", activeState.size() == 520);
+    check("host route state uses exact v3 envelope", activeState.size() == lxr::state::kV3CanonicalStreamBytes);
     std::array<std::uint8_t, 228> patch {};
     auto routes = lxr::MakeDisabledRoutingState();
     require("decode host-authored twelve-route state",
@@ -468,7 +470,7 @@ int main(int argc, char** argv)
       {
         std::array<std::uint8_t, 228> patch {};
         auto routes = lxr::MakeDisabledRoutingState();
-        if (saved.size() == 520 && decodeState(saved, patch, routes))
+        if (saved.size() == lxr::state::kV3CanonicalStreamBytes && decodeState(saved, patch, routes))
           ++snapshots;
       }
       else
@@ -519,7 +521,7 @@ int main(int argc, char** argv)
   factory->release();
   require("terminate private VST3", exitDll());
   FreeLibrary(module);
-  std::printf("SUMMARY pass=%d fail=%d ids=12 codes=65536 routes=107 stream=520\n",
+  std::printf("SUMMARY pass=%d fail=%d ids=12 codes=65536 routes=107 stream=51065\n",
               passed, failed);
   return failed == 0 ? 0 : 1;
 }

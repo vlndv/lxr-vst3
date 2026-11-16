@@ -77,6 +77,7 @@ class Runner:
     def command(self, name, command, cwd=None, env=None, test=False, timeout=240):
         command = list(map(str, command))
         started = time.monotonic()
+        blocked = False
         try:
             r = subprocess.run(command, cwd=cwd or self.source, env=env or self.environment,
                                capture_output=True, timeout=timeout)
@@ -84,10 +85,11 @@ class Runner:
             code = r.returncode
         except (OSError, subprocess.TimeoutExpired) as error:
             log, code = str(error), -1
+            blocked = isinstance(error, OSError) and getattr(error, "winerror", None) == 4551
         (self.out / (name + ".log")).write_text(log, encoding="utf-8")
         row = dict(name=name, command=command, cwd=str(cwd or self.source), exit_code=code,
                    elapsed_seconds=time.monotonic() - started,
-                   status="PASS" if code == 0 else "FAIL", fresh_source_build=True,
+                   status="PASS" if code == 0 else "BLOCKED" if blocked else "FAIL", fresh_source_build=True,
                    summary=[line for line in log.splitlines() if any(token in line.lower()
                             for token in ("summary", "mismatches", "tests passed"))])
         self.commands.append(row)
@@ -109,7 +111,7 @@ class Runner:
                             ignore=shutil.ignore_patterns("__pycache__", "*.exe", "*.obj", "*.o"))
         overlay = self.source / "vendor/iPlug2/Examples/LXR"
         overlay.mkdir(parents=True)
-        for name in ("LXR.h", "LXRState.h", "LXRParamContract.h", "config.h"):
+        for name in ("LXR.h", "LXRState.h", "LXRProjectState.h", "LXRParamContract.h", "config.h"):
             shutil.copyfile(self.root / "vendor/iPlug2/Examples/LXR" / name, overlay / name)
         # The production project supplies projects/ as include context for its
         # five-parent DSP includes. A standalone probe has a different include
@@ -227,16 +229,28 @@ class Runner:
                     "Dependencies/IGraphics/NanoSVG/src", "Dependencies/IGraphics/STB", "Dependencies/IGraphics/glad_GL2/include"]
         probe = ["/D" + definition for definition in definitions] + ["/I" + str(iplug / path) for path in includes]
         probe += ["/I" + str(self.source / "vendor/iPlug2/Examples/LXR")]
-        cases = [(name, probe if name in ("P15M2GVST3StateTest", "P15M2HVST3ControllerTest") else [])
+        pattern_object = hostout / "PatternBank.obj"
+        self.command("compile-pattern-codec", [cl, *common, "/c", self.source / "dsp/PatternBank.cpp",
+            "/Fo" + str(pattern_object)], env=env)
+        authority_object = hostout / "PatternStateAuthority.obj"
+        self.command("compile-pattern-authority", [cl, *common, "/c", self.source / "dsp/PatternStateAuthority.cpp",
+            "/Fo" + str(authority_object)], env=env)
+        cases = [(name, probe if name in ("P15M2GVST3StateTest", "P15M2HVST3ControllerTest", "P16F1VST3TransportTest", "P16F2VST3StateTest", "P16F3VST3CertificationTest", "P16F3MidiMuteTest") else [])
                  for name in MANIFEST["host_tests"]]
         cases.append(("ControllerSyncProbe", probe))
+        fixtures = self.out / "sequencer-fixtures"
+        self.command("generate-sequencer-fixtures", [sys.executable,
+            self.root / "tools/verification/generate_sequencer_fixtures.py", "--output", fixtures])
         for name, flags in cases:
             source = "P12cR2ControllerSyncTest" if name == "ControllerSyncProbe" else name
             exe = hostout / (name + ".exe")
-            self.command("build-" + name, [cl, *common, *flags, self.source / "tests" / (source + ".cpp"), memory,
+            self.command("build-" + name, [cl, *common, *flags, self.source / "tests" / (source + ".cpp"), memory, pattern_object, authority_object,
                 "/Fo" + str(hostout / (name + ".obj")), "/Fe" + str(exe), "/link", "/LIBPATH:" + str(build / "lib/Release"),
                 *MANIFEST["host_libraries"]], env=env)
-            self.command(name, [exe, plugin], env=env, test=True, timeout=55)
+            arguments = [exe, plugin]
+            if name == "P16F2VST3StateTest":
+                arguments.append(fixtures / "musical.lxqb")
+            self.command(name, arguments, env=env, test=True, timeout=55)
         self.command("SteinbergValidator", [build / "bin/Release/validator.exe", plugin], env=env, test=True, timeout=55)
         assert digest(plugin) == before, "Plugin changed during read-only host tests"
         (self.out / "plugin-after.json").write_text(json.dumps(dict(path=str(plugin), sha256=digest(plugin)), indent=2))

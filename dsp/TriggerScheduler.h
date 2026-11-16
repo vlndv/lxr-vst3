@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PatternStateAuthority.h"
+#include "HostTransport.h"
 #include "SequencerClock.h"
 #include "SequencerParameterLocks.h"
 #include "SequencerRng.h"
@@ -153,6 +154,15 @@ struct TriggerSchedulerDiagnostics
     std::uint64_t randomPatternSelections = 0;
     std::uint64_t mutedOrdinaryTracks = 0;
     std::uint64_t emittedRollEvents = 0;
+    std::uint64_t hostStarts = 0;
+    std::uint64_t hostResumes = 0;
+    std::uint64_t hostStops = 0;
+    std::uint64_t hostSeeks = 0;
+    std::uint64_t hostLoops = 0;
+    std::uint64_t hostTempoChanges = 0;
+    std::uint64_t invalidHostCallbacks = 0;
+    std::uint64_t hostPpqFallbacks = 0;
+    std::uint64_t hostTempoFallbacks = 0;
 };
 
 class TriggerScheduler final
@@ -164,6 +174,12 @@ public:
 
     PatternStateAuthority& patternAuthority() noexcept { return mPatterns; }
     const PatternStateAuthority& patternAuthority() const noexcept { return mPatterns; }
+
+    // Processing-owner-only. The caller retains this immutable pin until it
+    // selects another complete project tuple. Standalone users leave it null.
+    void useProjectSnapshot(const PatternStateAuthority::ReadHandle* snapshot) noexcept
+    { mProjectSnapshot = snapshot; }
+    void resetSeed(std::uint32_t seed) noexcept { mRng.reset(seed); }
 
     Status setTempo(std::uint16_t bpm) noexcept;
     std::uint16_t tempo() const noexcept { return mClock.tempo(); }
@@ -184,11 +200,27 @@ public:
     std::uint8_t rollRateSelector() const noexcept
     { return mRollRateSelector.load(std::memory_order_acquire); }
     Status setRoll(std::uint8_t track, bool active) noexcept;
+    // Processing-owner host safety boundary: cancel held and queued presses.
+    void cancelRolls() noexcept
+    {
+        mRollState.store(0u, std::memory_order_release);
+        mPendingOneShotRolls.store(0u, std::memory_order_release);
+    }
 
     Status start() noexcept;
     void stop() noexcept;
     void reset(std::uint64_t nativeFrame = 0) noexcept;
-    bool running() const noexcept { return mClock.running(); }
+    bool running() const noexcept
+    { return mHostSync ? mHostTimeline.running() : mClock.running(); }
+
+    HostCallbackDecision beginHostCallback(
+        const HostTransportContext& context,
+        std::uint64_t nativeFrame,
+        Engine& engine,
+        unsigned snapshotAttempts = PatternStateAuthority::kDefaultAcquireAttempts) noexcept;
+    bool hostSync() const noexcept { return mHostSync; }
+    const HostCallbackDecision& lastHostDecision() const noexcept
+    { return mLastHostDecision; }
 
     // Called exactly once immediately before the Engine block beginning at
     // nativeBoundary. snapshotAttempts is exposed only to make the bounded Busy
@@ -196,7 +228,8 @@ public:
     Status processNativeBlock(
         std::uint64_t nativeBoundary,
         Engine& engine,
-        unsigned snapshotAttempts = PatternStateAuthority::kDefaultAcquireAttempts) noexcept;
+        unsigned snapshotAttempts = PatternStateAuthority::kDefaultAcquireAttempts,
+        std::int32_t hostSampleOffset = -1) noexcept;
 
     const TriggerEventBatch& lastBatch() const noexcept { return mLastBatch; }
     const AutomationEventBatch& lastAutomationBatch() const noexcept
@@ -210,9 +243,14 @@ public:
     std::uint8_t trackPosition(std::uint8_t track) const noexcept;
 
 private:
+    const PatternStateAuthority::ReadHandle* mProjectSnapshot = nullptr;
     static void incrementSaturating(std::uint64_t& value) noexcept;
     Status initializeTrackPositions() noexcept;
     void initializeTrackPositions(std::uint8_t pattern) noexcept;
+    Status initializeHostTrackPositions(
+        std::int64_t timelineOrdinal,
+        std::uint8_t pattern,
+        unsigned snapshotAttempts) noexcept;
     void advanceTrack(std::size_t track, std::uint8_t lengthCode) noexcept;
     bool trackWillWrap(std::size_t track, std::uint8_t lengthCode) const noexcept;
     void cachePatternControls(const PatternBank& bank) noexcept;
@@ -237,6 +275,7 @@ private:
 
     PatternStateAuthority mPatterns {};
     SequencerClock mClock {};
+    HostTransportTimeline mHostTimeline {};
     DeterministicRng mRng {};
     ClusterProbability mProbability {};
     TriggerEventBatch mLastBatch {};
@@ -265,6 +304,11 @@ private:
     std::uint8_t mMasterStepCounter = 0u;
     std::uint8_t mCachedBankShuffle = 0u;
     bool mCacheValid = false;
+    bool mHostSync = false;
+    bool mSuppressNextTrack0Transition = false;
+    bool mHostEpochValid = false;
+    std::uint8_t mHostEpochPattern = kInitialPattern;
+    HostCallbackDecision mLastHostDecision {};
 };
 
 } // namespace sequencer

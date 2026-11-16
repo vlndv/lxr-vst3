@@ -1,5 +1,6 @@
 // FILE: dsp/MidiParser.cpp
 #include "MidiParser.h"
+#include "TriggerScheduler.h"
 
 namespace lxr {
 
@@ -10,7 +11,8 @@ void MidiParser::processByte(uint8_t byte, Engine& engine, ParameterArray& param
     // For now, we rely on processEvent for multi-byte messages.
 }
 
-void MidiParser::processEvent(const MidiEvent& event, Engine& engine, ParameterArray& params) {
+void MidiParser::processEvent(const MidiEvent& event, Engine& engine, ParameterArray& params,
+                              sequencer::TriggerScheduler* sequencer) {
     uint8_t msgType = event.status & 0xF0;
     uint8_t channel = event.status & 0x0F;
 
@@ -34,7 +36,7 @@ void MidiParser::processEvent(const MidiEvent& event, Engine& engine, ParameterA
                 m_nrpnComplete = true; // <-- FIXED: Mark NRPN as complete after LSB
             } else if (event.data1 == 6 && m_nrpnComplete) {
                 uint16_t nrpn = (static_cast<uint16_t>(m_nrpnMsb) << 7) | m_nrpnLsb;
-                handleNRPN(channel, nrpn, event.data2, engine, params);
+                handleNRPN(channel, nrpn, event.data2, engine, params, sequencer);
                 m_nrpnComplete = false; // Reset after processing
             } else if (event.data1 >= 1 && event.data1 <= 127) {
                 // Standard CC
@@ -70,12 +72,17 @@ void MidiParser::handleCC(uint8_t channel, uint8_t cc, uint8_t value, Engine& en
     }
 }
 
-void MidiParser::handleNRPN(uint8_t channel, uint16_t nrpn, uint8_t value, Engine& engine, ParameterArray& params) {
+void MidiParser::handleNRPN(uint8_t channel, uint16_t nrpn, uint8_t value, Engine& engine,
+                            ParameterArray& params, sequencer::TriggerScheduler* sequencer) {
     // SPECIAL CASE: NRPN 200-206 are track mutes in the original firmware.
     // They do NOT map to a PAR index. We intercept them here.
     if (nrpn >= 200 && nrpn <= 206) {
-        // TODO: Route to sequencer/trigger-dispatch layer (P16)
-        // For now, no-op to prevent out-of-bounds PAR access.
+        // Firmware MidiParser.c:1067-1087: zero unmutes, nonzero mutes.
+        // The optional processing-owner sink preserves standalone MIDI-only
+        // callers. Mute affects ordinary sequencer events; source rolls and
+        // independently dispatched external MIDI remain unaffected.
+        if (sequencer != nullptr)
+            (void)sequencer->setTrackMuted(static_cast<uint8_t>(nrpn - 200u), value != 0u);
         return;
     }
 

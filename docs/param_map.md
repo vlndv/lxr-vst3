@@ -278,3 +278,31 @@ NOT the brendanclarke/Catalyst fork (its DSP differs).
 - `FILTER_DRIVE` is applied via `SVF_setDrive`; a disabled `USE_FILTER_DRIVE` branch for OSC3_DIST writes `voiceArray[3]` (dead code).
 - `COARSE`/`FINE` and `FM_FREQ` targets in `parameterArray` point at `modNodeValue` (a freq multiplier used only for modulation), not `midiFreq`.
 - Modulation runs on the engine value after mapping, scaled by `1 + amount x (mod - 1)`; mod source in 0..1.
+
+## Plugin host controls (P16-F working checkpoint)
+
+Original patch IDs 0..227 and modulation-routing IDs 228..239 keep their existing
+contracts. These additions are plugin adaptations, separate from original PAR/NRPN
+numbers. See `p16f1_host_transport.md`, `p16f2_sequencer_persistence.md` and
+`p16f3_final_host_certification.md` for transport, persistence and certification.
+
+| Stable ID | Name | Integer range/default | Normalization | Persistence |
+|---:|---|---|---|---|
+| 240 | Sequencer Enable | 0..1 / 0 | value | LXRS v3 |
+| 241 | Sequencer Clock | 0 Internal, 1 Host Sync / 0 | value | LXRS v3 |
+| 242 | Sequencer Internal BPM | 1..255 / 120 | (BPM - 1) / 254 | LXRS v3 |
+| 243 | Sequencer Roll Rate | 0..13 / 8 | selector / 13 | transient |
+| 244 | Sequencer Roll Tracks | 0..127 / 0 | mask / 127 | transient |
+
+Roll mask bits target D1, D2, D3, snare, cymbal, closed hat and open hat. Rising
+bits press; falling bits release. Selector zero triggers once on press. Other
+selectors repeat while held and physical sequencing advances. Restore releases
+all held rolls and resets the rate to 8. Explicit host automation can save its own
+envelopes. The pinned host wrapper applies these edges at callback boundaries;
+sample-accurate parameter automation is not claimed. Invalid/NaN/Inf normalized
+inputs reject before mutation; valid inputs use the existing integer quantizer.
+
+P16-F3 connects the original NRPN 200..206 mute commands to the processing-owner
+sequencer: CC99=1, CC98=72..78, then CC6=0 to unmute or nonzero to mute. These are
+not new host IDs. Ordinary sequencer triggers honor mute; original rolls and
+external MIDI retain their independent behavior. Mutes are transient.

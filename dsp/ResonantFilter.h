@@ -6,7 +6,10 @@ enum FilterType : uint8_t { FILTER_LP = 1, FILTER_HP, FILTER_BP, FILTER_UNITY_BP
                             FILTER_NOTCH, FILTER_PEAK, FILTER_NAIVE_2_POLE };
 constexpr int32_t kFilterGain = 0x70ff;
 struct ResonantFilter {
-    float f, g, q, s1, s2, a, b, zi, drive;   // same fields as the C struct
+    // Firmware voices live in zero-filled .ccmz startup storage. A fresh C++
+    // Engine temporary has automatic storage; SVF_init omits zi, so establish
+    // that startup value here without changing the original init/reset maths.
+    float f, g, q, s1, s2, a, b, zi = 0.f, drive; // same fields/layout as C
     void init();                                                   // SVF_init
     void reset();                                                  // SVF_reset
     void setReso(float feedback);                                  // SVF_setReso

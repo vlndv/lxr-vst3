@@ -88,8 +88,10 @@ bool decodeRouting(const std::vector<std::uint8_t>& bytes,
                    std::array<std::uint8_t, 228>& patch,
                    lxr::PersistentRoutingState& routing)
 {
-  return static_cast<bool>(lxr::state::DecodePersistentState(
-    bytes.data(), bytes.size(), patch, routing, true));
+  lxr::state::ProjectCandidate candidate;
+  if (!lxr::state::DecodeProject(bytes.data(), bytes.size(), candidate, true)) return false;
+  patch = candidate.patch; routing = candidate.routing;
+  return true;
 }
 }
 
@@ -148,9 +150,11 @@ int main(int argc, char** argv)
             source, expectedRouting));
 
     const auto saved = source.saveState();
-    check("VST3 writes exact 520-byte stream", saved.size() == 520);
+    check("VST3 writes exact v3 stream", saved.size() == lxr::state::kV3CanonicalStreamBytes);
     check("deterministic VST3 save equals independent fixture",
-          saved == activeFixture);
+          saved.size() == lxr::state::kV3CanonicalStreamBytes &&
+          std::equal(activeFixture.begin(), activeFixture.end() - 4, saved.begin() + 48) &&
+          std::equal(activeFixture.end() - 4, activeFixture.end(), saved.end() - 4));
 
     std::array<std::uint8_t, 228> savedPatch {};
     auto savedRouting = lxr::MakeDisabledRoutingState();
@@ -204,7 +208,7 @@ int main(int argc, char** argv)
     require("load backward-compatible state", migrated.loadState(bytes));
     std::array<std::uint8_t, 228> patch {};
     auto routing = lxr::MakeDisabledRoutingState();
-    require("migration saves production LXRS v2",
+    require("migration saves production LXRS v3",
             decodeRouting(migrated.saveState(), patch, routing));
     bool allOff = true;
     for (const auto& route : routing.routes)
@@ -215,6 +219,6 @@ int main(int argc, char** argv)
   factory->release();
   require("terminate VST3 module", exitDll());
   FreeLibrary(module);
-  std::printf("SUMMARY pass=%d fail=%d routes=12 stream=520\n", passed, failed);
+  std::printf("SUMMARY pass=%d fail=%d routes=12 stream=51065\n", passed, failed);
   return failed == 0 ? 0 : 1;
 }

@@ -226,3 +226,45 @@ debug paths and linker data layout. Prior original-path clean-build disassembly
 matches symbolically at 94549 instruction addresses; its 23 changed code bytes
 are references to relocated exception/CRT records. Full bitwise reproduction is
 not claimed. No plugin binary was rebuilt or installed during R3.
+
+## P16-F2 working checkpoint (not certified)
+
+Run the independent whole-project/bank codec fixtures and O0/O2 tests in a new
+directory:
+
+```powershell
+python tools/verification/run_sequencer_persistence_tests.py --output out/p16f2-new-codec-run
+```
+
+The host checkpoint now snapshots `LXRProjectState.h`, compiles the explicit bank
+codec dependency and generates its own sequencer fixture directory. It does not
+depend on an existing `out/p16f2/fixtures` tree. The historical v1/v2 codec tests
+remain unchanged. Host output assertions now verify the v3 envelope and its
+byte-identical embedded historical v2 payload. Denied Windows launches are
+reported as BLOCKED. Native and actual REAPER acceptance remain separate gates;
+see `docs/p16f2_sequencer_persistence.md` for the unfinished certification.
+
+## P16-F3 private certification checkpoint
+
+Use a new output directory for every build/test invocation:
+
+```powershell
+python tools/verification/build_p16f3_candidate.py --output out/p16f3/new-private-build
+python tools/verification/run_p16f3_probe.py --source tests/P16F3ExactDllResourcesTest.cpp --output out/p16f3/new-resource-probe <absolute-private-module> <absolute-musical-lxqb> <matching-PDB-import-RVA>
+python tools/reaper/prepare_p16f3_projects.py --output out/p16f3/new-reaper-profile --candidate out/p16f3/new-private-build/candidate_manifest.json --blocksize 127
+```
+
+The candidate builder verifies the protected installation before and after,
+disables deployment events and records source/binary/resource provenance. Probe
+RVA values must come from the exact module's matching PDB; never copy an address
+from another build. `--compiler llvm` uses the approved Visual Studio LLVM
+environment; a denied executable remains BLOCKED. The same runner supports Od
+and O2 harnesses with a 1 MiB stack. No test requires a Windows policy change.
+
+For fourteen production roll instances, add `--roll-suite` to the REAPER project
+generator and use its `rolls_all.rpp`/`rolls.lua`. Each track is a separately loaded
+bank; the script uses real host parameters 243/244. REAPER automation, native
+oracles, exact-DLL probes and human listening are separate evidence categories.
+`report_p16f3_checkpoint.py` reconciles the preserved checkpoint artifacts and
+writes a BLOCKED report; it cannot authorize publication. See
+`docs/p16f3_final_host_certification.md` for the remaining host-access barrier.

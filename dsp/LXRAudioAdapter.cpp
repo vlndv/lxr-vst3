@@ -39,7 +39,8 @@ bool LXRAudioAdapter::configure(
 
 void LXRAudioAdapter::renderNextEngineBlock(
   Engine& engine,
-  sequencer::TriggerScheduler* scheduler
+  sequencer::TriggerScheduler* scheduler,
+  std::int32_t hostSampleOffset
 ) noexcept
 {
   // Preserve the original four-output Engine contract.
@@ -52,7 +53,12 @@ void LXRAudioAdapter::renderNextEngineBlock(
   // boundary immediately before the original modulation/render tick.
   if (scheduler != nullptr)
   {
-    (void) scheduler->processNativeBlock(mNativeFrame, engine);
+    (void) scheduler->processNativeBlock(
+      mNativeFrame,
+      engine,
+      sequencer::PatternStateAuthority::kDefaultAcquireAttempts,
+      hostSampleOffset
+    );
   }
 
   engine.processBlock(
@@ -77,13 +83,14 @@ void LXRAudioAdapter::getNextST1Sample(
   Engine& engine,
   int16_t& left,
   int16_t& right,
-  sequencer::TriggerScheduler* scheduler
+  sequencer::TriggerScheduler* scheduler,
+  std::int32_t hostSampleOffset
 ) noexcept
 {
   // Refill only after consuming the current 32 frames.
   if (mReadIndex >= kEngineBlockSize)
   {
-    renderNextEngineBlock(engine, scheduler);
+    renderNextEngineBlock(engine, scheduler, hostSampleOffset);
   }
 
   left = mST1Left[mReadIndex];
@@ -96,12 +103,13 @@ void LXRAudioAdapter::getNextHostST1Sample(
   Engine& engine,
   double& left,
   double& right,
-  sequencer::TriggerScheduler* scheduler
+  sequencer::TriggerScheduler* scheduler,
+  std::int32_t hostSampleOffset
 ) noexcept
 {
   // Native PCM producer for the resampler.
   auto source =
-    [this, &engine, scheduler](
+    [this, &engine, scheduler, hostSampleOffset](
       double& sourceLeft,
       double& sourceRight
     ) noexcept
@@ -110,10 +118,7 @@ void LXRAudioAdapter::getNextHostST1Sample(
       int16_t nativeRight = 0;
 
       getNextST1Sample(
-        engine,
-        nativeLeft,
-        nativeRight,
-        scheduler
+        engine, nativeLeft, nativeRight, scheduler, hostSampleOffset
       );
 
       // Signed PCM to normalized floating-point.

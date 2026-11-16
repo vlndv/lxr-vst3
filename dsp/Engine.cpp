@@ -574,6 +574,19 @@ bool Engine::applySequencerAutomationPair(
     return true;
 }
 
+bool Engine::clearSequencerAutomation() noexcept {
+    const sequencer::AutomationSlotCommand clear {
+        sequencer::AutomationAction::Clear,
+        modulation_contract::HostParameterId{},
+        modulation_contract::SevenBitValue{}
+    };
+    for(std::size_t node=0;node<14u;++node) {
+        if(!setSequencerAutomationDestination(node,clear))
+            return false;
+    }
+    return true;
+}
+
 modulation_contract::HostParameterId Engine::sequencerAutomationDestination(
     std::uint8_t track, std::uint8_t slot) const noexcept {
     return track<7u && slot<2u

@@ -22,13 +22,19 @@
 #include "../../../../dsp/LXRResourceLocator.h"
 #include "../../../../../dsp/FIRLatency.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#if IPLUG_EDITOR
+#include "IControls.h"
+#endif
 #include <string>
 #if defined(VST3_API)
 #include "pluginterfaces/vst/ivstmidicontrollers.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
+#include "pluginterfaces/vst/ivstevents.h"
 #endif
 
 namespace
@@ -45,6 +51,7 @@ class MidiValueQueue final : public Steinberg::Vst::IParamValueQueue
 {
 public:
     Steinberg::Vst::IParamValueQueue* source = nullptr;
+    Steinberg::int32 pointIndex = 0;
     Steinberg::tresult PLUGIN_API queryInterface(const Steinberg::TUID iid, void** object) override
     {
         if (Steinberg::FUnknownPrivate::iidEqual(iid, Steinberg::Vst::IParamValueQueue::iid) ||
@@ -59,11 +66,13 @@ public:
     Steinberg::uint32 PLUGIN_API addRef() override { return 1; }
     Steinberg::uint32 PLUGIN_API release() override { return 1; }
     Steinberg::Vst::ParamID PLUGIN_API getParameterId() override { return source->getParameterId(); }
-    Steinberg::int32 PLUGIN_API getPointCount() override { return source->getPointCount(); }
+    Steinberg::int32 PLUGIN_API getPointCount() override { return 1; }
     Steinberg::tresult PLUGIN_API getPoint(Steinberg::int32 index, Steinberg::int32& offset,
                                           Steinberg::Vst::ParamValue& value) override
     {
-        const auto result = source->getPoint(index, offset, value);
+        if (index != 0)
+            return Steinberg::kResultFalse;
+        const auto result = source->getPoint(pointIndex, offset, value);
         if (result != Steinberg::kResultOk)
             return result;
         if (!std::isfinite(value))
@@ -129,11 +138,122 @@ public:
                                           Steinberg::int32&) override { return Steinberg::kNotImplemented; }
 };
 
+class TransportValueQueue final : public Steinberg::Vst::IParamValueQueue
+{
+public:
+    LXR* plug = nullptr;
+    Steinberg::Vst::IParamValueQueue* source = nullptr;
+    Steinberg::tresult PLUGIN_API queryInterface(
+        const Steinberg::TUID iid, void** object) override
+    {
+        if (Steinberg::FUnknownPrivate::iidEqual(
+                iid, Steinberg::Vst::IParamValueQueue::iid) ||
+            Steinberg::FUnknownPrivate::iidEqual(iid, Steinberg::FUnknown::iid))
+        {
+            *object = static_cast<Steinberg::Vst::IParamValueQueue*>(this);
+            return Steinberg::kResultOk;
+        }
+        *object = nullptr;
+        return Steinberg::kNoInterface;
+    }
+    Steinberg::uint32 PLUGIN_API addRef() override { return 1; }
+    Steinberg::uint32 PLUGIN_API release() override { return 1; }
+    Steinberg::Vst::ParamID PLUGIN_API getParameterId() override
+    {
+        return source->getParameterId();
+    }
+    Steinberg::int32 PLUGIN_API getPointCount() override
+    {
+        return source->getPointCount();
+    }
+    Steinberg::tresult PLUGIN_API getPoint(
+        Steinberg::int32 index, Steinberg::int32& offset,
+        Steinberg::Vst::ParamValue& value) override
+    {
+        const auto result = source->getPoint(index, offset, value);
+        if (result != Steinberg::kResultOk || plug == nullptr ||
+            !std::isfinite(value) || value < 0.0 || value > 1.0)
+            return Steinberg::kResultFalse;
+        const auto* param = plug->GetParam(static_cast<int>(getParameterId()));
+        if (param == nullptr)
+            return Steinberg::kResultFalse;
+        value = param->ToNormalized(param->FromNormalized(value));
+        return Steinberg::kResultOk;
+    }
+    Steinberg::tresult PLUGIN_API addPoint(
+        Steinberg::int32, Steinberg::Vst::ParamValue,
+        Steinberg::int32&) override
+    {
+        return Steinberg::kNotImplemented;
+    }
+};
+
 class MidiParameterChanges final : public Steinberg::Vst::IParameterChanges
 {
 public:
-    MidiParameterChanges(LXR& owner, Steinberg::Vst::IParameterChanges& changes)
-        : plug(owner), source(changes) {}
+    // One queue per registered native/proxy/bypass identity is sufficient for
+    // valid host input. Counts/points from the API are otherwise unbounded.
+    static constexpr Steinberg::int32 kMaxSources = lxr::vst::kNumParams +
+        VST3_NUM_CC_CHANS * Steinberg::Vst::kCountCtrlNumber + 1;
+    static constexpr Steinberg::int32 kMaxCCPoints = 4096;
+
+    MidiParameterChanges(LXR& owner, Steinberg::Vst::IParameterChanges* changes,
+        std::atomic<uint64_t>& rejectedQueues,
+        std::atomic<uint64_t>& rejectedRecords,
+        std::atomic<uint64_t>& malformedCounts)
+        : plug(owner)
+    {
+        if (changes == nullptr)
+            return;
+        const auto reported = changes->getParameterCount();
+        if (reported < 0)
+        {
+            malformedCounts.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
+        const auto count = std::min(reported, kMaxSources);
+        if (reported > count)
+            rejectedQueues.fetch_add(static_cast<uint64_t>(reported - count), std::memory_order_relaxed);
+        Steinberg::int32 remainingCC = kMaxCCPoints;
+        for (Steinberg::int32 i = 0; i < count; ++i)
+        {
+            auto* queue = changes->getParameterData(i);
+            if (queue == nullptr)
+                continue;
+            const auto tag = queue->getParameterId();
+            // Do not turn an unadvertised proxy ID into another MIDI channel.
+            if (tag >= iplug::kMIDICCParamStartIdx &&
+                tag >= iplug::kMIDICCParamStartIdx + VST3_NUM_CC_CHANS * Steinberg::Vst::kCountCtrlNumber)
+            {
+                malformedCounts.fetch_add(1, std::memory_order_relaxed);
+                continue;
+            }
+            const auto points = queue->getPointCount();
+            if (points < 0)
+            {
+                malformedCounts.fetch_add(1, std::memory_order_relaxed);
+                continue;
+            }
+            if (points == 0)
+                continue;
+            const bool cc = isCC(tag);
+            const auto accepted = cc ? std::min(points, remainingCC) : 1;
+            if (cc)
+            {
+                remainingCC -= accepted;
+                if (points > accepted)
+                    rejectedRecords.fetch_add(static_cast<uint64_t>(points - accepted), std::memory_order_relaxed);
+            }
+            if (accepted != 0)
+            {
+                sources[sourceCount++] = {queue, flattenedCount, accepted};
+                flattenedCount += accepted;
+            }
+        }
+    }
+    Steinberg::int32 sourceQueueCount() const noexcept { return sourceCount; }
+    Steinberg::Vst::IParamValueQueue* sourceQueue(Steinberg::int32 index) const noexcept
+    { return sources[index].queue; }
     Steinberg::tresult PLUGIN_API queryInterface(const Steinberg::TUID iid, void** object) override
     {
         if (Steinberg::FUnknownPrivate::iidEqual(iid, Steinberg::Vst::IParameterChanges::iid) ||
@@ -147,12 +267,21 @@ public:
     }
     Steinberg::uint32 PLUGIN_API addRef() override { return 1; }
     Steinberg::uint32 PLUGIN_API release() override { return 1; }
-    Steinberg::int32 PLUGIN_API getParameterCount() override { return source.getParameterCount(); }
+    Steinberg::int32 PLUGIN_API getParameterCount() override { return flattenedCount; }
     Steinberg::Vst::IParamValueQueue* PLUGIN_API getParameterData(Steinberg::int32 index) override
     {
-        auto* queue = source.getParameterData(index);
-        if (queue == nullptr)
+        if (index < 0 || index >= flattenedCount)
             return nullptr;
+        // Callback-local sorted table; at most9 binary-search comparisons.
+        Steinberg::int32 lo = 0, hi = sourceCount;
+        while (lo < hi)
+        {
+            const auto mid = lo + (hi - lo) / 2;
+            if (sources[mid].first <= index) lo = mid + 1;
+            else hi = mid;
+        }
+        const auto& entry = sources[lo - 1];
+        auto* queue = entry.queue;
         const auto tag = queue->getParameterId();
         if (lxr::route_host::RouteHostParamId::fromRaw(tag).valid())
         {
@@ -160,11 +289,19 @@ public:
             routeQueue.source = queue;
             return &routeQueue;
         }
-        if (tag >= iplug::kMIDICCParamStartIdx &&
-            tag < iplug::kMIDICCParamStartIdx + VST3_NUM_CC_CHANS * Steinberg::Vst::kCountCtrlNumber &&
-            (tag - iplug::kMIDICCParamStartIdx) % Steinberg::Vst::kCountCtrlNumber < 128)
+        if (tag >= static_cast<Steinberg::Vst::ParamID>(
+                lxr::vst::kSequencerEnableParam) &&
+            tag <= static_cast<Steinberg::Vst::ParamID>(
+                lxr::vst::kSequencerRollTracksParam))
+        {
+            transportQueue.plug = &plug;
+            transportQueue.source = queue;
+            return &transportQueue;
+        }
+        if (isCC(tag))
         {
             midiQueue.source = queue;
+            midiQueue.pointIndex = index - entry.first;
             return &midiQueue;
         }
         return queue;
@@ -172,10 +309,63 @@ public:
     Steinberg::Vst::IParamValueQueue* PLUGIN_API addParameterData(const Steinberg::Vst::ParamID&,
                                                                 Steinberg::int32&) override { return nullptr; }
 private:
+    static bool isCC(Steinberg::Vst::ParamID tag) noexcept
+    {
+        return tag >= iplug::kMIDICCParamStartIdx &&
+            tag < iplug::kMIDICCParamStartIdx + VST3_NUM_CC_CHANS * Steinberg::Vst::kCountCtrlNumber &&
+            (tag - iplug::kMIDICCParamStartIdx) % Steinberg::Vst::kCountCtrlNumber < 128;
+    }
+    struct SourceQueue
+    {
+        Steinberg::Vst::IParamValueQueue* queue = nullptr;
+        Steinberg::int32 first = 0;
+        Steinberg::int32 count = 0;
+    };
     LXR& plug;
-    Steinberg::Vst::IParameterChanges& source;
+    std::array<SourceQueue, kMaxSources> sources {};
+    Steinberg::int32 sourceCount = 0;
+    Steinberg::int32 flattenedCount = 0;
     MidiValueQueue midiQueue;
     RouteValueQueue routeQueue;
+    TransportValueQueue transportQueue;
+};
+
+class BoundedMidiEvents final : public Steinberg::Vst::IEventList
+{
+public:
+    BoundedMidiEvents(Steinberg::Vst::IEventList* events,
+        std::atomic<uint64_t>& rejected, std::atomic<uint64_t>& malformed)
+        : source(events)
+    {
+        if (source == nullptr) return;
+        const auto reported = source->getEventCount();
+        if (reported < 0) malformed.fetch_add(1, std::memory_order_relaxed);
+        else
+        {
+            count = std::min(reported, MidiParameterChanges::kMaxCCPoints);
+            if (reported > count)
+                rejected.fetch_add(static_cast<uint64_t>(reported - count), std::memory_order_relaxed);
+        }
+    }
+    Steinberg::tresult PLUGIN_API queryInterface(const Steinberg::TUID iid, void** object) override
+    {
+        if (Steinberg::FUnknownPrivate::iidEqual(iid, Steinberg::Vst::IEventList::iid) ||
+            Steinberg::FUnknownPrivate::iidEqual(iid, Steinberg::FUnknown::iid))
+        { *object = static_cast<Steinberg::Vst::IEventList*>(this); return Steinberg::kResultOk; }
+        *object = nullptr; return Steinberg::kNoInterface;
+    }
+    Steinberg::uint32 PLUGIN_API addRef() override { return 1; }
+    Steinberg::uint32 PLUGIN_API release() override { return 1; }
+    Steinberg::int32 PLUGIN_API getEventCount() override { return count; }
+    Steinberg::tresult PLUGIN_API getEvent(Steinberg::int32 index, Steinberg::Vst::Event& event) override
+    {
+        return source != nullptr && index >= 0 && index < count
+            ? source->getEvent(index, event) : Steinberg::kResultFalse;
+    }
+    Steinberg::tresult PLUGIN_API addEvent(Steinberg::Vst::Event&) override { return Steinberg::kNotImplemented; }
+private:
+    Steinberg::Vst::IEventList* source = nullptr;
+    Steinberg::int32 count = 0;
 };
 #endif
 
@@ -330,6 +520,34 @@ LXR::LXR(
           )
       )
 {
+#if IPLUG_EDITOR
+    mMakeGraphicsFunc = [&]() {
+        return iplug::igraphics::MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS);
+    };
+    mLayoutFunc = [&](iplug::igraphics::IGraphics* graphics) {
+        using namespace iplug::igraphics;
+        if (graphics->NControls() != 0) return;
+        graphics->AttachPanelBackground(COLOR_WHITE);
+        graphics->LoadFont("LXRSystem", "Segoe UI", ETextStyle::Normal);
+        const IText text(18, COLOR_BLACK, "LXRSystem");
+        graphics->AttachControl(new ITextControl(IRECT(20, 20, 580, 65),
+            "LXR sequencer bank import", text));
+        auto* status = new ITextControl(IRECT(20, 150, 580, 240),
+            "Load an LXQB bank. Transport uses host parameters 240-242.", text);
+        graphics->AttachControl(status);
+        graphics->AttachControl(new IVButtonControl(IRECT(20, 80, 310, 135),
+            [this, graphics, status](IControl*) {
+                WDL_String file, directory;
+                graphics->PromptForFile(file, directory, EFileAction::Open, "lxqb",
+                    [this, status](const WDL_String& selected, const WDL_String&) {
+                        if (selected.GetLength() == 0) return;
+                        status->SetStr(ImportSequencerBank(selected.Get())
+                            ? "Bank loaded. Enable the sequencer to play."
+                            : "Import rejected or Busy. Previous state retained.");
+                    });
+            }, "Import sequencer bank", DEFAULT_STYLE.WithLabelText(text)));
+    };
+#endif
     // Preserve the native parameter contract.
     static_assert(
         lxr::vst::kNativeNumParams == lxr::kNumParams,
@@ -338,7 +556,8 @@ LXR::LXR(
 
     static_assert(
         lxr::vst::kNativeNumParams == 228 &&
-        lxr::vst::kNumParams == 240,
+        lxr::vst::kPersistentNumParams == 240 &&
+        lxr::vst::kNumParams == 245,
         "Unexpected native/host parameter counts"
     );
 
@@ -386,6 +605,46 @@ LXR::LXR(
         });
     }
 
+    // Minimal P16-F1 transport surface. These controls intentionally do not
+    // enter LXRS v2; a newly opened project therefore defaults sequencing off.
+    GetParam(lxr::vst::kSequencerEnableParam)->InitInt(
+        "Sequencer Enable", 0, 0, 1);
+    GetParam(lxr::vst::kSequencerClockModeParam)->InitInt(
+        "Sequencer Clock", 0, 0, 1);
+    GetParam(lxr::vst::kSequencerClockModeParam)->SetDisplayFunc(
+        [](double value, WDL_String& display) {
+            display.Set(value >= 0.5 ? "Host Sync" : "Internal");
+        });
+    GetParam(lxr::vst::kSequencerInternalTempoParam)->InitInt(
+        "Sequencer Internal BPM", 120, 1, 255, "BPM");
+
+    GetParam(lxr::vst::kSequencerRollRateParam)->InitInt(
+        "Sequencer Roll Rate", 8, 0, 13);
+    GetParam(lxr::vst::kSequencerRollRateParam)->SetDisplayFunc(
+        [](double value, WDL_String& display) {
+            static const char* names[] {"One-shot", "1/1", "1/2", "1/3", "1/4",
+                "1/6", "1/8", "1/12", "1/16", "1/24", "1/32", "1/48", "1/64", "1/128"};
+            const auto index = static_cast<unsigned>(value);
+            display.Set(index < 14u ? names[index] : "Invalid");
+        });
+    GetParam(lxr::vst::kSequencerRollTracksParam)->InitInt(
+        "Sequencer Roll Tracks", 0, 0, 127);
+    GetParam(lxr::vst::kSequencerRollTracksParam)->SetDisplayFunc(
+        [](double value, WDL_String& display) {
+            const auto mask = static_cast<unsigned>(value);
+            static const char* names[] {"D1 ", "D2 ", "D3 ", "SN ", "CY ", "CH ", "OH "};
+            display.Set(mask == 0u ? "Released" : "Hold: ");
+            for (unsigned track = 0; track < 7u; ++track)
+                if ((mask & (1u << track)) != 0u) display.Append(names[track]);
+        });
+
+#if defined(VST3_API)
+    // VST3 3.7 hosts may omit all optional context unless the component asks.
+    processContextRequirements.needProjectTimeMusic()
+        .needBarPositionMusic().needCycleMusic().needTempo()
+        .needTimeSignature().needTransportState();
+#endif
+
     // Initialize canonical native parameters.
     mParams.init();
 
@@ -405,11 +664,14 @@ LXR::LXR(
     mState.initialize(initialState);
     mRoutingState.initialize();
     mAppliedRouting = lxr::MakeDisabledRoutingState();
+    (void)mSequencer.patternAuthority().tryAcquire(mAppliedPattern);
+    mSequencer.useProjectSnapshot(&mAppliedPattern);
 
     // Clear native cache and resampler state.
     // Host-rate configuration occurs in OnReset().
     mAudioAdapter.reset();
     mSequencer.reset(0u);
+    mAppliedSequencerEnabled = false;
 
     // Resolve assets relative to the plugin module,
     // never relative to the DAW working directory.
@@ -436,14 +698,26 @@ LXR::LXR(
 bool LXR::TryPersistentSnapshot(
     StateAuthority::Values& parameters,
     uint64_t& parameterGeneration,
-    lxr::RoutingStateAuthority::Snapshot& routing) const
+    lxr::RoutingStateAuthority::Snapshot& routing,
+    lxr::sequencer::PatternStateAuthority::ReadHandle* pattern,
+    lxr::sequencer::state::TransportConfig* transport,
+    lxr::sequencer::RollHostControls* rolls) const
 {
     lxr::RoutingStateAuthority::Guard guard;
     if (!mRoutingState.tryAcquire(guard))
         return false;
     if (!mState.trySnapshot(parameters, &parameterGeneration, 1))
         return false;
-    return mRoutingState.copyLocked(guard, routing);
+    if (pattern != nullptr && const_cast<LXR*>(this)->mSequencer.patternAuthority()
+            .tryAcquire(*pattern, 1) != lxr::sequencer::Status::Ok)
+        return false;
+    if (transport != nullptr) *transport = mTransportConfig;
+    if (rolls != nullptr) *rolls = mRollControls;
+    if (!mRoutingState.copyLocked(guard, routing)) return false;
+    // Capture bypass inside the same restore coordinator. A later full restore
+    // must not pair its suffix with this snapshot's older patch/bank/config.
+    routing.state.bypass = GetBypassed();
+    return true;
 }
 
 bool LXR::ApplyRoutesToEngine(
@@ -473,10 +747,13 @@ bool LXR::StageCompleteRestore(
     const StateAuthority::Values& parameters,
     const lxr::PersistentRoutingState& routing)
 {
-    // Copy only the fixed Engine bank. Asset views are non-owning and remain
-    // resident; init performs no allocation or resource loading.
-    mStagingEngine = mEngine;
-    mStagingEngine.init();
+    // A complete restore starts with fresh transient voice/RNG storage. Calling
+    // init() on a copy of the playing Engine retains voice oscillator RNGs and
+    // other fields that the firmware's startup-only initializers do not clear.
+    // Asset views remain resident/non-owning; construction does no asset I/O.
+    const auto assets = mEngine.tables;
+    mStagingEngine = lxr::Engine{};
+    mStagingEngine.tables = assets;
     mStagingParams.init();
     for (std::size_t i = 0; i < parameters.size(); ++i)
     {
@@ -493,6 +770,8 @@ bool LXR::StageCompleteRestore(
     mAppliedRouting = routing;
     mAudioAdapter.reset();
     mSequencer.reset(0u);
+    mAppliedSequencerEnabled = false;
+    mAppliedRollMask = 0u;
     mMidiParser = lxr::MidiParser();
     return true;
 }
@@ -502,11 +781,19 @@ void LXR::ResetEngineState()
     StateAuthority::Values parameters {};
     uint64_t parameterGeneration = 0;
     lxr::RoutingStateAuthority::Snapshot routing;
-    if (!TryPersistentSnapshot(parameters, parameterGeneration, routing))
+    lxr::sequencer::PatternStateAuthority::ReadHandle pattern;
+    lxr::sequencer::state::TransportConfig transport;
+    lxr::sequencer::RollHostControls rolls;
+    if (!TryPersistentSnapshot(parameters, parameterGeneration, routing, &pattern, &transport, &rolls))
         return;
 
     if (!StageCompleteRestore(parameters, routing.state))
         return;
+    mAppliedPattern.swap(pattern);
+    mAudioTransport = transport;
+    mAudioRollControls = rolls;
+    mSequencer.resetSeed(transport.seed);
+    (void)mSequencer.selectPattern(transport.pattern);
 
     mAppliedStateGeneration = parameterGeneration;
     mAppliedRestoreGeneration = routing.restoreEpoch;
@@ -545,6 +832,19 @@ bool LXR::FlushDeferredHostParameters(uint64_t maximumOrder)
         const uint64_t order = value.load(std::memory_order_acquire);
         pending |= order != 0u && (order <= cutoff || order <= maximumOrder);
     }
+    for (const auto& value : mDeferredTransportValues)
+    {
+        const auto encoded = value.load(std::memory_order_acquire);
+        const auto order = encoded >> 10u;
+        pending |= (encoded & 0x200u) != 0u && (order <= cutoff || order <= maximumOrder);
+    }
+    for (const auto& value : mDeferredRollValues)
+    {
+        const auto encoded = value.load(std::memory_order_acquire);
+        const auto order = encoded >> 9u;
+        pending |= (encoded & 0x100u) != 0u && (order <= cutoff || order <= maximumOrder);
+    }
+    pending |= mRollReleasePending.load(std::memory_order_acquire);
     if (!pending)
         return true;
 
@@ -704,6 +1004,88 @@ bool LXR::FlushDeferredHostParameters(uint64_t maximumOrder)
             (order <= cutoff || order <= maximumOrder))
             complete = false;
     }
+    bool transportChanged = false;
+    for (std::size_t slot = 0; slot < mDeferredTransportValues.size(); ++slot)
+    {
+        auto& mailbox = mDeferredTransportValues[slot];
+        auto encoded = mailbox.load(std::memory_order_acquire);
+        bool consumed = false;
+        for (unsigned attempt = 0; attempt < 4u; ++attempt)
+        {
+            if ((encoded & 0x200u) == 0u) break;
+            const auto order = encoded >> 10u;
+            if (order > cutoff && order > maximumOrder) break;
+            if (mailbox.compare_exchange_weak(encoded, 0, std::memory_order_acq_rel,
+                                              std::memory_order_acquire))
+            {
+                consumed = true;
+                if (order > cutoff)
+                {
+                    const auto value = static_cast<std::uint16_t>(encoded & 0x1ffu);
+                    if (slot == 0) mTransportConfig.enabled = static_cast<std::uint8_t>(value);
+                    if (slot == 1) mTransportConfig.clock = static_cast<std::uint8_t>(value);
+                    if (slot == 2) mTransportConfig.bpm = value;
+                    transportChanged = true;
+                }
+                const int value = slot == 0 ? mTransportConfig.enabled
+                    : slot == 1 ? mTransportConfig.clock : mTransportConfig.bpm;
+                GetParam(lxr::vst::kSequencerEnableParam + static_cast<int>(slot))->Set(value);
+                break;
+            }
+        }
+        if (!consumed && (encoded & 0x200u) != 0 &&
+            ((encoded >> 10u) <= cutoff || (encoded >> 10u) <= maximumOrder)) complete = false;
+    }
+    if (transportChanged)
+    {
+        mSequencerEnabled.store(mTransportConfig.enabled, std::memory_order_release);
+        mSequencerClockMode.store(mTransportConfig.clock, std::memory_order_release);
+        mSequencerInternalTempo.store(mTransportConfig.bpm, std::memory_order_release);
+        mRoutingState.commitPatchLocked(outer);
+    }
+    bool rollChanged = false;
+    if (mRollReleasePending.exchange(false, std::memory_order_acq_rel))
+    {
+        const auto release = mRollReleaseCutoff.load(std::memory_order_acquire);
+        if (mRollControls.pressTicket <= release)
+        {
+            mRollControls.tracks = 0u;
+            GetParam(lxr::vst::kSequencerRollTracksParam)->Set(0.0);
+            rollChanged = true;
+        }
+    }
+    for (std::size_t slot = 0; slot < mDeferredRollValues.size(); ++slot)
+    {
+        auto& mailbox = mDeferredRollValues[slot];
+        auto encoded = mailbox.load(std::memory_order_acquire);
+        bool consumed = false;
+        for (unsigned attempt = 0; attempt < 4u; ++attempt)
+        {
+            if ((encoded & 0x100u) == 0u) break;
+            const auto order = encoded >> 9u;
+            if (order > cutoff && order > maximumOrder) break;
+            if (mailbox.compare_exchange_weak(encoded, 0u, std::memory_order_acq_rel,
+                                              std::memory_order_acquire))
+            {
+                consumed = true;
+                const auto release = slot == 1u
+                    ? mRollReleaseCutoff.load(std::memory_order_acquire) : 0u;
+                if (order > cutoff && order > release)
+                {
+                    const auto value = static_cast<std::uint8_t>(encoded & 0x7fu);
+                    if (slot == 0u) mRollControls.rate = value;
+                    else { mRollControls.tracks = value; mRollControls.pressTicket = order; }
+                    rollChanged = true;
+                }
+                GetParam(lxr::vst::kSequencerRollRateParam + static_cast<int>(slot))->Set(
+                    slot == 0u ? mRollControls.rate : mRollControls.tracks);
+                break;
+            }
+        }
+        if (!consumed && (encoded & 0x100u) != 0u &&
+            ((encoded >> 9u) <= cutoff || (encoded >> 9u) <= maximumOrder)) complete = false;
+    }
+    if (rollChanged) mRoutingState.commitPatchLocked(outer);
     return complete;
 }
 
@@ -715,13 +1097,18 @@ bool LXR::ApplyPendingStateAndParameters()
     StateAuthority::Values candidate {};
     uint64_t parameterGeneration = 0;
     lxr::RoutingStateAuthority::Snapshot routing;
-    if (!TryPersistentSnapshot(candidate, parameterGeneration, routing))
+    lxr::sequencer::PatternStateAuthority::ReadHandle pattern;
+    lxr::sequencer::state::TransportConfig transport;
+    lxr::sequencer::RollHostControls rolls;
+    if (!TryPersistentSnapshot(candidate, parameterGeneration, routing, &pattern, &transport, &rolls))
         return false;
 
     if (routing.restoreEpoch != mAppliedRestoreGeneration)
     {
         if (!StageCompleteRestore(candidate, routing.state))
             return false;
+        mSequencer.resetSeed(transport.seed);
+        (void)mSequencer.selectPattern(transport.pattern);
         mAppliedRestoreGeneration = routing.restoreEpoch;
     }
     else if (routing.generation != mAppliedJointGeneration)
@@ -755,6 +1142,10 @@ bool LXR::ApplyPendingStateAndParameters()
         mParams = mStagingParams;
         mAppliedRouting = routing.state;
     }
+    // Select all four domains before any event generation or rendering.
+    mAppliedPattern.swap(pattern);
+    mAudioTransport = transport;
+    mAudioRollControls = rolls;
     mAppliedStateGeneration = parameterGeneration;
     mAppliedJointGeneration = routing.generation;
     return true;
@@ -771,27 +1162,41 @@ bool LXR::SerializeState(iplug::IByteChunk& chunk) const
     if (!const_cast<LXR*>(this)->FlushDeferredHostParameters(watermark))
         return false;
 
-    StateAuthority::Values parameters {};
+    lxr::state::ProjectCandidate candidate;
     uint64_t parameterGeneration = 0;
     lxr::RoutingStateAuthority::Snapshot routing;
-    if (!TryPersistentSnapshot(parameters, parameterGeneration, routing))
-        return false;
-    (void)parameterGeneration;
-    routing.state.bypass = GetBypassed();
-
-    std::array<uint8_t, lxr::state::kMaximumStateSize> encoded {};
-    std::size_t encodedSize = 0;
-    if (!lxr::state::EncodeV2(parameters, routing.state, encoded,
-                              encodedSize, false))
-        return false;
-
-    return chunk.PutBytes(encoded.data(), static_cast<int>(encodedSize)) > 0;
+    lxr::sequencer::PatternStateAuthority::ReadHandle pattern;
+    if (!TryPersistentSnapshot(candidate.patch, parameterGeneration, routing,
+                               &pattern, &candidate.transport)) return false;
+    candidate.routing = routing.state;
+    candidate.bank = pattern.bank();
+    lxr::state::ProjectBytes encoded;
+    std::size_t size = 0;
+    if (!lxr::state::EncodeProject(candidate, encoded, size, false)) return false;
+    return chunk.PutBytes(encoded.data(), static_cast<int>(size)) > 0;
 }
 
 bool LXR::PublishPersistentRestore(
     const StateAuthority::Values& parameters,
-    const lxr::PersistentRoutingState& routing)
+    const lxr::PersistentRoutingState& routing,
+    const lxr::sequencer::PatternBank* bank,
+    const lxr::sequencer::state::TransportConfig* transport,
+    uint64_t expectedJointGeneration)
 {
+    const auto defaults = bank == nullptr ? lxr::sequencer::MakeDefaultPatternBank()
+                                           : lxr::sequencer::PatternBank{};
+    const auto& acceptedBank = bank != nullptr ? *bank : defaults;
+    const auto config = transport != nullptr ? *transport
+        : lxr::sequencer::state::TransportConfig{};
+    for (auto value : parameters) if (value > 127u) return false;
+    if (!lxr::sequencer::state::Validate(config) ||
+        lxr::sequencer::ValidateBank(acceptedBank) != lxr::sequencer::Status::Ok)
+        return false;
+    lxr::sequencer::PatternStateAuthority::WriteHandle patternWriter;
+    auto& authority = mSequencer.patternAuthority();
+    if (authority.tryBeginEdit(patternWriter) != lxr::sequencer::Status::Ok ||
+        patternWriter.replace(acceptedBank) != lxr::sequencer::Status::Ok ||
+        authority.generation() == UINT64_MAX) return false;
     const uint64_t restoreOrder =
         mDeferredHostOrder.fetch_add(1, std::memory_order_acq_rel);
     if (restoreOrder == 0u)
@@ -799,6 +1204,8 @@ bool LXR::PublishPersistentRestore(
 
     lxr::RoutingStateAuthority::Guard outer;
     if (!mRoutingState.tryAcquire(outer) ||
+        (expectedJointGeneration != UINT64_MAX &&
+         mRoutingState.generation() != expectedJointGeneration) ||
         mRoutingState.validateRestoreLocked(outer, routing, restoreOrder) !=
             lxr::PersistentRouteStatus::Ok)
     {
@@ -807,6 +1214,11 @@ bool LXR::PublishPersistentRestore(
     StateAuthority::WriteHandle writer;
     if (!mState.tryBeginWrite(writer))
         return false;
+    if (authority.commit(patternWriter) != lxr::sequencer::Status::Ok)
+    {
+        mState.cancelUnmodified(writer);
+        return false;
+    }
     if (!mState.writeAll(writer, parameters))
     {
         mState.cancelUnmodified(writer);
@@ -814,6 +1226,11 @@ bool LXR::PublishPersistentRestore(
     }
 
     mState.commit(writer);
+    mTransportConfig = config;
+    mRollControls = {};
+    mSequencerEnabled.store(config.enabled, std::memory_order_release);
+    mSequencerClockMode.store(config.clock, std::memory_order_release);
+    mSequencerInternalTempo.store(config.bpm, std::memory_order_release);
     if (mRoutingState.commitRestoreLocked(outer, routing, restoreOrder) == 0u)
         return false; // Preflight above makes this unreachable without corruption.
     mRestoreOrderCutoff.store(restoreOrder, std::memory_order_release);
@@ -834,6 +1251,11 @@ bool LXR::PublishPersistentRestore(
             param->Set(static_cast<double>(
                 lxr::route_host::encode(routing.routes[routeSlot]).value()));
     }
+    GetParam(lxr::vst::kSequencerEnableParam)->Set(config.enabled);
+    GetParam(lxr::vst::kSequencerClockModeParam)->Set(config.clock);
+    GetParam(lxr::vst::kSequencerInternalTempoParam)->Set(config.bpm);
+    GetParam(lxr::vst::kSequencerRollRateParam)->Set(8.0);
+    GetParam(lxr::vst::kSequencerRollTracksParam)->Set(0.0);
     SetBypassed(routing.bypass);
     mControllerNeedsReconcile = true;
     return true;
@@ -846,27 +1268,39 @@ int LXR::UnserializeState(const iplug::IByteChunk& chunk, int startPos)
         return -1;
     }
 
-    StateAuthority::Values candidate {};
-    lxr::PersistentRoutingState routing = lxr::MakeDisabledRoutingState();
-    auto result = lxr::state::DecodePersistentState(
-        chunk.GetData() + startPos,
-        static_cast<std::size_t>(chunk.Size() - startPos),
-        candidate, routing, true
-    );
-    if (!result)
-    {
-        result = lxr::state::DecodePersistentState(
-            chunk.GetData() + startPos,
-            static_cast<std::size_t>(chunk.Size() - startPos),
-            candidate, routing, false);
-        if (!result)
-            return -1;
-        // Core-only formats do not carry bypass state.
-        routing.bypass = GetBypassed();
-    }
-    if (!PublishPersistentRestore(candidate, routing))
-        return -1;
-    return startPos + static_cast<int>(result.consumed);
+    lxr::state::ProjectCandidate candidate;
+    const auto* data = chunk.GetData() + startPos;
+    const auto bytes = static_cast<std::size_t>(chunk.Size() - startPos);
+    bool suffix = lxr::state::DecodeProject(data, bytes, candidate, true);
+    if (!suffix && !lxr::state::DecodeProject(data, bytes, candidate, false)) return -1;
+    if (!suffix) candidate.routing.bypass = GetBypassed();
+    if (!PublishPersistentRestore(candidate.patch, candidate.routing,
+                                   &candidate.bank, &candidate.transport)) return -1;
+    return startPos + static_cast<int>(bytes - (suffix ? 4u : 0u));
+}
+
+// Called only by the editor's main-thread file-dialog completion.
+bool LXR::ImportSequencerBank(const char* path)
+{
+    if (path == nullptr || *path == '\0') return false;
+    lxr::sequencer::state::EncodedBank bytes;
+    auto* file = fopen(path, "rb"); // iPlug2's Windows UTF-8 file wrapper.
+    if (file == nullptr) return false;
+    const auto read = std::fread(bytes.data(), 1, bytes.size(), file);
+    const bool exact = read == bytes.size() && std::fgetc(file) == EOF && !std::ferror(file);
+    std::fclose(file);
+    lxr::state::ProjectCandidate candidate;
+    if (!exact || !lxr::sequencer::state::Decode(bytes.data(), bytes.size(), candidate.bank))
+        return false;
+    const auto watermark = mDeferredHostOrder.load(std::memory_order_acquire) - 1u;
+    if (!FlushDeferredHostParameters(watermark)) return false;
+    lxr::RoutingStateAuthority::Snapshot routing;
+    uint64_t generation = 0;
+    if (!TryPersistentSnapshot(candidate.patch, generation, routing, nullptr, &candidate.transport))
+        return false;
+    candidate.routing = routing.state;
+    return PublishPersistentRestore(candidate.patch, candidate.routing,
+                                    &candidate.bank, &candidate.transport, routing.generation);
 }
 
 bool LXR::ConfigureRouteForTest(
@@ -982,6 +1416,7 @@ bool LXR::RejectRouteHostValue(
 
 void LXR::OnReset()
 {
+    ReleaseRollControls();
     // Reset native synthesis and processing state.
     ResetEngineState();
 
@@ -1041,8 +1476,10 @@ void LXR::OnActivate(
     // The configured FIR coefficients are retained.
     if (!active)
     {
+        ReleaseRollControls();
         mAudioAdapter.reset();
         mSequencer.reset(0u);
+        mAppliedSequencerEnabled = false;
     }
 }
 
@@ -1054,6 +1491,43 @@ void LXR::OnParamChange(
     int paramIdx
 )
 {
+    if (paramIdx == lxr::vst::kSequencerRollRateParam ||
+        paramIdx == lxr::vst::kSequencerRollTracksParam)
+    {
+        const auto* param = GetParam(paramIdx);
+        if (param == nullptr) return;
+        const int value = param->Int();
+        const auto slot = static_cast<std::size_t>(paramIdx - lxr::vst::kSequencerRollRateParam);
+        if (value < 0 || value > (slot == 0u ? 13 : 127)) return;
+        const auto ticket = mDeferredHostOrder.fetch_add(1u, std::memory_order_acq_rel);
+        auto& mailbox = mDeferredRollValues[slot];
+        const auto desired = (ticket << 9u) | 0x100u | static_cast<uint64_t>(value);
+        auto current = mailbox.load(std::memory_order_acquire);
+        for (unsigned attempt = 0; attempt < 4u && (current >> 9u) < ticket; ++attempt)
+            if (mailbox.compare_exchange_weak(current, desired,
+                    std::memory_order_release, std::memory_order_acquire)) break;
+        return;
+    }
+    if (paramIdx == lxr::vst::kSequencerEnableParam ||
+        paramIdx == lxr::vst::kSequencerClockModeParam ||
+        paramIdx == lxr::vst::kSequencerInternalTempoParam)
+    {
+        const auto* param = GetParam(paramIdx);
+        if (param == nullptr)
+            return;
+        const int value = param->Int();
+        const auto slot = static_cast<std::size_t>(paramIdx - lxr::vst::kSequencerEnableParam);
+        if (value < (slot == 2u ? 1 : 0) || value > (slot == 2u ? 255 : 1)) return;
+        const auto ticket = mDeferredHostOrder.fetch_add(1, std::memory_order_acq_rel);
+        const auto encoded = (ticket << 10u) | 0x200u | static_cast<uint64_t>(value);
+        auto& mailbox = mDeferredTransportValues[slot];
+        auto current = mailbox.load(std::memory_order_acquire);
+        for (unsigned attempt = 0; attempt < 4u && (current >> 10u) < ticket; ++attempt)
+            if (mailbox.compare_exchange_weak(current, encoded,
+                    std::memory_order_release, std::memory_order_acquire)) break;
+        return;
+    }
+
     const auto routeId = lxr::route_host::RouteHostParamId::fromRaw(
         paramIdx >= 0 ? static_cast<std::uint32_t>(paramIdx) : 0u);
     if (routeId.valid())
@@ -1147,6 +1621,17 @@ Steinberg::tresult PLUGIN_API LXR::setParamNormalized(
     Steinberg::Vst::ParamID tag,
     Steinberg::Vst::ParamValue value)
 {
+    if (tag >= static_cast<Steinberg::Vst::ParamID>(
+            lxr::vst::kSequencerEnableParam) &&
+        tag <= static_cast<Steinberg::Vst::ParamID>(
+            lxr::vst::kSequencerRollTracksParam))
+    {
+        if (!std::isfinite(value) || value < 0.0 || value > 1.0 ||
+            GetParam(static_cast<int>(tag)) == nullptr)
+            return Steinberg::kResultFalse;
+        return iplug::Plugin::setParamNormalized(tag, value);
+    }
+
     const auto id = lxr::route_host::RouteHostParamId::fromRaw(tag);
     if (!id.valid())
         return iplug::Plugin::setParamNormalized(tag, value);
@@ -1172,18 +1657,17 @@ Steinberg::tresult PLUGIN_API LXR::getState(Steinberg::IBStream* state)
     if (!FlushDeferredHostParameters(watermark))
         return Steinberg::kResultFalse;
 
-    StateAuthority::Values parameters {};
+    lxr::state::ProjectCandidate candidate;
     uint64_t parameterGeneration = 0;
     lxr::RoutingStateAuthority::Snapshot routing;
-    if (!TryPersistentSnapshot(parameters, parameterGeneration, routing))
-        return Steinberg::kResultFalse;
-    (void)parameterGeneration;
-    routing.state.bypass = GetBypassed();
-
-    std::array<uint8_t, lxr::state::kMaximumStateSize> encoded {};
+    lxr::sequencer::PatternStateAuthority::ReadHandle pattern;
+    if (!TryPersistentSnapshot(candidate.patch, parameterGeneration, routing,
+                               &pattern, &candidate.transport)) return Steinberg::kResultFalse;
+    candidate.routing = routing.state;
+    candidate.bank = pattern.bank();
+    lxr::state::ProjectBytes encoded;
     std::size_t encodedSize = 0;
-    if (!lxr::state::EncodeV2(parameters, routing.state, encoded,
-                              encodedSize, true))
+    if (!lxr::state::EncodeProject(candidate, encoded, encodedSize, true))
         return Steinberg::kResultFalse;
     Steinberg::int32 written = 0;
     const auto result = state->write(encoded.data(),
@@ -1200,7 +1684,7 @@ Steinberg::tresult PLUGIN_API LXR::setState(Steinberg::IBStream* state)
 
     // Read at most one byte beyond the contract ceiling so oversize streams
     // are rejected without an unbounded allocation.
-    std::array<uint8_t, lxr::state::kMaximumStateSize + 1u> bytes {};
+    std::array<uint8_t, lxr::state::kV3MaximumStreamBytes + 1u> bytes {};
     std::size_t size = 0;
     for (;;)
     {
@@ -1217,38 +1701,93 @@ Steinberg::tresult PLUGIN_API LXR::setState(Steinberg::IBStream* state)
         if (bytesRead == 0)
             break;
         size += static_cast<std::size_t>(bytesRead);
-        if (size > lxr::state::kMaximumStateSize)
+        if (size > lxr::state::kV3MaximumStreamBytes)
             return Steinberg::kResultFalse;
         if (readResult != Steinberg::kResultOk &&
             readResult != Steinberg::kResultTrue && GetHost() != iplug::kHostWaveLab)
             return Steinberg::kResultFalse;
     }
 
-    StateAuthority::Values parameters {};
-    auto routing = lxr::MakeDisabledRoutingState();
-    const auto decoded = lxr::state::DecodePersistentState(
-        bytes.data(), size, parameters, routing, true);
-    if (!decoded || !PublishPersistentRestore(parameters, routing))
+    lxr::state::ProjectCandidate candidate;
+    if (!lxr::state::DecodeProject(bytes.data(), size, candidate, true) ||
+        !PublishPersistentRestore(candidate.patch, candidate.routing,
+                                    &candidate.bank, &candidate.transport))
         return Steinberg::kResultFalse;
 
     // Update the framework's separate controller cache only after the complete
     // patch+routing+bypass transaction has committed.
-    UpdateParams(this, routing.bypass ? 1 : 0);
+    UpdateParams(this, candidate.routing.bypass ? 1 : 0);
     OnRestoreState();
     return Steinberg::kResultOk;
 }
 
 Steinberg::tresult PLUGIN_API LXR::process(Steinberg::Vst::ProcessData& data)
 {
-    if (data.inputParameterChanges == nullptr)
-        return iplug::Plugin::process(data);
+    mCallbackMidiCount = 0;
+    mCallbackMidiFrames = data.numSamples;
+    mCollectCallbackMidi = true;
+    mHostProcessContext = {};
+    mHostProcessContext.callbackFrames = data.numSamples;
+    mHostProcessContext.offline =
+        data.processMode == Steinberg::Vst::kOffline;
+    const auto* context = data.processContext;
+    if (context != nullptr)
+    {
+        mHostProcessContext.contextPresent = true;
+        mHostProcessContext.validFields =
+            lxr::sequencer::HostSamplePosition |
+            lxr::sequencer::HostTransportState;
+        mHostProcessContext.sampleRate = context->sampleRate;
+        mHostProcessContext.projectSamplePosition =
+            context->projectTimeSamples;
+        mHostProcessContext.playing =
+            (context->state & Steinberg::Vst::ProcessContext::kPlaying) != 0;
+        mHostProcessContext.cycleActive =
+            (context->state & Steinberg::Vst::ProcessContext::kCycleActive) != 0;
+        if ((context->state &
+             Steinberg::Vst::ProcessContext::kProjectTimeMusicValid) != 0)
+        {
+            mHostProcessContext.validFields |=
+                lxr::sequencer::HostPpqPosition;
+            mHostProcessContext.projectPpqPosition =
+                context->projectTimeMusic;
+        }
+        if ((context->state & Steinberg::Vst::ProcessContext::kTempoValid) != 0)
+        {
+            mHostProcessContext.validFields |= lxr::sequencer::HostTempo;
+            mHostProcessContext.tempoBpm = context->tempo;
+        }
+        if ((context->state & Steinberg::Vst::ProcessContext::kCycleValid) != 0)
+        {
+            mHostProcessContext.validFields |= lxr::sequencer::HostCycle;
+            mHostProcessContext.cycleStartPpq = context->cycleStartMusic;
+            mHostProcessContext.cycleEndPpq = context->cycleEndMusic;
+        }
+        if ((context->state & Steinberg::Vst::ProcessContext::kTimeSigValid) != 0)
+        {
+            mHostProcessContext.validFields |=
+                lxr::sequencer::HostTimeSignature;
+            mHostProcessContext.timeSigNumerator = context->timeSigNumerator;
+            mHostProcessContext.timeSigDenominator = context->timeSigDenominator;
+        }
+        if ((context->state & Steinberg::Vst::ProcessContext::kBarPositionValid) != 0)
+        {
+            mHostProcessContext.validFields |=
+                lxr::sequencer::HostBarPosition;
+            mHostProcessContext.barPositionPpq = context->barPositionMusic;
+        }
+    }
+
+    MidiParameterChanges changes(*this, data.inputParameterChanges,
+        mRejectedParameterQueues, mRejectedMidiInputRecords, mMalformedMidiInputCounts);
+    BoundedMidiEvents events(data.inputEvents, mRejectedMidiInputRecords, mMalformedMidiInputCounts);
     // The pinned dispatcher reads only the last point. Preflight that exact
     // point so rejected route automation republishes canonical readback while
     // the adapter prevents the invalid value from reaching IParam.
-    const auto queueCount = data.inputParameterChanges->getParameterCount();
+    const auto queueCount = changes.sourceQueueCount();
     for (Steinberg::int32 i = 0; i < queueCount; ++i)
     {
-        auto* queue = data.inputParameterChanges->getParameterData(i);
+        auto* queue = changes.sourceQueue(i);
         if (queue == nullptr)
             continue;
         const auto id = lxr::route_host::RouteHostParamId::fromRaw(
@@ -1269,10 +1808,12 @@ Steinberg::tresult PLUGIN_API LXR::process(Steinberg::Vst::ProcessData& data)
                 RejectRouteHostValue(lxr::route_host::slot(id), ticket);
         }
     }
-    MidiParameterChanges changes(*this, *data.inputParameterChanges);
     auto adapted = data;
     adapted.inputParameterChanges = &changes;
-    return iplug::Plugin::process(adapted);
+    adapted.inputEvents = data.inputEvents != nullptr ? &events : nullptr;
+    const auto result = iplug::Plugin::process(adapted);
+    FlushCallbackMidi();
+    return result;
 }
 
 Steinberg::tresult PLUGIN_API LXR::setComponentHandler(
@@ -1290,6 +1831,8 @@ Steinberg::tresult PLUGIN_API LXR::setComponentHandler(
 
 void LXR::OnIdle()
 {
+    if (mRollReleasePending.load(std::memory_order_acquire) &&
+        !FlushDeferredHostParameters()) return;
 #if defined(VST3_API)
     // The installed adapter is SingleComponentEffect: processor and controller
     // share this object, but not their parameter storage. Only the main thread
@@ -1317,11 +1860,15 @@ void LXR::OnIdle()
     for (std::size_t i = 0; i < delivered.size(); ++i)
     {
         const bool native = i < lxr::state::kParameterCount;
-        const std::size_t routeSlot = native
+        const bool transport = i >= lxr::vst::kPersistentNumParams;
+        const std::size_t routeSlot = native || transport
             ? 0u : i - lxr::state::kParameterCount;
-        const uint64_t generation = native
-            ? mState.valueGeneration(i)
-            : routeSnapshot.routeGenerations[routeSlot];
+        const uint64_t generation = native ? mState.valueGeneration(i)
+            : transport ? routeSnapshot.generation : routeSnapshot.routeGenerations[routeSlot];
+        const double transportValue = i == lxr::vst::kSequencerEnableParam ? mTransportConfig.enabled
+            : i == lxr::vst::kSequencerClockModeParam ? mTransportConfig.clock
+            : i == lxr::vst::kSequencerInternalTempoParam ? mTransportConfig.bpm
+            : i == lxr::vst::kSequencerRollRateParam ? mRollControls.rate : mRollControls.tracks;
         if (!mControllerNeedsReconcile && delivered[i] == generation)
             continue;
 
@@ -1333,7 +1880,7 @@ void LXR::OnIdle()
             static_cast<Steinberg::Vst::ParamID>(i),
             param->ToNormalized(static_cast<double>(native
                 ? mState.value(i)
-                : lxr::route_host::encode(
+                : transport ? transportValue : lxr::route_host::encode(
                     routeSnapshot.state.routes[routeSlot]).value())));
         delivered[i] = generation;
         pending = true;
@@ -1372,6 +1919,21 @@ bool LXR::EnqueueDeferredMidi(const iplug::IMidiMsg& msg) noexcept
     return true;
 }
 
+void LXR::FlushCallbackMidi()
+{
+    mCollectCallbackMidi = false;
+    // The framework skips ProcessBlock while bypassed. Keep accepting MIDI
+    // state changes there, and in zero-audio callbacks, as before this repair.
+    std::sort(mCallbackMidi.begin(), mCallbackMidi.begin() + mCallbackMidiCount,
+        [](const CallbackMidi& a, const CallbackMidi& b) noexcept {
+            return a.message.mOffset < b.message.mOffset ||
+                (a.message.mOffset == b.message.mOffset && a.sequence < b.sequence);
+        });
+    for (std::size_t i = 0; i < mCallbackMidiCount; ++i)
+        ProcessMidiMsg(mCallbackMidi[i].message);
+    mCallbackMidiCount = 0;
+}
+
 void LXR::DrainDeferredMidi()
 {
     while (auto* msg = mDeferredMidi.front())
@@ -1384,6 +1946,28 @@ void LXR::DrainDeferredMidi()
 
 void LXR::ProcessMidiMsg(const iplug::IMidiMsg& msg)
 {
+    if (mCollectCallbackMidi)
+    {
+        // Zero-frame VST3 flush calls may deliver offset zero. Other offsets
+        // must belong to this callback; never pull an invalid future event in.
+        if (msg.mOffset < 0 ||
+            (msg.mOffset >= mCallbackMidiFrames &&
+             !(mCallbackMidiFrames == 0 && msg.mOffset == 0)))
+        {
+            mInvalidMidiOffsets.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
+        if (mCallbackMidiCount == mCallbackMidi.size())
+        {
+            mDeferredMidiOverflows.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
+        const auto sequence = static_cast<std::uint32_t>(mCallbackMidiCount);
+        mCallbackMidi[mCallbackMidiCount++] = {msg, sequence};
+        mCallbackMidiPeak = std::max(mCallbackMidiPeak, static_cast<std::uint32_t>(mCallbackMidiCount));
+        return;
+    }
+
     if (!ApplyPendingStateAndParameters())
     {
         EnqueueDeferredMidi(msg);
@@ -1474,8 +2058,10 @@ bool LXR::ProcessMidiMsgNow(const iplug::IMidiMsg& msg)
     mMidiParser.processEvent(
         event,
         mEngine,
-        mParams
+        mParams,
+        &mSequencer
     );
+    ++mDispatchedMidiMessages;
 
     if (mayChangeParameters)
     {
@@ -1519,6 +2105,99 @@ bool LXR::ProcessMidiMsgNow(const iplug::IMidiMsg& msg)
 // This callback performs no allocations or file I/O.
 // ---------------------------------------------------------
 
+void LXR::ApplySequencerTransport(int callbackFrames) noexcept
+{
+    const bool enabled =
+        mAudioTransport.enabled != 0u;
+    const std::uint8_t mode =
+        mAudioTransport.clock;
+    const std::uint16_t internalTempo =
+        mAudioTransport.bpm;
+    const std::uint64_t nativeFrame = mAudioAdapter.nativeFrame();
+
+    if (!enabled)
+    {
+        if (mAppliedRollMask != 0u || (mAudioRollControls.tracks != 0u &&
+            mAudioRollControls.pressTicket > mRollReleaseCutoff.load(std::memory_order_acquire)))
+            ReleaseRollControls();
+        if (mAppliedSequencerEnabled)
+        {
+            (void)mEngine.clearSequencerAutomation();
+            mSequencer.reset(nativeFrame);
+        }
+        mAppliedSequencerEnabled = false;
+        mAppliedSequencerClockMode = mode;
+        mAppliedSequencerInternalTempo = internalTempo;
+        return;
+    }
+
+    const bool changedMode = !mAppliedSequencerEnabled ||
+        mAppliedSequencerClockMode != mode;
+    if (changedMode)
+    {
+        if (mAppliedSequencerEnabled) ReleaseRollControls();
+        mAppliedRollMask = 0u;
+        (void)mEngine.clearSequencerAutomation();
+        mSequencer.reset(nativeFrame);
+        mSequencer.resetSeed(mAudioTransport.seed);
+        (void)mSequencer.selectPattern(mAudioTransport.pattern);
+    }
+
+    mAppliedSequencerEnabled = true;
+    mAppliedSequencerClockMode = mode;
+    mAppliedSequencerInternalTempo = internalTempo;
+
+    if (mode == 0u)
+    {
+        (void)mSequencer.setTempo(internalTempo);
+        (void)mEngine.setNativeTempo(internalTempo);
+        if (!mSequencer.running())
+            (void)mSequencer.start();
+        return;
+    }
+
+    auto host = mHostProcessContext;
+    host.callbackFrames = callbackFrames;
+
+    if ((host.validFields & lxr::sequencer::HostTempo) != 0u &&
+        std::isfinite(host.tempoBpm) && host.tempoBpm >= 1.0 &&
+        host.tempoBpm <= 255.0)
+    {
+        (void)mEngine.setNativeTempo(static_cast<std::uint16_t>(
+            std::floor(host.tempoBpm + 0.5)));
+    }
+    const auto decision = mSequencer.beginHostCallback(host, nativeFrame, mEngine);
+    if (decision.transition == lxr::sequencer::HostTransition::Stop ||
+        decision.transition == lxr::sequencer::HostTransition::InvalidContext ||
+        (decision.transition == lxr::sequencer::HostTransition::Seek && !host.playing))
+        ReleaseRollControls();
+}
+
+void LXR::ReleaseRollControls() noexcept
+{
+    const auto cutoff = mDeferredHostOrder.fetch_add(1u, std::memory_order_acq_rel);
+    mRollReleaseCutoff.store(cutoff, std::memory_order_release);
+    mRollReleasePending.store(true, std::memory_order_release);
+    mSequencer.cancelRolls();
+    mAppliedRollMask = 0u;
+}
+
+void LXR::ApplyRollControls() noexcept
+{
+    if (!mAppliedSequencerEnabled) return;
+    (void)mSequencer.setRollRate(mAudioRollControls.rate);
+    const auto desired = mAudioRollControls.pressTicket >
+        mRollReleaseCutoff.load(std::memory_order_acquire)
+        ? mAudioRollControls.tracks : static_cast<std::uint8_t>(0u);
+    for (std::uint8_t track = 0u; track < 7u; ++track)
+    {
+        const auto bit = static_cast<std::uint8_t>(1u << track);
+        if (((desired ^ mAppliedRollMask) & bit) != 0u)
+            (void)mSequencer.setRoll(track, (desired & bit) != 0u);
+    }
+    mAppliedRollMask = desired;
+}
+
 void LXR::ProcessBlock(
     double** inputs,
     double** outputs,
@@ -1528,8 +2207,27 @@ void LXR::ProcessBlock(
     // LXR currently operates as an instrument.
     (void)inputs;
 
+    mCollectCallbackMidi = false;
+    // iPlug2 delivers synthetic CC parameter queues before the note-event
+    // list, so arrival order need not be timestamp order. std::sort operates
+    // in resident storage; the explicit sequence preserves simultaneous order.
+    std::sort(mCallbackMidi.begin(), mCallbackMidi.begin() + mCallbackMidiCount,
+        [](const CallbackMidi& a, const CallbackMidi& b) noexcept {
+            return a.message.mOffset < b.message.mOffset ||
+                (a.message.mOffset == b.message.mOffset && a.sequence < b.sequence);
+        });
+
     if (ApplyPendingStateAndParameters())
         DrainDeferredMidi();
+
+    ApplySequencerTransport(nFrames);
+    ApplyRollControls();
+
+    // Flush/no-output calls have no sample loop. Retain their MIDI/state
+    // publication behavior without attempting native or FIR processing.
+    if (outputs == nullptr || nFrames <= 0 || NOutChansConnected() <= 0 ||
+        !mAssetsLoaded || !mAudioAdapter.ready())
+        FlushCallbackMidi();
 
     if (outputs == nullptr ||
         nFrames <= 0)
@@ -1574,10 +2272,16 @@ void LXR::ProcessBlock(
     //
     // The fractional source position and FIR history
     // persist across arbitrary callback boundaries.
+    std::size_t midiIndex = 0;
     for (int sample = 0;
          sample < nFrames;
          ++sample)
     {
+        while (midiIndex < mCallbackMidiCount &&
+               mCallbackMidi[midiIndex].message.mOffset <= sample)
+        {
+            ProcessMidiMsg(mCallbackMidi[midiIndex++].message);
+        }
         double left = 0.0;
         double right = 0.0;
 
@@ -1586,7 +2290,8 @@ void LXR::ProcessBlock(
             mEngine,
             left,
             right,
-            &mSequencer
+            &mSequencer,
+            sample
         );
 
         // Mono host configuration.
@@ -1624,4 +2329,5 @@ void LXR::ProcessBlock(
             }
         }
     }
+    mCallbackMidiCount = 0;
 }

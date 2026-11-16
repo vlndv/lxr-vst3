@@ -50,7 +50,7 @@ Status TriggerScheduler::selectPattern(std::uint8_t pattern) noexcept
     if (!IsValidPattern(pattern))
         return Status::InvalidPattern;
     mPendingPattern.store(pattern, std::memory_order_release);
-    if (mClock.running())
+    if (running())
         mManualPatternPending.store(true, std::memory_order_release);
     else
     {
@@ -155,19 +155,23 @@ void TriggerScheduler::initializeTrackPositions(std::uint8_t pattern) noexcept
 
 Status TriggerScheduler::initializeTrackPositions() noexcept
 {
-    PatternStateAuthority::ReadHandle snapshot;
-    const Status acquired = mPatterns.tryAcquire(snapshot);
+    PatternStateAuthority::ReadHandle localSnapshot;
+    const Status acquired = mProjectSnapshot != nullptr && mProjectSnapshot->active()
+        ? Status::Ok : mPatterns.tryAcquire(localSnapshot);
     if (acquired != Status::Ok)
         return acquired;
+    const auto& snapshot = localSnapshot.active() ? localSnapshot : *mProjectSnapshot;
     cachePatternControls(snapshot.bank());
     mActivePattern = mPublishedActivePattern.load(std::memory_order_acquire);
     initializeTrackPositions(mActivePattern);
-    snapshot.release();
+    localSnapshot.release();
     return Status::Ok;
 }
 
 Status TriggerScheduler::start() noexcept
 {
+    mHostSync = false;
+    mHostTimeline.reset();
     if (mClock.running())
         return Status::Ok;
     const Status initialized = initializeTrackPositions();
@@ -180,6 +184,8 @@ Status TriggerScheduler::start() noexcept
 
 void TriggerScheduler::stop() noexcept
 {
+    mHostSync = false;
+    mHostTimeline.reset();
     mClock.stop();
     // ORIGINAL QUIRK: firmware stop zeroes all rotations of the playing
     // pattern. The immutable-bank adaptation records equivalent runtime
@@ -194,6 +200,12 @@ void TriggerScheduler::stop() noexcept
 void TriggerScheduler::reset(std::uint64_t nativeFrame) noexcept
 {
     mClock.reset(nativeFrame);
+    mHostTimeline.reset();
+    mHostSync = false;
+    mSuppressNextTrack0Transition = false;
+    mHostEpochValid = false;
+    mHostEpochPattern = kInitialPattern;
+    mLastHostDecision = {};
     mRng.reset();
     mProbability.reset(0u);
     mLastBatch.clear();
@@ -218,6 +230,118 @@ void TriggerScheduler::reset(std::uint64_t nativeFrame) noexcept
     mCacheValid = false;
     for (auto& mask : mZeroRotationMasks)
         mask = 0u;
+}
+
+Status TriggerScheduler::initializeHostTrackPositions(
+    std::int64_t timelineOrdinal, std::uint8_t pattern,
+    unsigned snapshotAttempts) noexcept
+{
+    PatternStateAuthority::ReadHandle localSnapshot;
+    const Status acquired = mProjectSnapshot != nullptr && mProjectSnapshot->active()
+        ? Status::Ok : mPatterns.tryAcquire(localSnapshot, snapshotAttempts);
+    if (acquired != Status::Ok)
+        return acquired;
+    const auto& snapshot = localSnapshot.active() ? localSnapshot : *mProjectSnapshot;
+    cachePatternControls(snapshot.bank());
+    for (std::size_t track = 0; track < kTrackCount; ++track)
+    {
+        const std::uint8_t lengthCode = mCachedLengthCodes[pattern][track];
+        const std::int64_t length = static_cast<std::int64_t>(
+            EffectiveLength(lengthCode) * kSubstepCount);
+        std::uint8_t rotation = mCachedRotations[pattern][track];
+        const std::uint8_t effectiveMain = EffectiveLength(lengthCode);
+        if (effectiveMain < kMainStepCount && rotation > effectiveMain)
+            rotation = static_cast<std::uint8_t>(rotation % effectiveMain);
+        std::int64_t phase = timelineOrdinal % length;
+        if (phase < 0)
+            phase += length;
+        const std::int64_t target =
+            (static_cast<std::int64_t>(rotation) * kSubstepCount + phase) % length;
+        mTrackLengthCodes[track] = lengthCode;
+        mTrackPositions[track] = static_cast<std::int16_t>(
+            target == 0 ? length - 1 : target - 1);
+    }
+    localSnapshot.release();
+    return Status::Ok;
+}
+
+HostCallbackDecision TriggerScheduler::beginHostCallback(
+    const HostTransportContext& context, std::uint64_t nativeFrame,
+    Engine& engine, unsigned snapshotAttempts) noexcept
+{
+    (void)nativeFrame;
+    if (!mHostSync)
+    {
+        mClock.stop();
+        mHostTimeline.reset();
+        mHostSync = true;
+    }
+    const std::uint8_t shuffle =
+        mRequestedShuffle.load(std::memory_order_acquire);
+    mLastHostDecision = mHostTimeline.beginCallback(context, shuffle);
+    if (mLastHostDecision.usedPpqFallback)
+        incrementSaturating(mDiagnostics.hostPpqFallbacks);
+    if (mLastHostDecision.usedTempoFallback)
+        incrementSaturating(mDiagnostics.hostTempoFallbacks);
+
+    switch (mLastHostDecision.transition)
+    {
+        case HostTransition::Start: incrementSaturating(mDiagnostics.hostStarts); break;
+        case HostTransition::Resume: incrementSaturating(mDiagnostics.hostResumes); break;
+        case HostTransition::Stop: incrementSaturating(mDiagnostics.hostStops); break;
+        case HostTransition::Seek: incrementSaturating(mDiagnostics.hostSeeks); break;
+        case HostTransition::Loop: incrementSaturating(mDiagnostics.hostLoops); break;
+        case HostTransition::TempoChange:
+            incrementSaturating(mDiagnostics.hostTempoChanges); break;
+        case HostTransition::InvalidContext:
+            incrementSaturating(mDiagnostics.invalidHostCallbacks); break;
+        default: break;
+    }
+
+    if (mLastHostDecision.transition == HostTransition::Stop ||
+        mLastHostDecision.transition == HostTransition::InvalidContext)
+    {
+        mLastBatch.clear();
+        mLastAutomationBatch.clear();
+        mPendingOneShotRolls.store(0u, std::memory_order_release);
+        (void) engine.clearSequencerAutomation();
+    }
+
+    if (!mLastHostDecision.reanchor)
+        return mLastHostDecision;
+
+    std::uint8_t epochPattern = mPublishedActivePattern.load(
+        std::memory_order_acquire);
+    if (mLastHostDecision.transition == HostTransition::Loop && mHostEpochValid)
+        epochPattern = mHostEpochPattern;
+    else
+    {
+        mHostEpochPattern = epochPattern;
+        mHostEpochValid = true;
+    }
+
+    mActivePattern = epochPattern;
+    mPublishedActivePattern.store(epochPattern, std::memory_order_release);
+    mPendingPattern.store(epochPattern, std::memory_order_release);
+    mManualPatternPending.store(false, std::memory_order_release);
+    mRng.reset();
+    mProbability.reset(0u);
+    mBarCounter = 0u;
+    mMasterStepCounter = 0u;
+    mPendingOneShotRolls.store(0u, std::memory_order_release);
+    mLastBatch.clear();
+    mLastAutomationBatch.clear();
+    const Status positioned = initializeHostTrackPositions(
+        mLastHostDecision.nextTimelineOrdinal, epochPattern, snapshotAttempts);
+    if (positioned != Status::Ok)
+    {
+        incrementSaturating(mDiagnostics.snapshotBusyBoundaries);
+        mLastHostDecision.usable = false;
+        return mLastHostDecision;
+    }
+    mSuppressNextTrack0Transition = true;
+    (void) engine.clearSequencerAutomation();
+    return mLastHostDecision;
 }
 
 bool TriggerScheduler::trackWillWrap(std::size_t track,
@@ -247,7 +371,16 @@ void TriggerScheduler::preparePhysicalBoundary() noexcept
     ++mMasterStepCounter;
     const std::uint8_t track0Length = mCachedLengthCodes[mActivePattern][0];
     if (!trackWillWrap(0u, track0Length))
+    {
+        mSuppressNextTrack0Transition = false;
         return;
+    }
+
+    if (mSuppressNextTrack0Transition)
+    {
+        mSuppressNextTrack0Transition = false;
+        return;
+    }
 
     ++mBarCounter;
     const bool manual = mManualPatternPending.exchange(
@@ -451,20 +584,44 @@ void TriggerScheduler::dispatch(const TriggerEvent& event, Engine& engine) noexc
 Status TriggerScheduler::processNativeBlock(
     std::uint64_t nativeBoundary,
     Engine& engine,
-    unsigned snapshotAttempts) noexcept
+    unsigned snapshotAttempts,
+    std::int32_t hostSampleOffset) noexcept
 {
     incrementSaturating(mDiagnostics.processedNativeBlocks);
     mLastBatch.clear();
     mLastAutomationBatch.clear();
 
-    (void) mClock.setShuffle(mRequestedShuffle.load(std::memory_order_acquire));
+    const std::uint8_t shuffle =
+        mRequestedShuffle.load(std::memory_order_acquire);
+    (void) mClock.setShuffle(shuffle);
     ClockEvent clockEvent {};
     std::size_t written = 0u;
-    const std::uint64_t endFrame =
-        nativeBoundary == std::numeric_limits<std::uint64_t>::max()
-        ? nativeBoundary : nativeBoundary + 1u;
-    const Status clockStatus =
-        mClock.advanceTo(endFrame, &clockEvent, 1u, written);
+    Status clockStatus = Status::Ok;
+    if (mHostSync)
+    {
+        std::int64_t timelineOrdinal = 0;
+        std::uint64_t eventOrdinal = 0u;
+        if (mHostTimeline.popDueBoundary(hostSampleOffset, shuffle,
+                                         timelineOrdinal, eventOrdinal))
+        {
+            clockEvent.exactFrameFloor = nativeBoundary;
+            clockEvent.quantizedNativeFrame = nativeBoundary;
+            clockEvent.ordinal = eventOrdinal;
+            std::int64_t phase = timelineOrdinal %
+                static_cast<std::int64_t>(kPhysicalPositionCount);
+            if (phase < 0)
+                phase += kPhysicalPositionCount;
+            clockEvent.physicalPosition = static_cast<std::uint8_t>(phase);
+            written = 1u;
+        }
+    }
+    else
+    {
+        const std::uint64_t endFrame =
+            nativeBoundary == std::numeric_limits<std::uint64_t>::max()
+            ? nativeBoundary : nativeBoundary + 1u;
+        clockStatus = mClock.advanceTo(endFrame, &clockEvent, 1u, written);
+    }
     if (clockStatus == Status::NonMonotonicTime)
     {
         incrementSaturating(mDiagnostics.nonMonotonicBoundaries);
@@ -480,8 +637,9 @@ Status TriggerScheduler::processNativeBlock(
     if (written != 0u)
         incrementSaturating(mDiagnostics.duePhysicalPositions);
 
-    PatternStateAuthority::ReadHandle snapshot;
-    const Status acquired = mPatterns.tryAcquire(snapshot, snapshotAttempts);
+    PatternStateAuthority::ReadHandle localSnapshot;
+    const Status acquired = mProjectSnapshot != nullptr && mProjectSnapshot->active()
+        ? Status::Ok : mPatterns.tryAcquire(localSnapshot, snapshotAttempts);
     if (acquired != Status::Ok)
     {
         if (written != 0u)
@@ -490,6 +648,7 @@ Status TriggerScheduler::processNativeBlock(
         return acquired;
     }
 
+    const auto& snapshot = localSnapshot.active() ? localSnapshot : *mProjectSnapshot;
     cachePatternControls(snapshot.bank());
     if (written != 0u)
         generateEvents(clockEvent, snapshot);
@@ -503,11 +662,12 @@ Status TriggerScheduler::processNativeBlock(
         {
             rollClock.quantizedNativeFrame = nativeBoundary;
             rollClock.exactFrameFloor = nativeBoundary;
-            rollClock.ordinal = mClock.nextOrdinal();
+            rollClock.ordinal = mHostSync
+                ? mHostTimeline.nextEventOrdinal() : mClock.nextOrdinal();
         }
         generateOneShotRolls(rollClock, snapshot, oneShots);
     }
-    snapshot.release();
+    localSnapshot.release();
 
     for (const TriggerEvent& event : mLastBatch)
     {

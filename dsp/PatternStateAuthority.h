@@ -31,6 +31,13 @@ public:
         const PatternBank& bank() const noexcept;
         std::uint64_t generation() const noexcept { return mGeneration; }
         void release() noexcept;
+        // Processing-owner selection: exchange pins without copying bank data.
+        void swap(ReadHandle& other) noexcept
+        {
+            using std::swap;
+            swap(mOwner, other.mOwner); swap(mBank, other.mBank);
+            swap(mSlot, other.mSlot); swap(mGeneration, other.mGeneration);
+        }
 
     private:
         friend class PatternStateAuthority;
@@ -105,6 +112,25 @@ public:
     {
         return sizeof(PatternBank) * kSlotCount;
     }
+
+#if defined(LXR_R2_INTERNAL_PROBE)
+    // Header-only exact-binary probe hook. It is absent from production and
+    // preserves object layout; checkpoint tests call it only while no process
+    // callback is active.
+    void replaceForInternalProbe(const PatternBank& initial) noexcept
+    {
+        for (auto& slot : mSlots)
+        {
+            slot.bank = initial;
+            slot.generation = 0u;
+            slot.readers.store(0u, std::memory_order_relaxed);
+            slot.state.store(SlotState::Available, std::memory_order_relaxed);
+        }
+        mActive.store(0u, std::memory_order_relaxed);
+        mGeneration.store(0u, std::memory_order_relaxed);
+        mWriter.clear(std::memory_order_relaxed);
+    }
+#endif
 
 private:
     enum class SlotState : std::uint8_t { Available = 0, Writing = 1 };

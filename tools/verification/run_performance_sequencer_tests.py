@@ -17,7 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIRMWARE = ROOT / "ref/LXR-0.37/mainboard/LxrStm32/src/Sequencer"
 PRODUCTION = [
     "Cymbal", "Decimator", "Distortion", "DrumVoice", "Engine",
-    "Envelopes", "HiHat", "Lfo", "LXRAudioAdapter", "Mixer", "Modulation",
+    "Envelopes", "HiHat", "HostTransport", "Lfo", "LXRAudioAdapter", "Mixer", "Modulation",
     "Oscillator", "OscTables", "ParamMapEnv", "ParamMapMisc", "PatternBank",
     "ParameterArray", "PatternStateAuthority", "ResonantFilter", "SequencerClock",
     "Snare", "TransientGen", "TransientTables", "TriggerScheduler",
@@ -134,6 +134,7 @@ def main() -> int:
         ROOT / "tests/reference/sequencer/original_performance_adapter.h",
         original, FIRMWARE / "sequencer.c", FIRMWARE / "sequencer.h",
         ROOT / "dsp/PatternBank.cpp", ROOT / "dsp/SequencerClock.cpp",
+        ROOT / "dsp/HostTransport.cpp",
         ROOT / "dsp/TriggerScheduler.cpp",
         ROOT / "tools/verification/run_performance_sequencer_tests.py",
     ]

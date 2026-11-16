@@ -3,6 +3,7 @@
 #include "IPlug_include_in_plug_hdr.h"
 #include "LXRParamContract.h"
 #include "LXRState.h"
+#include "LXRProjectState.h"
 
 #include "../../../../../dsp/Engine.h"
 #include "../../../../../dsp/FixedFifo.h"
@@ -12,6 +13,7 @@
 #include "../../../../../dsp/LXRAudioAdapter.h"
 #include "../../../../../dsp/RouteHostControls.h"
 #include "../../../../../dsp/TriggerScheduler.h"
+#include "../../../../../dsp/RollHostControls.h"
 
 #include <array>
 #include <atomic>
@@ -78,6 +80,9 @@ private:
   friend struct LXRControllerSyncTestProbe;
   friend struct P15M2GStateIntegrationTestProbe;
   friend struct P15M2HHostControlsTestProbe;
+  friend struct P16F1VST3TransportTestProbe;
+  friend struct P16F2VST3StateTestProbe;
+  friend struct P16F3VST3CertificationProbe;
 
   // Native LXR synthesis/DSP engine.
   lxr::Engine mEngine;
@@ -95,9 +100,19 @@ private:
   // Host-independent bridge around the Engine's fixed 32-frame,
   // four-output rendering contract.
   lxr::LXRAudioAdapter mAudioAdapter;
-  // Internal P16-C transport. It is stopped by default and has no host
-  // parameter, host-sync or persistence surface in this milestone.
+  // Sequencer transport and the existing immutable three-slot bank authority.
   lxr::sequencer::TriggerScheduler mSequencer;
+  // Declared after scheduler, so this pin releases before its authority dies.
+  lxr::sequencer::PatternStateAuthority::ReadHandle mAppliedPattern;
+  lxr::sequencer::state::TransportConfig mTransportConfig {}; // outer gate
+  lxr::sequencer::state::TransportConfig mAudioTransport {}; // audio owner
+  std::array<std::atomic<uint64_t>, 3> mDeferredTransportValues {};
+  lxr::sequencer::RollHostControls mRollControls {}; // outer coordinator
+  lxr::sequencer::RollHostControls mAudioRollControls {}; // processing owner
+  std::array<std::atomic<uint64_t>, 2> mDeferredRollValues {};
+  std::atomic<uint64_t> mRollReleaseCutoff {0};
+  std::atomic<bool> mRollReleasePending {false};
+  std::uint8_t mAppliedRollMask = 0;
   bool mAssetsLoaded = false;
 
   using StateAuthority =
@@ -145,6 +160,37 @@ private:
   lxr::FixedFifo<iplug::IMidiMsg, kDeferredMidiCapacity> mDeferredMidi;
   std::atomic<uint64_t> mDeferredMidiOverflows {0};
 
+  // VST3 extracts all MIDI before ProcessBlock. Keep valid callback-relative
+  // offsets until the host sample is reached; native PCM remains 32-frame
+  // quantized by the unchanged adapter. Sequence breaks equal-offset ties.
+  struct CallbackMidi {
+    iplug::IMidiMsg message;
+    std::uint32_t sequence = 0;
+  };
+  std::array<CallbackMidi, kDeferredMidiCapacity> mCallbackMidi {};
+  std::size_t mCallbackMidiCount = 0;
+  int mCallbackMidiFrames = 0;
+  bool mCollectCallbackMidi = false;
+  std::atomic<uint64_t> mInvalidMidiOffsets {0};
+  std::atomic<uint64_t> mRejectedParameterQueues {0};
+  std::atomic<uint64_t> mRejectedMidiInputRecords {0};
+  std::atomic<uint64_t> mMalformedMidiInputCounts {0};
+  std::uint32_t mCallbackMidiPeak = 0; // processing owner; read only while stopped
+  std::uint64_t mDispatchedMidiMessages = 0; // successful parser dispatches
+
+  // IDs 240--242 project LXRS v3 transport configuration. Legacy state supplies
+  // OFF/Internal/120 defaults; these remain outside the frozen LXRS v2 format.
+  std::atomic<std::uint8_t> mSequencerEnabled {0u};
+  std::atomic<std::uint8_t> mSequencerClockMode {0u};
+  std::atomic<std::uint16_t> mSequencerInternalTempo {120u};
+  // Captured directly from the callback-scoped VST3 ProcessContext. The
+  // pinned iPlug2 ITimeInfo drops individual validity flags and can retain
+  // stale optional values, so Host Sync deliberately does not consume it.
+  lxr::sequencer::HostTransportContext mHostProcessContext {};
+  bool mAppliedSequencerEnabled = false;
+  std::uint8_t mAppliedSequencerClockMode = 0u;
+  std::uint16_t mAppliedSequencerInternalTempo = 120u;
+
   // Reset Engine and adapter state, then reconstruct the Engine from
   // one coherent authoritative state snapshot.
   void ResetEngineState();
@@ -154,10 +200,17 @@ private:
   bool TryPersistentSnapshot(
     StateAuthority::Values& parameters,
     uint64_t& parameterGeneration,
-    lxr::RoutingStateAuthority::Snapshot& routing) const;
+    lxr::RoutingStateAuthority::Snapshot& routing,
+    lxr::sequencer::PatternStateAuthority::ReadHandle* pattern = nullptr,
+    lxr::sequencer::state::TransportConfig* transport = nullptr,
+    lxr::sequencer::RollHostControls* rolls = nullptr) const;
   bool PublishPersistentRestore(
     const StateAuthority::Values& parameters,
-    const lxr::PersistentRoutingState& routing);
+    const lxr::PersistentRoutingState& routing,
+    const lxr::sequencer::PatternBank* bank = nullptr,
+    const lxr::sequencer::state::TransportConfig* transport = nullptr,
+    uint64_t expectedJointGeneration = UINT64_MAX);
+  bool ImportSequencerBank(const char* path);
   bool StageCompleteRestore(
     const StateAuthority::Values& parameters,
     const lxr::PersistentRoutingState& routing);
@@ -180,6 +233,10 @@ private:
     lxr::route_host::RouteToken16 token,
     uint64_t ticket) noexcept;
   bool ProcessMidiMsgNow(const iplug::IMidiMsg& msg);
+  void FlushCallbackMidi();
   bool EnqueueDeferredMidi(const iplug::IMidiMsg& msg) noexcept;
   void DrainDeferredMidi();
+  void ApplySequencerTransport(int callbackFrames) noexcept;
+  void ApplyRollControls() noexcept;
+  void ReleaseRollControls() noexcept;
 };

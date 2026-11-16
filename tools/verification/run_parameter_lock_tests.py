@@ -17,7 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 REF_DSP = ROOT / "ref/LXR-0.37/mainboard/LxrStm32/src/DSPAudio"
 PRODUCTION = [
     "Cymbal", "Decimator", "Distortion", "DrumVoice", "Engine",
-    "Envelopes", "HiHat", "Lfo", "LXRAudioAdapter", "MidiParser", "Mixer", "Modulation",
+    "Envelopes", "HiHat", "HostTransport", "Lfo", "LXRAudioAdapter", "MidiParser", "Mixer", "Modulation",
     "Oscillator", "OscTables", "ParameterArray", "ParamMapEnv", "ParamMapMisc",
     "PatternBank", "PatternStateAuthority", "ResonantFilter", "SequencerClock",
     "Snare", "TransientGen", "TransientTables", "TriggerScheduler",
@@ -29,7 +29,11 @@ def digest(path: pathlib.Path) -> str:
 
 
 def run(command: list[str]) -> dict:
-    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+    try:
+        result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+    except OSError as error:
+        return {"command": command, "exit_code": -1, "stdout": "", "stderr": str(error),
+                "status": "BLOCKED" if getattr(error, "winerror", None) == 4551 else "ERROR"}
     return {"command": command, "exit_code": result.returncode,
             "stdout": result.stdout, "stderr": result.stderr,
             "status": "PASS" if result.returncode == 0 else "FAIL"}
@@ -91,7 +95,8 @@ def main() -> int:
 
     passed = len(metrics) == 2 and all(m.get("fail") == 0 and m.get("allocations") == 0
                                        for m in metrics.values())
-    classification = "PASS" if passed else "FAIL"
+    denied = any(r["execute"].get("status") == "BLOCKED" for r in runs)
+    classification = "PASS" if passed else "BLOCKED" if denied else "FAIL"
     generated = datetime.now(timezone.utc).isoformat()
     common_result = {"firmware_revision": "dee49689f3f0cdf8f9b7b5e79628cfdca1b79394",
                      "generated_utc": generated, "classification": classification,

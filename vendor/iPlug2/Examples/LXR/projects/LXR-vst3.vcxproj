@@ -205,6 +205,7 @@
     <ClCompile Include="..\..\..\..\..\dsp\PatternBank.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\PatternStateAuthority.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\SequencerClock.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\HostTransport.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\TriggerScheduler.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\LXRResourceLocator.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\DrumVoice.cpp" />
@@ -350,6 +351,7 @@
     <ClInclude Include="..\LXR.h" />
     <ClInclude Include="..\resources\resource.h" />
     <ClInclude Include="..\..\..\..\..\dsp\Engine.h" />
+    <ClInclude Include="..\..\..\..\..\dsp\HostTransport.h" />
     <ClInclude Include="..\..\..\..\..\dsp\DrumVoice.h" />
     <ClInclude Include="..\..\..\..\..\dsp\Snare.h" />
     <ClInclude Include="..\..\..\..\..\dsp\Cymbal.h" />

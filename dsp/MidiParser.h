@@ -5,6 +5,7 @@
 #include "ParameterArray.h"
 
 namespace lxr {
+namespace sequencer { class TriggerScheduler; }
 
 // MIDI Channel to Voice mapping (1-indexed channels)
 // Ch 1=D1, Ch 2=D2, Ch 3=D3, Ch 4=SN, Ch 5=CY, Ch 6=HH, Ch 7=HH_OPEN
@@ -25,7 +26,8 @@ public:
     void processByte(uint8_t byte, Engine& engine, ParameterArray& params);
     
     // Alternative: Process a fully formed MIDI event
-    void processEvent(const MidiEvent& event, Engine& engine, ParameterArray& params);
+    void processEvent(const MidiEvent& event, Engine& engine, ParameterArray& params,
+                      sequencer::TriggerScheduler* sequencer = nullptr);
 
 private:
     uint8_t m_runningStatus = 0;
@@ -33,7 +35,8 @@ private:
     void handleNoteOn(uint8_t channel, uint8_t note, uint8_t vel, Engine& engine);
     void handleNoteOff(uint8_t channel, uint8_t note, uint8_t vel, Engine& engine);
     void handleCC(uint8_t channel, uint8_t cc, uint8_t value, Engine& engine, ParameterArray& params);
-    void handleNRPN(uint8_t channel, uint16_t nrpn, uint8_t value, Engine& engine, ParameterArray& params);
+    void handleNRPN(uint8_t channel, uint16_t nrpn, uint8_t value, Engine& engine,
+                    ParameterArray& params, sequencer::TriggerScheduler* sequencer);
     
     // NRPN state machine
     uint8_t m_nrpnMsb = 0;
