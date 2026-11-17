@@ -4,6 +4,9 @@
 #include "LXRParamContract.h"
 #include "LXRState.h"
 #include "LXRProjectState.h"
+#if defined(VST3_API)
+#include "LXRKitManagementInterface.h"
+#endif
 
 #include "../../../../../dsp/Engine.h"
 #include "../../../../../dsp/FixedFifo.h"
@@ -12,6 +15,7 @@
 #include "../../../../../dsp/MidiParser.h"
 #include "../../../../../dsp/LXRAudioAdapter.h"
 #include "../../../../../dsp/RouteHostControls.h"
+#include "../../../../../dsp/KitManagement.h"
 #include "../../../../../dsp/RuntimeKitLoad.h"
 #include "../../../../../dsp/TriggerScheduler.h"
 #include "../../../../../dsp/RollHostControls.h"
@@ -20,6 +24,9 @@
 #include <atomic>
 
 class LXR final : public iplug::Plugin
+#if defined(VST3_API)
+                , public lxr::vst::IKitManagement
+#endif
 {
 public:
   explicit LXR(
@@ -68,7 +75,40 @@ public:
   lxr::kit::RuntimeLoadResult LoadRuntimeKit(
     const lxr::kit::CanonicalKit& kit);
 
+  // Layer A: supported non-real-time production operations. The editor and
+  // exact-VST3 harness use these same entry points; neither performs file I/O
+  // or validation inside the processing callback.
+  lxr::kit::management::OperationResult ImportKitFile(
+    const wchar_t* path);
+  lxr::kit::management::OperationResult ExportKitFile(
+    const wchar_t* path);
+  lxr::kit::management::DisplayName CurrentKitDisplayName() const;
+  lxr::kit::management::OperationResult LastKitOperation() const
+  {
+    return mLastKitOperation;
+  }
+
 #if defined(VST3_API)
+  Steinberg::tresult PLUGIN_API queryInterface(
+    const Steinberg::TUID iid, void** object) override;
+  Steinberg::uint32 PLUGIN_API addRef() override
+  {
+    return iplug::Plugin::addRef();
+  }
+  Steinberg::uint32 PLUGIN_API release() override
+  {
+    return iplug::Plugin::release();
+  }
+  Steinberg::tresult PLUGIN_API importSnd(
+    const Steinberg::Vst::TChar* path,
+    Steinberg::uint32 pathCharacters,
+    lxr::vst::KitOperationWire* result) override;
+  Steinberg::tresult PLUGIN_API exportSnd(
+    const Steinberg::Vst::TChar* path,
+    Steinberg::uint32 pathCharacters,
+    lxr::vst::KitOperationWire* result) override;
+  Steinberg::tresult PLUGIN_API getKitOperation(
+    lxr::vst::KitOperationWire* result) override;
   Steinberg::tresult PLUGIN_API setParamNormalized(
     Steinberg::Vst::ParamID tag,
     Steinberg::Vst::ParamValue value) override;
@@ -91,6 +131,7 @@ private:
   friend struct P16F2VST3StateTestProbe;
   friend struct P16F3VST3CertificationProbe;
   friend struct P17DRuntimeKitLoadTestProbe;
+  friend struct P17EKitManagementTestProbe;
 
   // Native LXR synthesis/DSP engine.
   lxr::Engine mEngine;
@@ -138,6 +179,11 @@ private:
   uint64_t mAppliedJointGeneration = 0;
   uint64_t mAppliedKitGeneration = 0;
   uint64_t mAppliedKitNativeBoundary = 0;
+
+  // Main-thread/non-real-time kit-management presentation state. The musical
+  // authority remains mState+mRoutingState; these fields never feed rendering.
+  lxr::kit::management::OperationResult mLastKitOperation {};
+  std::array<char, 1024> mLastKitOperationPath {};
 
   // A host/UI parameter callback that overlaps the bounded writer gate stores
   // its latest value here. Bit 8 marks a pending 7-bit value. Processing drains
@@ -221,6 +267,23 @@ private:
     const lxr::sequencer::state::TransportConfig* transport = nullptr,
     uint64_t expectedJointGeneration = UINT64_MAX);
   bool ImportSequencerBank(const char* path);
+  bool SnapshotCurrentKit(
+    lxr::kit::CanonicalKit& kit,
+    std::array<lxr::PersistentRouteRecord,
+               lxr::kPersistentRouteCount>& routes) const;
+  void SetLastKitOperationPath(const char* path) noexcept;
+#if defined(VST3_API)
+  static void CopyKitOperationWire(
+    const lxr::kit::management::OperationResult& source,
+    lxr::vst::KitOperationWire& destination) noexcept;
+  static bool CopyKitOperationPath(
+    const Steinberg::Vst::TChar* source,
+    Steinberg::uint32 characters,
+    std::array<wchar_t, lxr::kit::snd::kPathCapacity>& destination) noexcept;
+#endif
+#if IPLUG_EDITOR
+  void RefreshKitManagementControls();
+#endif
   bool StageCompleteRestore(
     const StateAuthority::Values& parameters,
     const lxr::PersistentRoutingState& routing);

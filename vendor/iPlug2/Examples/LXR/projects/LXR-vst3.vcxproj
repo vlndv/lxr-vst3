@@ -227,6 +227,9 @@
     <ClCompile Include="..\..\..\..\..\dsp\Modulation.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\ParameterArray.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\KitContract.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\KitFileCodec.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\KitFileIO.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\KitFileIOWin32.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\MidiParser.cpp" />
   </ItemGroup>
   <ItemGroup>

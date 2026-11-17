@@ -111,7 +111,8 @@ class Runner:
                             ignore=shutil.ignore_patterns("__pycache__", "*.exe", "*.obj", "*.o"))
         overlay = self.source / "vendor/iPlug2/Examples/LXR"
         overlay.mkdir(parents=True)
-        for name in ("LXR.h", "LXRState.h", "LXRProjectState.h", "LXRParamContract.h", "config.h"):
+        for name in ("LXR.h", "LXRState.h", "LXRProjectState.h", "LXRParamContract.h",
+                     "LXRKitManagementInterface.h", "config.h"):
             shutil.copyfile(self.root / "vendor/iPlug2/Examples/LXR" / name, overlay / name)
         # The production project supplies projects/ as include context for its
         # five-parent DSP includes. A standalone probe has a different include
@@ -244,6 +245,8 @@ class Runner:
         fixtures = self.out / "sequencer-fixtures"
         self.command("generate-sequencer-fixtures", [sys.executable,
             self.root / "tools/verification/generate_sequencer_fixtures.py", "--output", fixtures])
+        kit_fixtures = self.out / "kit-management-files"
+        kit_fixtures.mkdir()
         for name, flags in cases:
             source = "P12cR2ControllerSyncTest" if name == "ControllerSyncProbe" else name
             exe = hostout / (name + ".exe")
@@ -253,6 +256,8 @@ class Runner:
             arguments = [exe, plugin]
             if name == "P16F2VST3StateTest":
                 arguments.append(fixtures / "musical.lxqb")
+            if name == "P17EVST3KitManagementTest":
+                arguments.append(kit_fixtures)
             self.command(name, arguments, env=env, test=True, timeout=55)
         self.command("SteinbergValidator", [build / "bin/Release/validator.exe", plugin], env=env, test=True, timeout=55)
         assert digest(plugin) == before, "Plugin changed during read-only host tests"

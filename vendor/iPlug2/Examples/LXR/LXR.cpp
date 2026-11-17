@@ -40,6 +40,11 @@
 namespace
 {
 
+#if IPLUG_EDITOR
+constexpr int kKitNameControlTag = 17001;
+constexpr int kKitStatusControlTag = 17002;
+#endif
+
 #if defined(VST3_API)
 // Non-owning, callback-scoped adapters for the installed iPlug2 dispatcher.
 // It reads each queue synchronously and does not retain these interfaces.
@@ -505,6 +510,105 @@ void FormatRouteHostValue(std::size_t routeSlot, double value,
 
 } // namespace
 
+#if defined(VST3_API)
+namespace lxr::vst
+{
+DEF_CLASS_IID(IKitManagement)
+}
+
+Steinberg::tresult PLUGIN_API LXR::queryInterface(
+    const Steinberg::TUID iid, void** object)
+{
+    if (object == nullptr)
+        return Steinberg::kInvalidArgument;
+    if (Steinberg::FUnknownPrivate::iidEqual(
+            iid, lxr::vst::IKitManagement::iid))
+    {
+        *object = static_cast<lxr::vst::IKitManagement*>(this);
+        addRef();
+        return Steinberg::kResultOk;
+    }
+    return iplug::Plugin::queryInterface(iid, object);
+}
+
+bool LXR::CopyKitOperationPath(
+    const Steinberg::Vst::TChar* source,
+    Steinberg::uint32 characters,
+    std::array<wchar_t, lxr::kit::snd::kPathCapacity>& destination) noexcept
+{
+    static_assert(sizeof(Steinberg::Vst::TChar) == sizeof(wchar_t),
+                  "Windows VST3 paths require matching 16-bit code units");
+    destination.fill(0);
+    if (source == nullptr || characters == 0u ||
+        characters >= destination.size())
+        return false;
+    for (Steinberg::uint32 i = 0; i < characters; ++i)
+    {
+        if (source[i] == 0)
+            return false;
+        destination[i] = static_cast<wchar_t>(source[i]);
+    }
+    return true;
+}
+
+void LXR::CopyKitOperationWire(
+    const lxr::kit::management::OperationResult& source,
+    lxr::vst::KitOperationWire& destination) noexcept
+{
+    destination = {};
+    destination.action = static_cast<Steinberg::uint32>(source.action);
+    destination.status = static_cast<Steinberg::uint32>(source.status);
+    destination.fileError = static_cast<Steinberg::uint32>(source.fileError);
+    destination.codecError = static_cast<Steinberg::uint32>(source.codecError);
+    destination.issue = static_cast<Steinberg::uint32>(source.issue);
+    destination.publicationStatus =
+        static_cast<Steinberg::uint32>(source.publicationStatus);
+    destination.field = source.field;
+    destination.route = source.route;
+    destination.nativeError = source.nativeError;
+    destination.published = source.published ? 1u : 0u;
+    for (std::size_t i = 0; i < source.name.size(); ++i)
+        destination.name[i] = source.name[i];
+}
+
+Steinberg::tresult PLUGIN_API LXR::importSnd(
+    const Steinberg::Vst::TChar* path,
+    Steinberg::uint32 pathCharacters,
+    lxr::vst::KitOperationWire* result)
+{
+    if (result == nullptr)
+        return Steinberg::kInvalidArgument;
+    std::array<wchar_t, lxr::kit::snd::kPathCapacity> nativePath;
+    if (!CopyKitOperationPath(path, pathCharacters, nativePath))
+        return Steinberg::kInvalidArgument;
+    CopyKitOperationWire(ImportKitFile(nativePath.data()), *result);
+    return Steinberg::kResultOk;
+}
+
+Steinberg::tresult PLUGIN_API LXR::exportSnd(
+    const Steinberg::Vst::TChar* path,
+    Steinberg::uint32 pathCharacters,
+    lxr::vst::KitOperationWire* result)
+{
+    if (result == nullptr)
+        return Steinberg::kInvalidArgument;
+    std::array<wchar_t, lxr::kit::snd::kPathCapacity> nativePath;
+    if (!CopyKitOperationPath(path, pathCharacters, nativePath))
+        return Steinberg::kInvalidArgument;
+    CopyKitOperationWire(ExportKitFile(nativePath.data()), *result);
+    return Steinberg::kResultOk;
+}
+
+Steinberg::tresult PLUGIN_API LXR::getKitOperation(
+    lxr::vst::KitOperationWire* result)
+{
+    if (result == nullptr)
+        return Steinberg::kInvalidArgument;
+    CopyKitOperationWire(mLastKitOperation, *result);
+    return Steinberg::kResultOk;
+}
+#endif
+
 // ---------------------------------------------------------
 // Constructor
 // ---------------------------------------------------------
@@ -530,22 +634,76 @@ LXR::LXR(
         graphics->AttachPanelBackground(COLOR_WHITE);
         graphics->LoadFont("LXRSystem", "Segoe UI", ETextStyle::Normal);
         const IText text(18, COLOR_BLACK, "LXRSystem");
-        graphics->AttachControl(new ITextControl(IRECT(20, 20, 580, 65),
-            "LXR sequencer bank import", text));
-        auto* status = new ITextControl(IRECT(20, 150, 580, 240),
+        graphics->AttachControl(new ITextControl(IRECT(20, 15, 580, 50),
+            "LXR whole-kit management", text));
+        graphics->AttachControl(new ITextControl(IRECT(20, 55, 580, 90),
+            "Current kit: <unnamed>", text), kKitNameControlTag);
+        graphics->AttachControl(new ITextControl(IRECT(20, 165, 580, 255),
+            "Ready. Import and export run outside audio processing.", text),
+            kKitStatusControlTag);
+        graphics->AttachControl(new IVButtonControl(IRECT(20, 105, 285, 155),
+            [this, graphics](IControl*) {
+                WDL_String file, directory;
+                graphics->PromptForFile(file, directory, EFileAction::Open, "snd",
+                    [this](const WDL_String& selected, const WDL_String&) {
+                        if (selected.GetLength() == 0)
+                        {
+                            mLastKitOperation = {};
+                            mLastKitOperation.action =
+                                lxr::kit::management::Action::Import;
+                            mLastKitOperation.status =
+                                lxr::kit::management::Status::Cancelled;
+                            SetLastKitOperationPath(nullptr);
+                        }
+                        else
+                        {
+                            const iplug::UTF8AsUTF16 wide(selected);
+                            (void) ImportKitFile(wide.Get());
+                            SetLastKitOperationPath(selected.Get());
+                        }
+                        RefreshKitManagementControls();
+                    });
+            }, "Import .snd kit", DEFAULT_STYLE.WithLabelText(text)));
+        graphics->AttachControl(new IVButtonControl(IRECT(315, 105, 580, 155),
+            [this, graphics](IControl*) {
+                WDL_String file, directory;
+                graphics->PromptForFile(file, directory, EFileAction::Save, "snd",
+                    [this](const WDL_String& selected, const WDL_String&) {
+                        if (selected.GetLength() == 0)
+                        {
+                            mLastKitOperation = {};
+                            mLastKitOperation.action =
+                                lxr::kit::management::Action::Export;
+                            mLastKitOperation.status =
+                                lxr::kit::management::Status::Cancelled;
+                            SetLastKitOperationPath(nullptr);
+                        }
+                        else
+                        {
+                            const iplug::UTF8AsUTF16 wide(selected);
+                            (void) ExportKitFile(wide.Get());
+                            SetLastKitOperationPath(selected.Get());
+                        }
+                        RefreshKitManagementControls();
+                    });
+            }, "Export .snd kit", DEFAULT_STYLE.WithLabelText(text)));
+        graphics->AttachControl(new ITextControl(IRECT(20, 275, 580, 310),
+            "Sequencer bank", text));
+        auto* bankStatus = new ITextControl(IRECT(20, 375, 580, 445),
             "Load an LXQB bank. Transport uses host parameters 240-242.", text);
-        graphics->AttachControl(status);
-        graphics->AttachControl(new IVButtonControl(IRECT(20, 80, 310, 135),
-            [this, graphics, status](IControl*) {
+        graphics->AttachControl(bankStatus);
+        graphics->AttachControl(new IVButtonControl(IRECT(20, 320, 310, 365),
+            [this, graphics, bankStatus](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Open, "lxqb",
-                    [this, status](const WDL_String& selected, const WDL_String&) {
+                    [this, bankStatus](const WDL_String& selected, const WDL_String&) {
                         if (selected.GetLength() == 0) return;
-                        status->SetStr(ImportSequencerBank(selected.Get())
+                        bankStatus->SetStr(ImportSequencerBank(selected.Get())
                             ? "Bank loaded. Enable the sequencer to play."
                             : "Import rejected or Busy. Previous state retained.");
                     });
             }, "Import sequencer bank", DEFAULT_STYLE.WithLabelText(text)));
+        RefreshKitManagementControls();
     };
 #endif
     // Preserve the native parameter contract.
@@ -1244,6 +1402,146 @@ lxr::kit::RuntimeLoadResult LXR::LoadRuntimeKit(
     return result;
 }
 
+bool LXR::SnapshotCurrentKit(
+    lxr::kit::CanonicalKit& kit,
+    std::array<lxr::PersistentRouteRecord,
+               lxr::kPersistentRouteCount>& routes) const
+{
+    StateAuthority::Values patch;
+    std::uint64_t generation = 0;
+    lxr::RoutingStateAuthority::Snapshot routing;
+    if (!TryPersistentSnapshot(patch, generation, routing))
+        return false;
+
+    lxr::kit::RawKit raw;
+    raw.name = routing.kitName;
+    raw.values = patch;
+    lxr::kit::CanonicalKit candidate;
+    if (!lxr::kit::DecodeRawKit(raw, candidate))
+        return false;
+    kit = candidate;
+    routes = routing.state.routes;
+    return true;
+}
+
+lxr::kit::management::OperationResult LXR::ImportKitFile(
+    const wchar_t* path)
+{
+    lxr::kit::CanonicalKit kit;
+    const auto file = lxr::kit::snd::ReadFile(path, kit);
+    if (!file)
+    {
+        mLastKitOperation = lxr::kit::management::FromFileFailure(
+            lxr::kit::management::Action::Import, file);
+        return mLastKitOperation;
+    }
+
+    const auto load = LoadRuntimeKit(kit);
+    if (!load)
+    {
+        mLastKitOperation =
+            lxr::kit::management::FromPublicationFailure(load);
+        return mLastKitOperation;
+    }
+
+    mLastKitOperation = {};
+    mLastKitOperation.action = lxr::kit::management::Action::Import;
+    mLastKitOperation.status = lxr::kit::management::Status::Success;
+    mLastKitOperation.publicationStatus = load.publication.status;
+    mLastKitOperation.published = true;
+    mLastKitOperation.name = kit.name;
+    return mLastKitOperation;
+}
+
+lxr::kit::management::OperationResult LXR::ExportKitFile(
+    const wchar_t* path)
+{
+    lxr::kit::CanonicalKit kit;
+    std::array<lxr::PersistentRouteRecord,
+               lxr::kPersistentRouteCount> routes;
+    if (!SnapshotCurrentKit(kit, routes))
+    {
+        mLastKitOperation = {};
+        mLastKitOperation.action = lxr::kit::management::Action::Export;
+        mLastKitOperation.status =
+            lxr::kit::management::Status::HostUnavailable;
+        return mLastKitOperation;
+    }
+
+    const auto file = lxr::kit::snd::WriteNewFile(path, kit, routes);
+    if (!file)
+    {
+        mLastKitOperation = lxr::kit::management::FromFileFailure(
+            lxr::kit::management::Action::Export, file);
+        mLastKitOperation.name = kit.name;
+        return mLastKitOperation;
+    }
+
+    mLastKitOperation = {};
+    mLastKitOperation.action = lxr::kit::management::Action::Export;
+    mLastKitOperation.status = lxr::kit::management::Status::Success;
+    mLastKitOperation.published = file.published;
+    mLastKitOperation.name = kit.name;
+    return mLastKitOperation;
+}
+
+lxr::kit::management::DisplayName LXR::CurrentKitDisplayName() const
+{
+    lxr::RoutingStateAuthority::Guard guard;
+    lxr::RoutingStateAuthority::Snapshot routing;
+    if (mRoutingState.tryAcquire(guard) &&
+        mRoutingState.copyLocked(guard, routing))
+        return lxr::kit::management::FormatName(routing.kitName);
+    return lxr::kit::management::FormatName(mLastKitOperation.name);
+}
+
+void LXR::SetLastKitOperationPath(const char* path) noexcept
+{
+    mLastKitOperationPath.fill(0);
+    if (path == nullptr)
+        return;
+    std::size_t at = 0;
+    while (at + 1u < mLastKitOperationPath.size() && path[at] != 0)
+    {
+        mLastKitOperationPath[at] = path[at];
+        ++at;
+    }
+}
+
+#if IPLUG_EDITOR
+void LXR::RefreshKitManagementControls()
+{
+    auto* graphics = GetUI();
+    if (graphics == nullptr)
+        return;
+    auto* nameControl = graphics->GetControlWithTag(kKitNameControlTag);
+    auto* statusControl = graphics->GetControlWithTag(kKitStatusControlTag);
+    if (nameControl != nullptr)
+    {
+        const auto name = CurrentKitDisplayName();
+        WDL_String text;
+        text.SetFormatted(96, "Current kit: %s", name.text.data());
+        static_cast<iplug::igraphics::ITextControl*>(nameControl)->SetStr(text.Get());
+    }
+    if (statusControl != nullptr)
+    {
+        WDL_String text;
+        const auto* description =
+            lxr::kit::management::StatusDescription(mLastKitOperation.status);
+        if (mLastKitOperationPath[0] != 0)
+            text.SetFormatted(1400, "%s\n%s", description,
+                              mLastKitOperationPath.data());
+        else
+            text.Set(description);
+        if (mLastKitOperation.field != 0xffffu)
+            text.AppendFormatted(64, " Field %u.", mLastKitOperation.field);
+        if (mLastKitOperation.route != 0xffu)
+            text.AppendFormatted(64, " Route %u.", mLastKitOperation.route);
+        static_cast<iplug::igraphics::ITextControl*>(statusControl)->SetStr(text.Get());
+    }
+}
+#endif
+
 // ---------------------------------------------------------
 // Versioned state serialization
 // ---------------------------------------------------------
@@ -1924,6 +2222,9 @@ Steinberg::tresult PLUGIN_API LXR::setComponentHandler(
 
 void LXR::OnIdle()
 {
+#if IPLUG_EDITOR
+    RefreshKitManagementControls();
+#endif
     if (mRollReleasePending.load(std::memory_order_acquire) &&
         !FlushDeferredHostParameters()) return;
 #if defined(VST3_API)
