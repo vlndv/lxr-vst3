@@ -36,8 +36,9 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     out = args.output.resolve()
-    assert any((ROOT / p).resolve() in out.parents for p in ('out/p16f3', 'out/p16f4', 'out/p16f5', 'out/p16f6')), \
-        'Private output must be under out/p16f3, out/p16f4, out/p16f5 or out/p16f6'
+    allowed = ('out/p16f3', 'out/p16f4', 'out/p16f5', 'out/p16f6', 'out/p17d')
+    assert any((ROOT / p).resolve() in out.parents for p in allowed), \
+        'Private output must be under an approved milestone evidence directory'
     before = protected()
     out.mkdir(parents=True, exist_ok=False)
     paths = sorted(set(subprocess.check_output(

@@ -51,6 +51,11 @@ public:
     // Host transport adaptation: restore every temporary lock from the newest
     // authoritative base without changing patch or modulation-route state.
     bool clearSequencerAutomation() noexcept;
+    // Re-apply every still-active lock after a whole-kit base replacement.
+    // Duplicate destinations retain their original application chronology, so
+    // the same newest lock remains effective and later release restores the
+    // newest authoritative kit byte.
+    bool reapplySequencerAutomation() noexcept;
     modulation_contract::HostParameterId sequencerAutomationDestination(
         std::uint8_t track, std::uint8_t slot) const noexcept;
     // Original mixer stage: restore converted bases, replay held sources, then
@@ -94,6 +99,9 @@ private:
     std::uint8_t mAuthoritativeRawParameters[modulation_contract::kSoundSlotCount] {};
     bool mAuthoritativeRawKnown[modulation_contract::kSoundSlotCount] {};
     modulation_contract::HostParameterId mSequencerAutomationDestinations[14] {};
+    std::uint8_t mSequencerAutomationValues[14] {};
+    std::uint64_t mSequencerAutomationRevisions[14] {};
+    std::uint64_t mSequencerAutomationRevision = 0;
     float* velocityFloatField(modulation_contract::FirmwareParameterId parameter) noexcept;
     std::uint8_t* velocityByteField(modulation_contract::FirmwareParameterId parameter) noexcept;
     VelocityRouteStatus configureModulationDestination(unsigned node,
@@ -108,6 +116,7 @@ private:
     bool setSequencerAutomationDestination(
         std::size_t node,
         const sequencer::AutomationSlotCommand& command) noexcept;
+    std::uint64_t nextSequencerAutomationRevision() noexcept;
 };
 
 } // namespace lxr

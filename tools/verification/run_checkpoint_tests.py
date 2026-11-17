@@ -235,6 +235,9 @@ class Runner:
         authority_object = hostout / "PatternStateAuthority.obj"
         self.command("compile-pattern-authority", [cl, *common, "/c", self.source / "dsp/PatternStateAuthority.cpp",
             "/Fo" + str(authority_object)], env=env)
+        kit_contract_object = hostout / "KitContract.obj"
+        self.command("compile-kit-contract", [cl, *common, "/c", self.source / "dsp/KitContract.cpp",
+            "/Fo" + str(kit_contract_object)], env=env)
         cases = [(name, probe if name in ("P15M2GVST3StateTest", "P15M2HVST3ControllerTest", "P16F1VST3TransportTest", "P16F2VST3StateTest", "P16F3VST3CertificationTest", "P16F3MidiMuteTest") else [])
                  for name in MANIFEST["host_tests"]]
         cases.append(("ControllerSyncProbe", probe))
@@ -244,7 +247,7 @@ class Runner:
         for name, flags in cases:
             source = "P12cR2ControllerSyncTest" if name == "ControllerSyncProbe" else name
             exe = hostout / (name + ".exe")
-            self.command("build-" + name, [cl, *common, *flags, self.source / "tests" / (source + ".cpp"), memory, pattern_object, authority_object,
+            self.command("build-" + name, [cl, *common, *flags, self.source / "tests" / (source + ".cpp"), memory, pattern_object, authority_object, kit_contract_object,
                 "/Fo" + str(hostout / (name + ".obj")), "/Fe" + str(exe), "/link", "/LIBPATH:" + str(build / "lib/Release"),
                 *MANIFEST["host_libraries"]], env=env)
             arguments = [exe, plugin]

@@ -211,8 +211,11 @@ public:
     struct Snapshot
     {
         PersistentRoutingState state = MakeDisabledRoutingState();
+        std::array<std::uint8_t, 8> kitName {};
         std::array<std::uint64_t, kPersistentRouteCount> routeGenerations {};
         std::uint64_t generation = 0;
+        std::uint64_t kitGeneration = 0;
+        std::uint64_t kitPatchGeneration = 0;
         std::uint64_t restoreEpoch = 0;
         std::uint64_t restoreCutoff = 0;
     };
@@ -224,6 +227,9 @@ public:
         mGeneration.store(0, std::memory_order_relaxed);
         mRestoreEpoch = 0;
         mRestoreCutoff = 0;
+        mKitName.fill(0);
+        mKitGeneration = 0;
+        mKitPatchGeneration = 0;
         mRouteTickets.fill(0);
         mRouteGenerations.fill(0);
         mGate.clear(std::memory_order_relaxed);
@@ -251,8 +257,11 @@ public:
         if (guard.owner != this)
             return false;
         snapshot.state = mState;
+        snapshot.kitName = mKitName;
         snapshot.routeGenerations = mRouteGenerations;
         snapshot.generation = mGeneration.load(std::memory_order_acquire);
+        snapshot.kitGeneration = mKitGeneration;
+        snapshot.kitPatchGeneration = mKitPatchGeneration;
         snapshot.restoreEpoch = mRestoreEpoch;
         snapshot.restoreCutoff = mRestoreCutoff;
         return true;
@@ -276,6 +285,58 @@ public:
         if (guard.owner != this)
             return 0;
         return publishNextGeneration();
+    }
+
+    // Whole-kit publication is a distinct transaction from a complete LXRS
+    // restore. It replaces only the twelve source-defined routes and leaves
+    // bypass, optional TLVs, restore epoch/cutoff and every sequencer domain
+    // untouched. The caller holds Guard across patch-authority commit and this
+    // logical commit point, so coordinated readers cannot observe a mixed pair.
+    PersistentRouteStatus validateKitLocked(
+        const Guard& guard,
+        const std::array<PersistentRouteRecord, kPersistentRouteCount>& routes,
+        std::uint64_t reservation,
+        std::uint64_t expectedGeneration) const noexcept
+    {
+        if (guard.owner != this)
+            return PersistentRouteStatus::Busy;
+        const auto validation = ValidatePersistentRoutes(routes);
+        if (validation != PersistentRouteStatus::Ok)
+            return validation;
+        if (expectedGeneration != mGeneration.load(std::memory_order_relaxed) ||
+            reservation == 0u || reservation <= mRestoreCutoff)
+            return PersistentRouteStatus::Stale;
+        for (const auto ticket : mRouteTickets)
+            if (reservation <= ticket)
+                return PersistentRouteStatus::Stale;
+        if (mGeneration.load(std::memory_order_relaxed) == UINT64_MAX)
+            return PersistentRouteStatus::GenerationExhausted;
+        return PersistentRouteStatus::Ok;
+    }
+
+    // Call only after validateKitLocked() succeeds while the same Guard stays
+    // held. No checked condition can change before this fixed, non-failing
+    // assignment sequence. Publishing mGeneration is the logical commit point.
+    std::uint64_t commitValidatedKitLocked(
+        const Guard& guard,
+        const std::array<std::uint8_t, 8>& name,
+        const std::array<PersistentRouteRecord, kPersistentRouteCount>& routes,
+        std::uint64_t reservation,
+        std::uint64_t patchGeneration) noexcept
+    {
+        if (guard.owner != this)
+            return 0;
+        const std::uint64_t next = nextGeneration();
+        if (next == 0)
+            return 0;
+        mKitName = name;
+        mState.routes = routes;
+        mRouteTickets.fill(reservation);
+        mRouteGenerations.fill(next);
+        mKitGeneration = next;
+        mKitPatchGeneration = patchGeneration;
+        mGeneration.store(next, std::memory_order_release);
+        return next;
     }
 
     bool canPublishLocked(const Guard& guard) const noexcept
@@ -312,6 +373,9 @@ public:
         if (next == 0)
             return 0;
         mState = candidate;
+        mKitName.fill(0);
+        mKitGeneration = 0;
+        mKitPatchGeneration = 0;
         mRestoreCutoff = cutoff;
         ++mRestoreEpoch;
         mRouteTickets.fill(cutoff);
@@ -389,10 +453,13 @@ private:
     }
 
     PersistentRoutingState mState = MakeDisabledRoutingState();
+    std::array<std::uint8_t, 8> mKitName {};
     std::array<std::uint64_t, kPersistentRouteCount> mRouteTickets {};
     std::array<std::uint64_t, kPersistentRouteCount> mRouteGenerations {};
     std::uint64_t mRestoreEpoch = 0;
     std::uint64_t mRestoreCutoff = 0;
+    std::uint64_t mKitGeneration = 0;
+    std::uint64_t mKitPatchGeneration = 0;
     std::atomic<std::uint64_t> mGeneration {0};
     std::atomic_flag mGate = ATOMIC_FLAG_INIT;
 };

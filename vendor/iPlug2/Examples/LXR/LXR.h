@@ -12,6 +12,7 @@
 #include "../../../../../dsp/MidiParser.h"
 #include "../../../../../dsp/LXRAudioAdapter.h"
 #include "../../../../../dsp/RouteHostControls.h"
+#include "../../../../../dsp/RuntimeKitLoad.h"
 #include "../../../../../dsp/TriggerScheduler.h"
 #include "../../../../../dsp/RollHostControls.h"
 
@@ -61,6 +62,12 @@ public:
 
   void OnIdle() override;
 
+  // Non-audio ingress for an already decoded P17-B canonical whole kit. The
+  // call validates and publishes exactly one bounded transaction; callers may
+  // retry Busy/Stale explicitly, but this function never spins or performs I/O.
+  lxr::kit::RuntimeLoadResult LoadRuntimeKit(
+    const lxr::kit::CanonicalKit& kit);
+
 #if defined(VST3_API)
   Steinberg::tresult PLUGIN_API setParamNormalized(
     Steinberg::Vst::ParamID tag,
@@ -83,6 +90,7 @@ private:
   friend struct P16F1VST3TransportTestProbe;
   friend struct P16F2VST3StateTestProbe;
   friend struct P16F3VST3CertificationProbe;
+  friend struct P17DRuntimeKitLoadTestProbe;
 
   // Native LXR synthesis/DSP engine.
   lxr::Engine mEngine;
@@ -128,6 +136,8 @@ private:
   uint64_t mAppliedRestoreGeneration = 0; // Routing restore epoch.
   uint64_t mAppliedStateGeneration = 0;
   uint64_t mAppliedJointGeneration = 0;
+  uint64_t mAppliedKitGeneration = 0;
+  uint64_t mAppliedKitNativeBoundary = 0;
 
   // A host/UI parameter callback that overlaps the bounded writer gate stores
   // its latest value here. Bit 8 marks a pending 7-bit value. Processing drains

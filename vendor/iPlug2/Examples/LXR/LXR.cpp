@@ -1113,6 +1113,8 @@ bool LXR::ApplyPendingStateAndParameters()
     }
     else if (routing.generation != mAppliedJointGeneration)
     {
+        const bool appliesKit = routing.kitGeneration != 0u &&
+            routing.kitGeneration > mAppliedKitGeneration;
         mStagingEngine = mEngine;
         mStagingParams = mParams;
         for (std::size_t i = 0; i < candidate.size(); ++i)
@@ -1120,6 +1122,23 @@ bool LXR::ApplyPendingStateAndParameters()
             const uint8_t index = static_cast<uint8_t>(i);
             if (mStagingParams.get(index) != candidate[i])
                 mStagingParams.set(index, candidate[i], mStagingEngine);
+        }
+        if (appliesKit)
+        {
+            // Kit replacement rebases every still-active lock. A host/MIDI
+            // edit published after the kit remains authoritative under the
+            // pre-existing ordering, so replay those newer bytes last.
+            if (!mStagingEngine.reapplySequencerAutomation())
+                return false;
+            for (std::size_t i = 0; i < candidate.size(); ++i)
+            {
+                const auto valueGeneration = mState.valueGeneration(i);
+                if (valueGeneration <= routing.kitPatchGeneration ||
+                    valueGeneration > parameterGeneration)
+                    continue;
+                const auto index = static_cast<std::uint8_t>(i);
+                mStagingParams.set(index, candidate[i], mStagingEngine);
+            }
         }
         for (std::size_t i = 0; i < routing.state.routes.size(); ++i)
         {
@@ -1141,6 +1160,14 @@ bool LXR::ApplyPendingStateAndParameters()
         mEngine = mStagingEngine;
         mParams = mStagingParams;
         mAppliedRouting = routing.state;
+        if (appliesKit)
+        {
+            // Engine mutation occurs after the preceding native block was
+            // completely rendered. The next producer refill begins exactly at
+            // this 32-frame native boundary; cached old PCM is not rewritten.
+            mAppliedKitGeneration = routing.kitGeneration;
+            mAppliedKitNativeBoundary = mAudioAdapter.nativeFrame();
+        }
     }
     // Select all four domains before any event generation or rendering.
     mAppliedPattern.swap(pattern);
@@ -1149,6 +1176,72 @@ bool LXR::ApplyPendingStateAndParameters()
     mAppliedStateGeneration = parameterGeneration;
     mAppliedJointGeneration = routing.generation;
     return true;
+}
+
+lxr::kit::RuntimeLoadResult LXR::LoadRuntimeKit(
+    const lxr::kit::CanonicalKit& kit)
+{
+    lxr::kit::RuntimeLoadResult result;
+    lxr::kit::PatchCandidate candidate;
+    result.candidate = lxr::kit::BuildPatchCandidate(kit, candidate);
+    if (!result.candidate)
+    {
+        result.publication.field = result.candidate.field;
+        return result;
+    }
+
+    // Reserve one position in the same monotonic order used by host patch,
+    // route, transport and full-restore producers. Drain only older mailboxes;
+    // later automation remains pending and therefore wins after this kit.
+    const std::uint64_t reservation =
+        mDeferredHostOrder.fetch_add(1u, std::memory_order_acq_rel);
+    if (reservation == 0u)
+    {
+        result.publication.status =
+            lxr::kit::PublicationStatus::GenerationExhausted;
+        return result;
+    }
+    if (!FlushDeferredHostParameters(reservation - 1u))
+    {
+        result.publication.status = lxr::kit::PublicationStatus::Busy;
+        result.publication.reservation = reservation;
+        return result;
+    }
+
+    const lxr::kit::PublicationReservation publication {
+        reservation, mRoutingState.generation()
+    };
+    result.publication = lxr::kit::PublishPatchCandidate(
+        candidate, publication, mState, mRoutingState);
+    if (!result.publication)
+        return result;
+
+    // Project the accepted authority only while its generation is still
+    // current. If a newer producer already won, OnIdle reconciles that newer
+    // state instead; stale kit values never overwrite the IParam mirror.
+    lxr::RoutingStateAuthority::Guard outer;
+    StateAuthority::WriteHandle projection;
+    if (mRoutingState.tryAcquire(outer) &&
+        mRoutingState.generation() == result.publication.jointGeneration &&
+        mState.tryBeginWrite(projection))
+    {
+        for (std::size_t i = 0; i < candidate.patch.size(); ++i)
+            if (auto* param = GetParam(static_cast<int>(i)); param != nullptr)
+                param->Set(static_cast<double>(candidate.patch[i]));
+        for (std::size_t slot = 0; slot < candidate.routes.size(); ++slot)
+        {
+            const auto id = lxr::route_host::parameterForSlot(slot);
+            if (auto* param = GetParam(static_cast<int>(id.value()));
+                param != nullptr)
+            {
+                param->Set(static_cast<double>(
+                    lxr::route_host::encode(candidate.routes[slot]).value()));
+            }
+        }
+        mState.cancelUnmodified(projection);
+    }
+    mControllerNeedsReconcile = true;
+    return result;
 }
 
 // ---------------------------------------------------------

@@ -38,6 +38,64 @@ struct LXRControllerSyncTestProbe {
     }
     static std::size_t queued(HostInstance& h) { return plugin(h).mDeferredMidi.size(); }
     static uint64_t overflow(HostInstance& h) { return plugin(h).mDeferredMidiOverflows.load(); }
+    static lxr::kit::RuntimeLoadResult publishKit(
+        HostInstance& h, const lxr::kit::CanonicalKit& kit) {
+        auto& p = plugin(h);
+        lxr::kit::RuntimeLoadResult result;
+        lxr::kit::PatchCandidate candidate;
+        result.candidate = lxr::kit::BuildPatchCandidate(kit, candidate);
+        if (!result.candidate) return result;
+        const auto order = p.mDeferredHostOrder.fetch_add(1u, std::memory_order_acq_rel);
+        if (order == 0u) {
+            result.publication.status =
+                lxr::kit::PublicationStatus::GenerationExhausted;
+            return result;
+        }
+        result.publication = lxr::kit::PublishPatchCandidate(
+            candidate, {order, p.mRoutingState.generation()}, p.mState,
+            p.mRoutingState);
+        if (!result.publication) return result;
+        for (std::size_t i = 0; i < candidate.patch.size(); ++i)
+            p.GetParam(static_cast<int>(i))->Set(candidate.patch[i]);
+        for (std::size_t i = 0; i < candidate.routes.size(); ++i) {
+            const auto id = lxr::route_host::parameterForSlot(i);
+            p.GetParam(id.value())->Set(
+                lxr::route_host::encode(candidate.routes[i]).value());
+        }
+        p.mControllerNeedsReconcile = true;
+        return result;
+    }
+    static lxr::kit::CanonicalKit currentKit(HostInstance& h,
+                                             std::uint8_t volume,
+                                             std::uint8_t snareSelector = 0u) {
+        auto& p = plugin(h);
+        lxr::kit::RawKit raw;
+        raw.name = {{'P','1','7','D','H','O','S','T'}};
+        for (std::size_t i = 0; i < raw.values.size(); ++i)
+            raw.values[i] = p.mState.value(i);
+        raw.values[88] = volume;
+        raw.values[152] = snareSelector;
+        lxr::kit::CanonicalKit kit;
+        if (!lxr::kit::DecodeRawKit(raw, kit)) return {};
+        return kit;
+    }
+    static bool runtimeKitApplied(HostInstance& h, std::uint8_t volume,
+                                  std::uint16_t selector) {
+        auto& p = plugin(h);
+        return p.mParams.values[88u] == volume &&
+            p.mAppliedRouting.routes[3].originalIndex == selector &&
+            p.mAppliedKitGeneration != 0u &&
+            (p.mAppliedKitNativeBoundary % 32u) == 0u;
+    }
+    static std::uint8_t stateValue(HostInstance& h, std::size_t index) {
+        return plugin(h).mState.value(index);
+    }
+    static std::uint64_t patternGeneration(HostInstance& h) {
+        return plugin(h).mAppliedPattern.generation();
+    }
+    static lxr::sequencer::state::TransportConfig audioTransport(HostInstance& h) {
+        return plugin(h).mAudioTransport;
+    }
     static void layout(HostInstance& h, HMODULE module) {
         auto& p = plugin(h);
         auto* base = reinterpret_cast<const unsigned char*>(&p);
@@ -348,6 +406,60 @@ int main(int argc, char** argv)
         h.processParameter(89, 70 / 127.0); flushMain();
         check("accepted FIFO survives overflow", Probe::queued(h) == 0);
         agrees(h, 88, 77, "overflow retains accepted final MIDI");
+        finalState = h.saveState();
+
+        // P17-D: exercise the exact processor object's kit authorities,
+        // processing-boundary projection and controller cache. This probe uses
+        // the same bounded primitive as LoadRuntimeKit; no file or GUI path is
+        // introduced here.
+        auto beforeKitState = h.saveState();
+        const auto patternGeneration = Probe::patternGeneration(h);
+        const auto transportBefore = Probe::audioTransport(h);
+        const int editsBeforeKit = handler.edits;
+        auto kit = Probe::currentKit(h, 96u, 132u);
+        const auto acceptedKit = Probe::publishKit(h, kit);
+        require("runtime whole kit accepted", static_cast<bool>(acceptedKit));
+        processBoundary(h); flushMain();
+        check("runtime kit applied at native boundary",
+              Probe::runtimeKitApplied(h, 96u, 132u));
+        check("runtime kit preserves pattern pin",
+              Probe::patternGeneration(h) == patternGeneration);
+        const auto transportAfter = Probe::audioTransport(h);
+        check("runtime kit preserves transport configuration",
+              transportAfter.enabled == transportBefore.enabled &&
+              transportAfter.clock == transportBefore.clock &&
+              transportAfter.bpm == transportBefore.bpm &&
+              transportAfter.pattern == transportBefore.pattern &&
+              transportAfter.seed == transportBefore.seed);
+        check("runtime kit sends no edit gestures", handler.edits == editsBeforeKit);
+        check("runtime kit controller patch readback",
+              std::abs(h.controller->getParamNormalized(88) - 96.0 / 127.0) < 1.e-12);
+        check("runtime kit controller high route readback",
+              h.controller->normalizedParamToPlain(231,
+                  h.controller->getParamNormalized(231)) == 132.0);
+        auto invalidRaw = lxr::kit::RawKit{};
+        invalidRaw.name = {{'I','N','V','A','L','I','D','!'}};
+        for (std::size_t i = 0; i < invalidRaw.values.size(); ++i)
+            invalidRaw.values[i] = Probe::stateValue(h, i);
+        invalidRaw.values[1] = 6u; // Source-valid external sample, runtime unsupported.
+        lxr::kit::CanonicalKit invalidKit;
+        require("decode source-valid unsupported kit",
+                static_cast<bool>(lxr::kit::DecodeRawKit(invalidRaw, invalidKit)));
+        const auto beforeRejected = h.saveState();
+        check("unsupported runtime kit rejected",
+              !Probe::publishKit(h, invalidKit));
+        check("rejected kit leaves processor state unchanged",
+              h.saveState() == beforeRejected);
+
+        kit = Probe::currentKit(h, 77u, 132u);
+        require("successive runtime kit accepted",
+                static_cast<bool>(Probe::publishKit(h, kit)));
+        processBoundary(h); flushMain();
+        agrees(h, 88, 77, "successive kit controller readback");
+        require("complete restore after runtime kit", h.loadState(beforeKitState));
+        processBoundary(h); flushMain();
+        check("complete restore supersedes runtime kit",
+              h.saveState() == beforeKitState);
         finalState = h.saveState();
 #endif
         {

@@ -226,6 +226,7 @@
     <ClCompile Include="..\..\..\..\..\dsp\Lfo.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\Modulation.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\ParameterArray.cpp" />
+    <ClCompile Include="..\..\..\..\..\dsp\KitContract.cpp" />
     <ClCompile Include="..\..\..\..\..\dsp\MidiParser.cpp" />
   </ItemGroup>
   <ItemGroup>

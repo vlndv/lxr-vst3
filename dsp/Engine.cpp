@@ -19,6 +19,9 @@ void Engine::init() {
     for (auto& known:mAuthoritativeRawKnown) known=false;
     for (auto& destination:mSequencerAutomationDestinations)
         destination=modulation_contract::HostParameterId{};
+    for (auto& value:mSequencerAutomationValues) value=0u;
+    for (auto& revision:mSequencerAutomationRevisions) revision=0u;
+    mSequencerAutomationRevision=0u;
     for (unsigned v=0;v<6;++v) {
         mLfoRoutes[v]=LfoRouteState{};
         nativeLfo(v)->heldValue=0.f;
@@ -530,7 +533,38 @@ bool Engine::setSequencerAutomationDestination(
     }
     old=command.action==sequencer::AutomationAction::Apply
         ? command.target : modulation_contract::HostParameterId{};
+    if(command.action==sequencer::AutomationAction::Clear) {
+        mSequencerAutomationValues[node]=0u;
+        mSequencerAutomationRevisions[node]=0u;
+    }
     return true;
+}
+
+std::uint64_t Engine::nextSequencerAutomationRevision() noexcept {
+    if(mSequencerAutomationRevision!=UINT64_MAX)
+        return ++mSequencerAutomationRevision;
+
+    // Bounded renumbering preserves the strict order of the at most fourteen
+    // active nodes without allocation or loss of duplicate-target chronology.
+    std::size_t order[14] {};
+    std::size_t count=0;
+    for(std::size_t node=0;node<14u;++node)
+        if(mSequencerAutomationDestinations[node].valid() &&
+           mSequencerAutomationRevisions[node]!=0u)
+            order[count++]=node;
+    for(std::size_t i=1;i<count;++i) {
+        const std::size_t value=order[i];
+        std::size_t at=i;
+        while(at>0u && mSequencerAutomationRevisions[value]<
+                         mSequencerAutomationRevisions[order[at-1u]]) {
+            order[at]=order[at-1u];--at;
+        }
+        order[at]=value;
+    }
+    for(std::size_t i=0;i<count;++i)
+        mSequencerAutomationRevisions[order[i]]=i+1u;
+    mSequencerAutomationRevision=count;
+    return ++mSequencerAutomationRevision;
 }
 
 bool Engine::applySequencerAutomationPair(
@@ -570,6 +604,10 @@ bool Engine::applySequencerAutomationPair(
         if(!applySequencerRawParameter(slots[slot]->target,
                                       static_cast<std::uint8_t>(slots[slot]->value.value())))
             return false;
+        const std::size_t node=track*2u+slot;
+        mSequencerAutomationValues[node]=
+            static_cast<std::uint8_t>(slots[slot]->value.value());
+        mSequencerAutomationRevisions[node]=nextSequencerAutomationRevision();
     }
     return true;
 }
@@ -582,6 +620,31 @@ bool Engine::clearSequencerAutomation() noexcept {
     };
     for(std::size_t node=0;node<14u;++node) {
         if(!setSequencerAutomationDestination(node,clear))
+            return false;
+    }
+    return true;
+}
+
+bool Engine::reapplySequencerAutomation() noexcept {
+    std::size_t order[14] {};
+    std::size_t count=0;
+    for(std::size_t node=0;node<14u;++node)
+        if(mSequencerAutomationDestinations[node].valid() &&
+           mSequencerAutomationRevisions[node]!=0u)
+            order[count++]=node;
+    for(std::size_t i=1;i<count;++i) {
+        const std::size_t value=order[i];
+        std::size_t at=i;
+        while(at>0u && mSequencerAutomationRevisions[value]<
+                         mSequencerAutomationRevisions[order[at-1u]]) {
+            order[at]=order[at-1u];--at;
+        }
+        order[at]=value;
+    }
+    for(std::size_t i=0;i<count;++i) {
+        const std::size_t node=order[i];
+        if(!applySequencerRawParameter(mSequencerAutomationDestinations[node],
+                                      mSequencerAutomationValues[node]))
             return false;
     }
     return true;
