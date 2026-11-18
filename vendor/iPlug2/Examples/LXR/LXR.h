@@ -263,6 +263,8 @@ private:
   bool PublishPersistentRestore(
     const StateAuthority::Values& parameters,
     const lxr::PersistentRoutingState& routing,
+    const std::array<std::uint8_t, 8>& kitName,
+    bool kitIdentityPresent,
     const lxr::sequencer::PatternBank* bank = nullptr,
     const lxr::sequencer::state::TransportConfig* transport = nullptr,
     uint64_t expectedJointGeneration = UINT64_MAX);

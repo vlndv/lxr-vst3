@@ -256,7 +256,7 @@ class Runner:
             arguments = [exe, plugin]
             if name == "P16F2VST3StateTest":
                 arguments.append(fixtures / "musical.lxqb")
-            if name == "P17EVST3KitManagementTest":
+            if name in ("P17EVST3KitManagementTest", "P17FVST3PresetTest"):
                 arguments.append(kit_fixtures)
             self.command(name, arguments, env=env, test=True, timeout=55)
         self.command("SteinbergValidator", [build / "bin/Release/validator.exe", plugin], env=env, test=True, timeout=55)

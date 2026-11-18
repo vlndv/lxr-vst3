@@ -1561,6 +1561,8 @@ bool LXR::SerializeState(iplug::IByteChunk& chunk) const
                                &pattern, &candidate.transport)) return false;
     candidate.routing = routing.state;
     candidate.bank = pattern.bank();
+    candidate.kitName = routing.kitName;
+    candidate.kitIdentityPresent = routing.kitIdentityPresent;
     lxr::state::ProjectBytes encoded;
     std::size_t size = 0;
     if (!lxr::state::EncodeProject(candidate, encoded, size, false)) return false;
@@ -1570,6 +1572,8 @@ bool LXR::SerializeState(iplug::IByteChunk& chunk) const
 bool LXR::PublishPersistentRestore(
     const StateAuthority::Values& parameters,
     const lxr::PersistentRoutingState& routing,
+    const std::array<std::uint8_t, 8>& kitName,
+    bool kitIdentityPresent,
     const lxr::sequencer::PatternBank* bank,
     const lxr::sequencer::state::TransportConfig* transport,
     uint64_t expectedJointGeneration)
@@ -1622,7 +1626,8 @@ bool LXR::PublishPersistentRestore(
     mSequencerEnabled.store(config.enabled, std::memory_order_release);
     mSequencerClockMode.store(config.clock, std::memory_order_release);
     mSequencerInternalTempo.store(config.bpm, std::memory_order_release);
-    if (mRoutingState.commitRestoreLocked(outer, routing, restoreOrder) == 0u)
+    if (mRoutingState.commitRestoreLocked(
+            outer, routing, restoreOrder, kitName, kitIdentityPresent) == 0u)
         return false; // Preflight above makes this unreachable without corruption.
     mRestoreOrderCutoff.store(restoreOrder, std::memory_order_release);
 
@@ -1666,7 +1671,11 @@ int LXR::UnserializeState(const iplug::IByteChunk& chunk, int startPos)
     if (!suffix && !lxr::state::DecodeProject(data, bytes, candidate, false)) return -1;
     if (!suffix) candidate.routing.bypass = GetBypassed();
     if (!PublishPersistentRestore(candidate.patch, candidate.routing,
+                                   candidate.kitName,
+                                   candidate.kitIdentityPresent,
                                    &candidate.bank, &candidate.transport)) return -1;
+    mLastKitOperation = {};
+    mLastKitOperation.name = candidate.kitName;
     return startPos + static_cast<int>(bytes - (suffix ? 4u : 0u));
 }
 
@@ -1690,7 +1699,11 @@ bool LXR::ImportSequencerBank(const char* path)
     if (!TryPersistentSnapshot(candidate.patch, generation, routing, nullptr, &candidate.transport))
         return false;
     candidate.routing = routing.state;
+    candidate.kitName = routing.kitName;
+    candidate.kitIdentityPresent = routing.kitIdentityPresent;
     return PublishPersistentRestore(candidate.patch, candidate.routing,
+                                    candidate.kitName,
+                                    candidate.kitIdentityPresent,
                                     &candidate.bank, &candidate.transport, routing.generation);
 }
 
@@ -2056,6 +2069,8 @@ Steinberg::tresult PLUGIN_API LXR::getState(Steinberg::IBStream* state)
                                &pattern, &candidate.transport)) return Steinberg::kResultFalse;
     candidate.routing = routing.state;
     candidate.bank = pattern.bank();
+    candidate.kitName = routing.kitName;
+    candidate.kitIdentityPresent = routing.kitIdentityPresent;
     lxr::state::ProjectBytes encoded;
     std::size_t encodedSize = 0;
     if (!lxr::state::EncodeProject(candidate, encoded, encodedSize, true))
@@ -2102,8 +2117,13 @@ Steinberg::tresult PLUGIN_API LXR::setState(Steinberg::IBStream* state)
     lxr::state::ProjectCandidate candidate;
     if (!lxr::state::DecodeProject(bytes.data(), size, candidate, true) ||
         !PublishPersistentRestore(candidate.patch, candidate.routing,
+                                    candidate.kitName,
+                                    candidate.kitIdentityPresent,
                                     &candidate.bank, &candidate.transport))
         return Steinberg::kResultFalse;
+
+    mLastKitOperation = {};
+    mLastKitOperation.name = candidate.kitName;
 
     // Update the framework's separate controller cache only after the complete
     // patch+routing+bypass transaction has committed.

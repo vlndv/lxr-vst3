@@ -212,6 +212,7 @@ public:
     {
         PersistentRoutingState state = MakeDisabledRoutingState();
         std::array<std::uint8_t, 8> kitName {};
+        bool kitIdentityPresent = false;
         std::array<std::uint64_t, kPersistentRouteCount> routeGenerations {};
         std::uint64_t generation = 0;
         std::uint64_t kitGeneration = 0;
@@ -228,6 +229,7 @@ public:
         mRestoreEpoch = 0;
         mRestoreCutoff = 0;
         mKitName.fill(0);
+        mKitIdentityPresent = false;
         mKitGeneration = 0;
         mKitPatchGeneration = 0;
         mRouteTickets.fill(0);
@@ -258,6 +260,7 @@ public:
             return false;
         snapshot.state = mState;
         snapshot.kitName = mKitName;
+        snapshot.kitIdentityPresent = mKitIdentityPresent;
         snapshot.routeGenerations = mRouteGenerations;
         snapshot.generation = mGeneration.load(std::memory_order_acquire);
         snapshot.kitGeneration = mKitGeneration;
@@ -330,6 +333,7 @@ public:
         if (next == 0)
             return 0;
         mKitName = name;
+        mKitIdentityPresent = true;
         mState.routes = routes;
         mRouteTickets.fill(reservation);
         mRouteGenerations.fill(next);
@@ -362,9 +366,12 @@ public:
         return PersistentRouteStatus::Ok;
     }
 
-    std::uint64_t commitRestoreLocked(const Guard& guard,
-                                      const PersistentRoutingState& candidate,
-                                      std::uint64_t cutoff) noexcept
+    std::uint64_t commitRestoreLocked(
+        const Guard& guard,
+        const PersistentRoutingState& candidate,
+        std::uint64_t cutoff,
+        const std::array<std::uint8_t, 8>& kitName = {},
+        bool kitIdentityPresent = false) noexcept
     {
         if (validateRestoreLocked(guard, candidate, cutoff) !=
             PersistentRouteStatus::Ok)
@@ -373,7 +380,8 @@ public:
         if (next == 0)
             return 0;
         mState = candidate;
-        mKitName.fill(0);
+        mKitName = kitName;
+        mKitIdentityPresent = kitIdentityPresent;
         mKitGeneration = 0;
         mKitPatchGeneration = 0;
         mRestoreCutoff = cutoff;
@@ -454,6 +462,7 @@ private:
 
     PersistentRoutingState mState = MakeDisabledRoutingState();
     std::array<std::uint8_t, 8> mKitName {};
+    bool mKitIdentityPresent = false;
     std::array<std::uint64_t, kPersistentRouteCount> mRouteTickets {};
     std::array<std::uint64_t, kPersistentRouteCount> mRouteGenerations {};
     std::uint64_t mRestoreEpoch = 0;

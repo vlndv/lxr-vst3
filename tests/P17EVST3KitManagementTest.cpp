@@ -7,6 +7,10 @@
 #include "P12cVST3StateTest.cpp"
 #undef main
 
+#if defined(LXR_EMBED_P17E_SUITE)
+#define main P17EKitManagementSuiteMain
+#endif
+
 #include <cwchar>
 
 namespace
@@ -294,9 +298,9 @@ int main(int argc, char** argv)
         HostInstance restored(factory, info.cid);
         require("restore imported LXRS v3 musical state",
                 restored.loadState(acceptedState));
-        check("save/reopen preserves canonical 51,065-byte musical state",
+        check("save/reopen preserves identity-bearing 51,089-byte musical state",
               restored.saveState() == acceptedState &&
-              acceptedState.size() == lxr::state::kV3CanonicalStreamBytes);
+              acceptedState.size() == lxr::state::kV3IdentityStreamBytes);
     }
 
     {
@@ -340,3 +344,7 @@ int main(int argc, char** argv)
     std::printf("P17E VST3 SUMMARY pass=%d fail=%d\n", passed, failed);
     return failed == 0 ? 0 : 1;
 }
+
+#if defined(LXR_EMBED_P17E_SUITE)
+#undef main
+#endif
