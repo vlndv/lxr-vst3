@@ -514,6 +514,7 @@ void FormatRouteHostValue(std::size_t routeSlot, double value,
 namespace lxr::vst
 {
 DEF_CLASS_IID(IKitManagement)
+DEF_CLASS_IID(IMorphManagement)
 }
 
 Steinberg::tresult PLUGIN_API LXR::queryInterface(
@@ -525,6 +526,13 @@ Steinberg::tresult PLUGIN_API LXR::queryInterface(
             iid, lxr::vst::IKitManagement::iid))
     {
         *object = static_cast<lxr::vst::IKitManagement*>(this);
+        addRef();
+        return Steinberg::kResultOk;
+    }
+    if (Steinberg::FUnknownPrivate::iidEqual(
+            iid, lxr::vst::IMorphManagement::iid))
+    {
+        *object = static_cast<lxr::vst::IMorphManagement*>(this);
         addRef();
         return Steinberg::kResultOk;
     }
@@ -605,6 +613,71 @@ Steinberg::tresult PLUGIN_API LXR::getKitOperation(
     if (result == nullptr)
         return Steinberg::kInvalidArgument;
     CopyKitOperationWire(mLastKitOperation, *result);
+    return Steinberg::kResultOk;
+}
+
+Steinberg::tresult PLUGIN_API LXR::importMorphSnd(
+    const Steinberg::Vst::TChar* path,
+    Steinberg::uint32 pathCharacters,
+    lxr::vst::MorphOperationWire* result)
+{
+    if (result == nullptr)
+        return Steinberg::kInvalidArgument;
+    *result = {};
+    result->publicationStatus = static_cast<Steinberg::uint32>(
+        lxr::morph::PublicationStatus::InvalidCandidate);
+    std::array<wchar_t, lxr::kit::snd::kPathCapacity> nativePath;
+    if (!CopyKitOperationPath(path, pathCharacters, nativePath))
+        return Steinberg::kInvalidArgument;
+
+    lxr::kit::CanonicalKit target;
+    const auto file = lxr::kit::snd::ReadFile(nativePath.data(), target);
+    result->fileError = static_cast<Steinberg::uint32>(file.error);
+    result->codecError = static_cast<Steinberg::uint32>(file.codec.error);
+    result->issue = static_cast<Steinberg::uint32>(file.codec.detail);
+    result->field = file.codec.field;
+    result->nativeError = file.io.native;
+    if (file)
+    {
+        const auto load = LoadMorphTarget(target);
+        result->issue = static_cast<Steinberg::uint32>(load.candidate.issue);
+        result->field = load.candidate.field;
+        result->publicationStatus =
+            static_cast<Steinberg::uint32>(load.publication.status);
+    }
+
+    lxr::morph::Snapshot snapshot;
+    if (mMorphState.trySnapshot(snapshot, 1u))
+    {
+        result->targetPresent = snapshot.targetPresent ? 1u : 0u;
+        result->amount = snapshot.amount;
+        result->generation = snapshot.generation;
+        for (std::size_t i = 0; i < snapshot.target.name.size(); ++i)
+            result->name[i] = snapshot.target.name[i];
+    }
+    return Steinberg::kResultOk;
+}
+
+Steinberg::tresult PLUGIN_API LXR::getMorphState(
+    lxr::vst::MorphOperationWire* result)
+{
+    if (result == nullptr)
+        return Steinberg::kInvalidArgument;
+    *result = {};
+    lxr::morph::Snapshot snapshot;
+    if (!mMorphState.trySnapshot(snapshot, 1u))
+    {
+        result->publicationStatus = static_cast<Steinberg::uint32>(
+            lxr::morph::PublicationStatus::Busy);
+        return Steinberg::kResultOk;
+    }
+    result->publicationStatus = static_cast<Steinberg::uint32>(
+        lxr::morph::PublicationStatus::Ok);
+    result->targetPresent = snapshot.targetPresent ? 1u : 0u;
+    result->amount = snapshot.amount;
+    result->generation = snapshot.generation;
+    for (std::size_t i = 0; i < snapshot.target.name.size(); ++i)
+        result->name[i] = snapshot.target.name[i];
     return Steinberg::kResultOk;
 }
 #endif
@@ -715,7 +788,7 @@ LXR::LXR(
     static_assert(
         lxr::vst::kNativeNumParams == 228 &&
         lxr::vst::kPersistentNumParams == 240 &&
-        lxr::vst::kNumParams == 245,
+        lxr::vst::kNumParams == 246,
         "Unexpected native/host parameter counts"
     );
 
@@ -796,6 +869,12 @@ LXR::LXR(
                 if ((mask & (1u << track)) != 0u) display.Append(names[track]);
         });
 
+    // Original performance amount is an unsigned byte. Target B is loaded
+    // separately and remains transient; this automatable value is likewise
+    // deliberately absent from LXRS serialization in P18-B.
+    GetParam(lxr::vst::kMorphAmountParam)->InitInt(
+        "Morph Amount", 0, 0, 255);
+
 #if defined(VST3_API)
     // VST3 3.7 hosts may omit all optional context unless the component asks.
     processContextRequirements.needProjectTimeMusic()
@@ -821,6 +900,9 @@ LXR::LXR(
     }
     mState.initialize(initialState);
     mRoutingState.initialize();
+    mMorphState.initialize();
+    mDeferredMorphAmount.store(0u, std::memory_order_relaxed);
+    mAppliedMorphProjection = initialState;
     mAppliedRouting = lxr::MakeDisabledRoutingState();
     (void)mSequencer.patternAuthority().tryAcquire(mAppliedPattern);
     mSequencer.useProjectSnapshot(&mAppliedPattern);
@@ -901,7 +983,7 @@ bool LXR::ApplyRoutesToEngine(
     return true;
 }
 
-bool LXR::StageCompleteRestore(
+bool LXR::PrepareCompleteRestore(
     const StateAuthority::Values& parameters,
     const lxr::PersistentRoutingState& routing)
 {
@@ -921,6 +1003,12 @@ bool LXR::StageCompleteRestore(
     if (!ApplyRoutesToEngine(mStagingEngine, routing.routes))
         return false;
 
+    return true;
+}
+
+void LXR::CommitCompleteRestore(
+    const lxr::PersistentRoutingState& routing) noexcept
+{
     // Selection is the processing-boundary linearization point. No renderer or
     // event consumer runs between these fixed assignments.
     mEngine = mStagingEngine;
@@ -931,6 +1019,15 @@ bool LXR::StageCompleteRestore(
     mAppliedSequencerEnabled = false;
     mAppliedRollMask = 0u;
     mMidiParser = lxr::MidiParser();
+}
+
+bool LXR::StageCompleteRestore(
+    const StateAuthority::Values& parameters,
+    const lxr::PersistentRoutingState& routing)
+{
+    if (!PrepareCompleteRestore(parameters, routing))
+        return false;
+    CommitCompleteRestore(routing);
     return true;
 }
 
@@ -945,7 +1042,21 @@ void LXR::ResetEngineState()
     if (!TryPersistentSnapshot(parameters, parameterGeneration, routing, &pattern, &transport, &rolls))
         return;
 
-    if (!StageCompleteRestore(parameters, routing.state))
+    lxr::morph::Snapshot morph;
+    lxr::morph::Values source;
+    lxr::morph::Values projection = parameters;
+    if (!mMorphState.trySnapshot(morph, 1u))
+        return;
+    if (morph.targetPresent)
+    {
+        if (!lxr::morph::BuildSourceValues(
+                parameters, routing.state.routes, source))
+            return;
+        lxr::morph::BuildEffectiveProjection(
+            source, morph.target.values, morph.amount, projection);
+    }
+
+    if (!StageCompleteRestore(projection, routing.state))
         return;
     mAppliedPattern.swap(pattern);
     mAudioTransport = transport;
@@ -956,6 +1067,9 @@ void LXR::ResetEngineState()
     mAppliedStateGeneration = parameterGeneration;
     mAppliedRestoreGeneration = routing.restoreEpoch;
     mAppliedJointGeneration = routing.generation;
+    mAppliedMorphGeneration = morph.generation;
+    mAppliedMorphProjection = projection;
+    mAppliedMorphNativeBoundary = mAudioAdapter.nativeFrame();
 
     // ORIGINAL QUIRK:
     // Internal engine timing and native PCM processing
@@ -966,6 +1080,40 @@ void LXR::ResetEngineState()
 // Apply UI-thread state/parameter changes at a processing
 // boundary without locking or allocating on the audio thread.
 // ---------------------------------------------------------
+
+bool LXR::FlushDeferredMorphAmount(uint64_t maximumOrder)
+{
+    uint64_t encoded = mDeferredMorphAmount.load(std::memory_order_acquire);
+    if ((encoded & 0x100u) == 0u)
+        return true;
+    const uint64_t order = encoded >> 9u;
+    const uint64_t cutoff =
+        mRestoreOrderCutoff.load(std::memory_order_acquire);
+    if (order > cutoff && order > maximumOrder)
+        return true;
+
+    lxr::morph::PublicationResult publication;
+    if (order <= cutoff)
+    {
+        publication.status = lxr::morph::PublicationStatus::Stale;
+    }
+    else
+    {
+        publication = mMorphState.tryPublishAmount(
+            static_cast<std::uint8_t>(encoded & 0xffu), order);
+        if (publication.status == lxr::morph::PublicationStatus::Busy ||
+            publication.status ==
+                lxr::morph::PublicationStatus::GenerationExhausted)
+            return false;
+    }
+
+    // Clear only the value just handled. A newer callback may already have
+    // replaced it and must remain pending for the next boundary.
+    (void)mDeferredMorphAmount.compare_exchange_strong(
+        encoded, 0u, std::memory_order_acq_rel,
+        std::memory_order_acquire);
+    return true;
+}
 
 bool LXR::FlushDeferredHostParameters(uint64_t maximumOrder)
 {
@@ -1001,6 +1149,13 @@ bool LXR::FlushDeferredHostParameters(uint64_t maximumOrder)
         const auto encoded = value.load(std::memory_order_acquire);
         const auto order = encoded >> 9u;
         pending |= (encoded & 0x100u) != 0u && (order <= cutoff || order <= maximumOrder);
+    }
+    {
+        const auto encoded =
+            mDeferredMorphAmount.load(std::memory_order_acquire);
+        const auto order = encoded >> 9u;
+        pending |= (encoded & 0x100u) != 0u &&
+                   (order <= cutoff || order <= maximumOrder);
     }
     pending |= mRollReleasePending.load(std::memory_order_acquire);
     if (!pending)
@@ -1244,6 +1399,7 @@ bool LXR::FlushDeferredHostParameters(uint64_t maximumOrder)
             ((encoded >> 9u) <= cutoff || (encoded >> 9u) <= maximumOrder)) complete = false;
     }
     if (rollChanged) mRoutingState.commitPatchLocked(outer);
+    complete &= FlushDeferredMorphAmount(maximumOrder);
     return complete;
 }
 
@@ -1261,27 +1417,58 @@ bool LXR::ApplyPendingStateAndParameters()
     if (!TryPersistentSnapshot(candidate, parameterGeneration, routing, &pattern, &transport, &rolls))
         return false;
 
+    lxr::morph::Snapshot morph;
+    if (!mMorphState.trySnapshot(morph, 1u))
+        return false;
+    lxr::morph::Values source;
+    lxr::morph::Values projection = candidate;
+    if (morph.targetPresent)
+    {
+        if (!lxr::morph::BuildSourceValues(
+                candidate, routing.state.routes, source))
+            return false;
+        lxr::morph::BuildEffectiveProjection(
+            source, morph.target.values, morph.amount, projection);
+    }
+
+    const auto stillCurrent = [&]() noexcept {
+        return mState.generation() == parameterGeneration &&
+               mRoutingState.generation() == routing.generation &&
+               mMorphState.generation() == morph.generation;
+    };
+
     if (routing.restoreEpoch != mAppliedRestoreGeneration)
     {
-        if (!StageCompleteRestore(candidate, routing.state))
+        if (!PrepareCompleteRestore(projection, routing.state) ||
+            !stillCurrent())
             return false;
+        CommitCompleteRestore(routing.state);
         mSequencer.resetSeed(transport.seed);
         (void)mSequencer.selectPattern(transport.pattern);
         mAppliedRestoreGeneration = routing.restoreEpoch;
     }
-    else if (routing.generation != mAppliedJointGeneration)
+    else if (routing.generation != mAppliedJointGeneration ||
+             morph.generation != mAppliedMorphGeneration)
     {
         const bool appliesKit = routing.kitGeneration != 0u &&
             routing.kitGeneration > mAppliedKitGeneration;
         mStagingEngine = mEngine;
         mStagingParams = mParams;
-        for (std::size_t i = 0; i < candidate.size(); ++i)
+        for (std::size_t i = 0; i < projection.size(); ++i)
         {
             const uint8_t index = static_cast<uint8_t>(i);
-            if (mStagingParams.get(index) != candidate[i])
-                mStagingParams.set(index, candidate[i], mStagingEngine);
+            if (mStagingParams.get(index) != projection[i])
+                mStagingParams.set(index, projection[i], mStagingEngine);
         }
-        if (appliesKit)
+        if (morph.targetPresent)
+        {
+            // P18-B precedence is authoritative A -> morph projection ->
+            // sequencer lock. Replaying active nodes also makes later lock
+            // release restore the newest projected base, never a pre-morph A.
+            if (!mStagingEngine.reapplySequencerAutomation())
+                return false;
+        }
+        else if (appliesKit)
         {
             // Kit replacement rebases every still-active lock. A host/MIDI
             // edit published after the kit remains authoritative under the
@@ -1315,6 +1502,11 @@ bool LXR::ApplyPendingStateAndParameters()
             if (status != lxr::VelocityRouteStatus::Ok)
                 return false;
         }
+        // Reject a candidate whose A, typed routes, B, or amount changed while
+        // the resident staging objects were being constructed. The previous
+        // live Engine remains completely untouched in that case.
+        if (!stillCurrent())
+            return false;
         mEngine = mStagingEngine;
         mParams = mStagingParams;
         mAppliedRouting = routing.state;
@@ -1326,6 +1518,9 @@ bool LXR::ApplyPendingStateAndParameters()
             mAppliedKitGeneration = routing.kitGeneration;
             mAppliedKitNativeBoundary = mAudioAdapter.nativeFrame();
         }
+        if (morph.generation != mAppliedMorphGeneration ||
+            mAppliedMorphProjection != projection)
+            mAppliedMorphNativeBoundary = mAudioAdapter.nativeFrame();
     }
     // Select all four domains before any event generation or rendering.
     mAppliedPattern.swap(pattern);
@@ -1333,6 +1528,8 @@ bool LXR::ApplyPendingStateAndParameters()
     mAudioRollControls = rolls;
     mAppliedStateGeneration = parameterGeneration;
     mAppliedJointGeneration = routing.generation;
+    mAppliedMorphGeneration = morph.generation;
+    mAppliedMorphProjection = projection;
     return true;
 }
 
@@ -1399,6 +1596,40 @@ lxr::kit::RuntimeLoadResult LXR::LoadRuntimeKit(
         mState.cancelUnmodified(projection);
     }
     mControllerNeedsReconcile = true;
+    return result;
+}
+
+lxr::morph::LoadResult LXR::LoadMorphTarget(
+    const lxr::kit::CanonicalKit& kit)
+{
+    lxr::morph::LoadResult result;
+    lxr::morph::Target candidate;
+    result.candidate = lxr::morph::ValidateTarget(kit, candidate);
+    if (!result.candidate)
+    {
+        result.publication.status =
+            lxr::morph::PublicationStatus::InvalidCandidate;
+        return result;
+    }
+
+    const auto reservation =
+        mDeferredHostOrder.fetch_add(1u, std::memory_order_acq_rel);
+    if (reservation == 0u)
+    {
+        result.publication.status =
+            lxr::morph::PublicationStatus::GenerationExhausted;
+        return result;
+    }
+    if (!FlushDeferredHostParameters(reservation - 1u))
+    {
+        result.publication.status = lxr::morph::PublicationStatus::Busy;
+        result.publication.order = reservation;
+        return result;
+    }
+
+    const auto expected = mMorphState.generation();
+    result.publication = mMorphState.tryPublishTarget(
+        candidate, reservation, expected);
     return result;
 }
 
@@ -1895,6 +2126,27 @@ void LXR::OnParamChange(
     int paramIdx
 )
 {
+    if (paramIdx == lxr::vst::kMorphAmountParam)
+    {
+        const auto* param = GetParam(paramIdx);
+        if (param == nullptr) return;
+        const int value = param->Int();
+        if (value < 0 || value > 255) return;
+        const auto ticket =
+            mDeferredHostOrder.fetch_add(1u, std::memory_order_acq_rel);
+        const auto desired = (ticket << 9u) | 0x100u |
+            static_cast<std::uint64_t>(value);
+        auto current = mDeferredMorphAmount.load(std::memory_order_acquire);
+        for (unsigned attempt = 0;
+             attempt < 4u && (current >> 9u) < ticket; ++attempt)
+        {
+            if (mDeferredMorphAmount.compare_exchange_weak(
+                    current, desired, std::memory_order_release,
+                    std::memory_order_acquire))
+                break;
+        }
+        return;
+    }
     if (paramIdx == lxr::vst::kSequencerRollRateParam ||
         paramIdx == lxr::vst::kSequencerRollTracksParam)
     {
@@ -2256,6 +2508,9 @@ void LXR::OnIdle()
 
     lxr::RoutingStateAuthority::Guard outer;
     StateAuthority::WriteHandle projection;
+    lxr::morph::Snapshot morph;
+    if (!mMorphState.trySnapshot(morph, 1u))
+        return;
     if (!mRoutingState.tryAcquire(outer) ||
         !mState.tryBeginWrite(projection))
         return; // Retain every unacknowledged generation for the next idle.
@@ -2274,11 +2529,16 @@ void LXR::OnIdle()
     for (std::size_t i = 0; i < delivered.size(); ++i)
     {
         const bool native = i < lxr::state::kParameterCount;
-        const bool transport = i >= lxr::vst::kPersistentNumParams;
-        const std::size_t routeSlot = native || transport
+        const bool morphAmount =
+            i == static_cast<std::size_t>(lxr::vst::kMorphAmountParam);
+        const bool transport =
+            i >= lxr::vst::kPersistentNumParams && !morphAmount;
+        const std::size_t routeSlot = native || transport || morphAmount
             ? 0u : i - lxr::state::kParameterCount;
         const uint64_t generation = native ? mState.valueGeneration(i)
-            : transport ? routeSnapshot.generation : routeSnapshot.routeGenerations[routeSlot];
+            : morphAmount ? morph.generation
+            : transport ? routeSnapshot.generation
+            : routeSnapshot.routeGenerations[routeSlot];
         const double transportValue = i == lxr::vst::kSequencerEnableParam ? mTransportConfig.enabled
             : i == lxr::vst::kSequencerClockModeParam ? mTransportConfig.clock
             : i == lxr::vst::kSequencerInternalTempoParam ? mTransportConfig.bpm
@@ -2294,6 +2554,7 @@ void LXR::OnIdle()
             static_cast<Steinberg::Vst::ParamID>(i),
             param->ToNormalized(static_cast<double>(native
                 ? mState.value(i)
+                : morphAmount ? morph.amount
                 : transport ? transportValue : lxr::route_host::encode(
                     routeSnapshot.state.routes[routeSlot]).value())));
         delivered[i] = generation;

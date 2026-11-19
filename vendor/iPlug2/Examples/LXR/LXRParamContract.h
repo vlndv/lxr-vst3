@@ -46,7 +46,10 @@ inline constexpr int kTransportNumParams = 3;
 inline constexpr int kSequencerRollRateParam = 243;
 inline constexpr int kSequencerRollTracksParam = 244;
 inline constexpr int kRollNumParams = 2;
-inline constexpr int kNumParams = kPersistentNumParams + kTransportNumParams + kRollNumParams;
+inline constexpr int kMorphAmountParam = 245;
+inline constexpr int kMorphNumParams = 1;
+inline constexpr int kNumParams = kPersistentNumParams + kTransportNumParams +
+  kRollNumParams + kMorphNumParams;
 inline constexpr int kNumPresets = 1;
 
 constexpr ParamDescriptor P(

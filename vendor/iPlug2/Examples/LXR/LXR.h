@@ -6,6 +6,7 @@
 #include "LXRProjectState.h"
 #if defined(VST3_API)
 #include "LXRKitManagementInterface.h"
+#include "LXRMorphManagementInterface.h"
 #endif
 
 #include "../../../../../dsp/Engine.h"
@@ -16,6 +17,7 @@
 #include "../../../../../dsp/LXRAudioAdapter.h"
 #include "../../../../../dsp/RouteHostControls.h"
 #include "../../../../../dsp/KitManagement.h"
+#include "../../../../../dsp/Morphing.h"
 #include "../../../../../dsp/RuntimeKitLoad.h"
 #include "../../../../../dsp/TriggerScheduler.h"
 #include "../../../../../dsp/RollHostControls.h"
@@ -26,6 +28,7 @@
 class LXR final : public iplug::Plugin
 #if defined(VST3_API)
                 , public lxr::vst::IKitManagement
+                , public lxr::vst::IMorphManagement
 #endif
 {
 public:
@@ -75,6 +78,11 @@ public:
   lxr::kit::RuntimeLoadResult LoadRuntimeKit(
     const lxr::kit::CanonicalKit& kit);
 
+  // Non-audio ingress for one validated original .snd target. The target and
+  // amount are deliberately transient in P18-B and never enter LXRS state.
+  lxr::morph::LoadResult LoadMorphTarget(
+    const lxr::kit::CanonicalKit& kit);
+
   // Layer A: supported non-real-time production operations. The editor and
   // exact-VST3 harness use these same entry points; neither performs file I/O
   // or validation inside the processing callback.
@@ -109,6 +117,12 @@ public:
     lxr::vst::KitOperationWire* result) override;
   Steinberg::tresult PLUGIN_API getKitOperation(
     lxr::vst::KitOperationWire* result) override;
+  Steinberg::tresult PLUGIN_API importMorphSnd(
+    const Steinberg::Vst::TChar* path,
+    Steinberg::uint32 pathCharacters,
+    lxr::vst::MorphOperationWire* result) override;
+  Steinberg::tresult PLUGIN_API getMorphState(
+    lxr::vst::MorphOperationWire* result) override;
   Steinberg::tresult PLUGIN_API setParamNormalized(
     Steinberg::Vst::ParamID tag,
     Steinberg::Vst::ParamValue value) override;
@@ -132,6 +146,7 @@ private:
   friend struct P16F3VST3CertificationProbe;
   friend struct P17DRuntimeKitLoadTestProbe;
   friend struct P17EKitManagementTestProbe;
+  friend struct P18BMorphRuntimeTestProbe;
 
   // Native LXR synthesis/DSP engine.
   lxr::Engine mEngine;
@@ -179,6 +194,15 @@ private:
   uint64_t mAppliedJointGeneration = 0;
   uint64_t mAppliedKitGeneration = 0;
   uint64_t mAppliedKitNativeBoundary = 0;
+
+  // Transient, per-instance target B and amount. Source A remains the sole
+  // persistent patch+routing authority above. Engine/ParameterArray receive
+  // only a derived processing-boundary projection.
+  lxr::morph::StateAuthority mMorphState;
+  std::atomic<uint64_t> mDeferredMorphAmount {0};
+  uint64_t mAppliedMorphGeneration = 0;
+  uint64_t mAppliedMorphNativeBoundary = 0;
+  lxr::morph::Values mAppliedMorphProjection {};
 
   // Main-thread/non-real-time kit-management presentation state. The musical
   // authority remains mState+mRoutingState; these fields never feed rendering.
@@ -251,6 +275,8 @@ private:
   // one coherent authoritative state snapshot.
   void ResetEngineState();
   bool ApplyPendingStateAndParameters();
+  bool FlushDeferredMorphAmount(
+    uint64_t maximumOrder = UINT64_MAX);
   bool FlushDeferredHostParameters(
     uint64_t maximumOrder = UINT64_MAX);
   bool TryPersistentSnapshot(
@@ -289,6 +315,11 @@ private:
   bool StageCompleteRestore(
     const StateAuthority::Values& parameters,
     const lxr::PersistentRoutingState& routing);
+  bool PrepareCompleteRestore(
+    const StateAuthority::Values& parameters,
+    const lxr::PersistentRoutingState& routing);
+  void CommitCompleteRestore(
+    const lxr::PersistentRoutingState& routing) noexcept;
   bool ApplyRoutesToEngine(
     lxr::Engine& engine,
     const std::array<lxr::PersistentRouteRecord,

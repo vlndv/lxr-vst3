@@ -112,7 +112,7 @@ class Runner:
         overlay = self.source / "vendor/iPlug2/Examples/LXR"
         overlay.mkdir(parents=True)
         for name in ("LXR.h", "LXRState.h", "LXRProjectState.h", "LXRParamContract.h",
-                     "LXRKitManagementInterface.h", "config.h"):
+                     "LXRKitManagementInterface.h", "LXRMorphManagementInterface.h", "config.h"):
             shutil.copyfile(self.root / "vendor/iPlug2/Examples/LXR" / name, overlay / name)
         # The production project supplies projects/ as include context for its
         # five-parent DSP includes. A standalone probe has a different include
@@ -239,7 +239,7 @@ class Runner:
         kit_contract_object = hostout / "KitContract.obj"
         self.command("compile-kit-contract", [cl, *common, "/c", self.source / "dsp/KitContract.cpp",
             "/Fo" + str(kit_contract_object)], env=env)
-        cases = [(name, probe if name in ("P15M2GVST3StateTest", "P15M2HVST3ControllerTest", "P16F1VST3TransportTest", "P16F2VST3StateTest", "P16F3VST3CertificationTest", "P16F3MidiMuteTest") else [])
+        cases = [(name, probe if name in ("P15M2GVST3StateTest", "P15M2HVST3ControllerTest", "P16F1VST3TransportTest", "P16F2VST3StateTest", "P16F3VST3CertificationTest", "P16F3MidiMuteTest", "P18BVST3MorphTest") else [])
                  for name in MANIFEST["host_tests"]]
         cases.append(("ControllerSyncProbe", probe))
         fixtures = self.out / "sequencer-fixtures"
@@ -256,7 +256,8 @@ class Runner:
             arguments = [exe, plugin]
             if name == "P16F2VST3StateTest":
                 arguments.append(fixtures / "musical.lxqb")
-            if name in ("P17EVST3KitManagementTest", "P17FVST3PresetTest"):
+            if name in ("P17EVST3KitManagementTest", "P17FVST3PresetTest",
+                        "P18BVST3MorphTest"):
                 arguments.append(kit_fixtures)
             self.command(name, arguments, env=env, test=True, timeout=55)
         self.command("SteinbergValidator", [build / "bin/Release/validator.exe", plugin], env=env, test=True, timeout=55)
