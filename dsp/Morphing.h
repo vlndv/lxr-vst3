@@ -329,6 +329,76 @@ public:
         return result;
     }
 
+    PublicationResult tryClear(
+        std::uint64_t order, std::uint64_t expectedGeneration) noexcept
+    {
+        PublicationResult result;
+        result.order = order;
+        if (order == 0u)
+        {
+            result.status = PublicationStatus::Stale;
+            return result;
+        }
+        WriteHandle writer;
+        if (!tryBeginWrite(writer))
+        {
+            result.status = PublicationStatus::Busy;
+            return result;
+        }
+        const auto stable = mSequence.load(std::memory_order_relaxed);
+        const auto lastOrder = mLastOrder.load(std::memory_order_relaxed);
+        if ((stable & 1u) != 0u || stable != expectedGeneration ||
+            order <= lastOrder)
+        {
+            cancelUnmodified(writer);
+            result.status = PublicationStatus::Stale;
+            return result;
+        }
+        if (stable > UINT64_MAX - 2u)
+        {
+            cancelUnmodified(writer);
+            result.status = PublicationStatus::GenerationExhausted;
+            return result;
+        }
+
+        mSequence.store(stable + 1u, std::memory_order_release);
+        for (auto& value : mTarget)
+            value.store(0u, std::memory_order_relaxed);
+        for (auto& value : mName)
+            value.store(0u, std::memory_order_relaxed);
+        mTargetPresent.store(false, std::memory_order_relaxed);
+        // The firmware amount is an independent performance control. Clearing
+        // only the target keeps parameter 245 and its host automation intact.
+        mLastOrder.store(order, std::memory_order_relaxed);
+        result.generation = stable + 2u;
+        mSequence.store(result.generation, std::memory_order_release);
+        writer.owner = nullptr;
+        mWriter.clear(std::memory_order_release);
+        result.status = PublicationStatus::Ok;
+        return result;
+    }
+
+    bool copyLocked(
+        const WriteHandle& writer, Snapshot& output) const noexcept
+    {
+        if (writer.owner != this)
+            return false;
+        Snapshot candidate;
+        for (std::size_t i = 0; i < candidate.target.values.size(); ++i)
+            candidate.target.values[i] =
+                mTarget[i].load(std::memory_order_relaxed);
+        for (std::size_t i = 0; i < candidate.target.name.size(); ++i)
+            candidate.target.name[i] =
+                mName[i].load(std::memory_order_relaxed);
+        candidate.amount = mAmount.load(std::memory_order_relaxed);
+        candidate.targetPresent =
+            mTargetPresent.load(std::memory_order_relaxed);
+        candidate.order = mLastOrder.load(std::memory_order_relaxed);
+        candidate.generation = mSequence.load(std::memory_order_relaxed);
+        output = candidate;
+        return true;
+    }
+
     bool trySnapshot(
         Snapshot& output,
         unsigned attempts = kDefaultSnapshotAttempts) const noexcept

@@ -11,12 +11,16 @@ namespace lxr::vst
 
 struct MorphOperationWire final
 {
+  Steinberg::uint32 action = 0;
+  Steinberg::uint32 status = 0;
   Steinberg::uint32 fileError = 0;
   Steinberg::uint32 codecError = 0;
   Steinberg::uint32 issue = 0;
   Steinberg::uint32 publicationStatus = 0;
   Steinberg::uint32 field = 0xffffu;
+  Steinberg::uint32 route = 0xffu;
   Steinberg::uint32 nativeError = 0;
+  Steinberg::uint32 published = 0;
   Steinberg::uint32 targetPresent = 0;
   Steinberg::uint32 amount = 0;
   Steinberg::uint64 generation = 0;
@@ -29,6 +33,15 @@ public:
   virtual Steinberg::tresult PLUGIN_API importMorphSnd(
     const Steinberg::Vst::TChar* path,
     Steinberg::uint32 pathCharacters,
+    MorphOperationWire* result) = 0;
+  virtual Steinberg::tresult PLUGIN_API clearMorphTarget(
+    MorphOperationWire* result) = 0;
+  virtual Steinberg::tresult PLUGIN_API exportMorphSnd(
+    const Steinberg::Vst::TChar* path,
+    Steinberg::uint32 pathCharacters,
+    MorphOperationWire* result) = 0;
+  virtual Steinberg::tresult PLUGIN_API cancelMorphOperation(
+    Steinberg::uint32 action,
     MorphOperationWire* result) = 0;
   virtual Steinberg::tresult PLUGIN_API getMorphState(
     MorphOperationWire* result) = 0;

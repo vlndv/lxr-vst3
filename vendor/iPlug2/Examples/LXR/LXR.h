@@ -18,6 +18,7 @@
 #include "../../../../../dsp/RouteHostControls.h"
 #include "../../../../../dsp/KitManagement.h"
 #include "../../../../../dsp/Morphing.h"
+#include "../../../../../dsp/MorphManagement.h"
 #include "../../../../../dsp/RuntimeKitLoad.h"
 #include "../../../../../dsp/TriggerScheduler.h"
 #include "../../../../../dsp/RollHostControls.h"
@@ -82,6 +83,14 @@ public:
   // amount are deliberately transient in P18-B and never enter LXRS state.
   lxr::morph::LoadResult LoadMorphTarget(
     const lxr::kit::CanonicalKit& kit);
+  lxr::morph::management::OperationResult LoadMorphTargetFile(
+    const wchar_t* path);
+  lxr::morph::management::OperationResult ClearMorphTarget();
+  lxr::morph::management::OperationResult ExportMorphedKitFile(
+    const wchar_t* path);
+  lxr::morph::management::OperationResult CancelMorphOperation(
+    lxr::morph::management::Action action) noexcept;
+  bool CurrentMorphState(lxr::morph::Snapshot& state) const noexcept;
 
   // Layer A: supported non-real-time production operations. The editor and
   // exact-VST3 harness use these same entry points; neither performs file I/O
@@ -121,6 +130,15 @@ public:
     const Steinberg::Vst::TChar* path,
     Steinberg::uint32 pathCharacters,
     lxr::vst::MorphOperationWire* result) override;
+  Steinberg::tresult PLUGIN_API clearMorphTarget(
+    lxr::vst::MorphOperationWire* result) override;
+  Steinberg::tresult PLUGIN_API exportMorphSnd(
+    const Steinberg::Vst::TChar* path,
+    Steinberg::uint32 pathCharacters,
+    lxr::vst::MorphOperationWire* result) override;
+  Steinberg::tresult PLUGIN_API cancelMorphOperation(
+    Steinberg::uint32 action,
+    lxr::vst::MorphOperationWire* result) override;
   Steinberg::tresult PLUGIN_API getMorphState(
     lxr::vst::MorphOperationWire* result) override;
   Steinberg::tresult PLUGIN_API setParamNormalized(
@@ -147,6 +165,7 @@ private:
   friend struct P17DRuntimeKitLoadTestProbe;
   friend struct P17EKitManagementTestProbe;
   friend struct P18BMorphRuntimeTestProbe;
+  friend struct P18CMorphManagementTestProbe;
 
   // Native LXR synthesis/DSP engine.
   lxr::Engine mEngine;
@@ -203,6 +222,8 @@ private:
   uint64_t mAppliedMorphGeneration = 0;
   uint64_t mAppliedMorphNativeBoundary = 0;
   lxr::morph::Values mAppliedMorphProjection {};
+  lxr::morph::management::OperationResult mLastMorphOperation {};
+  std::array<char, 1024> mLastMorphOperationPath {};
 
   // Main-thread/non-real-time kit-management presentation state. The musical
   // authority remains mState+mRoutingState; these fields never feed rendering.
@@ -304,6 +325,9 @@ private:
   static void CopyKitOperationWire(
     const lxr::kit::management::OperationResult& source,
     lxr::vst::KitOperationWire& destination) noexcept;
+  static void CopyMorphOperationWire(
+    const lxr::morph::management::OperationResult& source,
+    lxr::vst::MorphOperationWire& destination) noexcept;
   static bool CopyKitOperationPath(
     const Steinberg::Vst::TChar* source,
     Steinberg::uint32 characters,
@@ -311,7 +335,9 @@ private:
 #endif
 #if IPLUG_EDITOR
   void RefreshKitManagementControls();
+  void RefreshMorphManagementControls();
 #endif
+  void SetLastMorphOperationPath(const char* path) noexcept;
   bool StageCompleteRestore(
     const StateAuthority::Values& parameters,
     const lxr::PersistentRoutingState& routing);

@@ -239,7 +239,7 @@ class Runner:
         kit_contract_object = hostout / "KitContract.obj"
         self.command("compile-kit-contract", [cl, *common, "/c", self.source / "dsp/KitContract.cpp",
             "/Fo" + str(kit_contract_object)], env=env)
-        cases = [(name, probe if name in ("P15M2GVST3StateTest", "P15M2HVST3ControllerTest", "P16F1VST3TransportTest", "P16F2VST3StateTest", "P16F3VST3CertificationTest", "P16F3MidiMuteTest", "P18BVST3MorphTest") else [])
+        cases = [(name, probe if name in ("P15M2GVST3StateTest", "P15M2HVST3ControllerTest", "P16F1VST3TransportTest", "P16F2VST3StateTest", "P16F3VST3CertificationTest", "P16F3MidiMuteTest", "P18BVST3MorphTest", "P18CVST3MorphManagementTest") else [])
                  for name in MANIFEST["host_tests"]]
         cases.append(("ControllerSyncProbe", probe))
         fixtures = self.out / "sequencer-fixtures"
@@ -257,7 +257,7 @@ class Runner:
             if name == "P16F2VST3StateTest":
                 arguments.append(fixtures / "musical.lxqb")
             if name in ("P17EVST3KitManagementTest", "P17FVST3PresetTest",
-                        "P18BVST3MorphTest"):
+                        "P18BVST3MorphTest", "P18CVST3MorphManagementTest"):
                 arguments.append(kit_fixtures)
             self.command(name, arguments, env=env, test=True, timeout=55)
         self.command("SteinbergValidator", [build / "bin/Release/validator.exe", plugin], env=env, test=True, timeout=55)

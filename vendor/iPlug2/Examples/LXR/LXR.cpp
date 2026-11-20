@@ -43,7 +43,20 @@ namespace
 #if IPLUG_EDITOR
 constexpr int kKitNameControlTag = 17001;
 constexpr int kKitStatusControlTag = 17002;
+constexpr int kMorphTargetControlTag = 17003;
+constexpr int kMorphStatusControlTag = 17004;
 #endif
+
+void PopulateMorphOperationState(
+    lxr::morph::management::OperationResult& operation,
+    const lxr::morph::Snapshot& snapshot) noexcept
+{
+    operation.targetPresent = snapshot.targetPresent;
+    operation.amount = snapshot.amount;
+    operation.generation = snapshot.generation;
+    operation.name = snapshot.targetPresent
+        ? snapshot.target.name : std::array<std::uint8_t, 8>{};
+}
 
 #if defined(VST3_API)
 // Non-owning, callback-scoped adapters for the installed iPlug2 dispatcher.
@@ -579,6 +592,29 @@ void LXR::CopyKitOperationWire(
         destination.name[i] = source.name[i];
 }
 
+void LXR::CopyMorphOperationWire(
+    const lxr::morph::management::OperationResult& source,
+    lxr::vst::MorphOperationWire& destination) noexcept
+{
+    destination = {};
+    destination.action = static_cast<Steinberg::uint32>(source.action);
+    destination.status = static_cast<Steinberg::uint32>(source.status);
+    destination.fileError = static_cast<Steinberg::uint32>(source.fileError);
+    destination.codecError = static_cast<Steinberg::uint32>(source.codecError);
+    destination.issue = static_cast<Steinberg::uint32>(source.issue);
+    destination.publicationStatus =
+        static_cast<Steinberg::uint32>(source.publicationStatus);
+    destination.field = source.field;
+    destination.route = source.route;
+    destination.nativeError = source.nativeError;
+    destination.published = source.published ? 1u : 0u;
+    destination.targetPresent = source.targetPresent ? 1u : 0u;
+    destination.amount = source.amount;
+    destination.generation = source.generation;
+    for (std::size_t i = 0; i < source.name.size(); ++i)
+        destination.name[i] = source.name[i];
+}
+
 Steinberg::tresult PLUGIN_API LXR::importSnd(
     const Steinberg::Vst::TChar* path,
     Steinberg::uint32 pathCharacters,
@@ -623,38 +659,46 @@ Steinberg::tresult PLUGIN_API LXR::importMorphSnd(
 {
     if (result == nullptr)
         return Steinberg::kInvalidArgument;
-    *result = {};
-    result->publicationStatus = static_cast<Steinberg::uint32>(
-        lxr::morph::PublicationStatus::InvalidCandidate);
     std::array<wchar_t, lxr::kit::snd::kPathCapacity> nativePath;
     if (!CopyKitOperationPath(path, pathCharacters, nativePath))
         return Steinberg::kInvalidArgument;
+    CopyMorphOperationWire(LoadMorphTargetFile(nativePath.data()), *result);
+    return Steinberg::kResultOk;
+}
 
-    lxr::kit::CanonicalKit target;
-    const auto file = lxr::kit::snd::ReadFile(nativePath.data(), target);
-    result->fileError = static_cast<Steinberg::uint32>(file.error);
-    result->codecError = static_cast<Steinberg::uint32>(file.codec.error);
-    result->issue = static_cast<Steinberg::uint32>(file.codec.detail);
-    result->field = file.codec.field;
-    result->nativeError = file.io.native;
-    if (file)
-    {
-        const auto load = LoadMorphTarget(target);
-        result->issue = static_cast<Steinberg::uint32>(load.candidate.issue);
-        result->field = load.candidate.field;
-        result->publicationStatus =
-            static_cast<Steinberg::uint32>(load.publication.status);
-    }
+Steinberg::tresult PLUGIN_API LXR::clearMorphTarget(
+    lxr::vst::MorphOperationWire* result)
+{
+    if (result == nullptr)
+        return Steinberg::kInvalidArgument;
+    CopyMorphOperationWire(ClearMorphTarget(), *result);
+    return Steinberg::kResultOk;
+}
 
-    lxr::morph::Snapshot snapshot;
-    if (mMorphState.trySnapshot(snapshot, 1u))
-    {
-        result->targetPresent = snapshot.targetPresent ? 1u : 0u;
-        result->amount = snapshot.amount;
-        result->generation = snapshot.generation;
-        for (std::size_t i = 0; i < snapshot.target.name.size(); ++i)
-            result->name[i] = snapshot.target.name[i];
-    }
+Steinberg::tresult PLUGIN_API LXR::exportMorphSnd(
+    const Steinberg::Vst::TChar* path,
+    Steinberg::uint32 pathCharacters,
+    lxr::vst::MorphOperationWire* result)
+{
+    if (result == nullptr)
+        return Steinberg::kInvalidArgument;
+    std::array<wchar_t, lxr::kit::snd::kPathCapacity> nativePath;
+    if (!CopyKitOperationPath(path, pathCharacters, nativePath))
+        return Steinberg::kInvalidArgument;
+    CopyMorphOperationWire(ExportMorphedKitFile(nativePath.data()), *result);
+    return Steinberg::kResultOk;
+}
+
+Steinberg::tresult PLUGIN_API LXR::cancelMorphOperation(
+    Steinberg::uint32 action,
+    lxr::vst::MorphOperationWire* result)
+{
+    using lxr::morph::management::Action;
+    if (result == nullptr ||
+        action > static_cast<Steinberg::uint32>(Action::ExportMorphed))
+        return Steinberg::kInvalidArgument;
+    CopyMorphOperationWire(CancelMorphOperation(
+        static_cast<Action>(action)), *result);
     return Steinberg::kResultOk;
 }
 
@@ -663,21 +707,21 @@ Steinberg::tresult PLUGIN_API LXR::getMorphState(
 {
     if (result == nullptr)
         return Steinberg::kInvalidArgument;
-    *result = {};
+    auto current = mLastMorphOperation;
     lxr::morph::Snapshot snapshot;
-    if (!mMorphState.trySnapshot(snapshot, 1u))
+    if (!CurrentMorphState(snapshot))
     {
-        result->publicationStatus = static_cast<Steinberg::uint32>(
-            lxr::morph::PublicationStatus::Busy);
+        current.status = lxr::morph::management::Status::PublicationBusy;
+        current.publicationStatus = lxr::morph::PublicationStatus::Busy;
+        CopyMorphOperationWire(current, *result);
         return Steinberg::kResultOk;
     }
-    result->publicationStatus = static_cast<Steinberg::uint32>(
-        lxr::morph::PublicationStatus::Ok);
-    result->targetPresent = snapshot.targetPresent ? 1u : 0u;
-    result->amount = snapshot.amount;
-    result->generation = snapshot.generation;
-    for (std::size_t i = 0; i < snapshot.target.name.size(); ++i)
-        result->name[i] = snapshot.target.name[i];
+    current.targetPresent = snapshot.targetPresent;
+    current.amount = snapshot.amount;
+    current.generation = snapshot.generation;
+    current.name = snapshot.targetPresent
+        ? snapshot.target.name : std::array<std::uint8_t, 8>{};
+    CopyMorphOperationWire(current, *result);
     return Steinberg::kResultOk;
 }
 #endif
@@ -709,12 +753,12 @@ LXR::LXR(
         const IText text(18, COLOR_BLACK, "LXRSystem");
         graphics->AttachControl(new ITextControl(IRECT(20, 15, 580, 50),
             "LXR whole-kit management", text));
-        graphics->AttachControl(new ITextControl(IRECT(20, 55, 580, 90),
+        graphics->AttachControl(new ITextControl(IRECT(20, 45, 580, 70),
             "Current kit: <unnamed>", text), kKitNameControlTag);
-        graphics->AttachControl(new ITextControl(IRECT(20, 165, 580, 255),
+        graphics->AttachControl(new ITextControl(IRECT(20, 125, 580, 170),
             "Ready. Import and export run outside audio processing.", text),
             kKitStatusControlTag);
-        graphics->AttachControl(new IVButtonControl(IRECT(20, 105, 285, 155),
+        graphics->AttachControl(new IVButtonControl(IRECT(20, 75, 285, 120),
             [this, graphics](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Open, "snd",
@@ -737,7 +781,7 @@ LXR::LXR(
                         RefreshKitManagementControls();
                     });
             }, "Import .snd kit", DEFAULT_STYLE.WithLabelText(text)));
-        graphics->AttachControl(new IVButtonControl(IRECT(315, 105, 580, 155),
+        graphics->AttachControl(new IVButtonControl(IRECT(315, 75, 580, 120),
             [this, graphics](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Save, "snd",
@@ -760,12 +804,70 @@ LXR::LXR(
                         RefreshKitManagementControls();
                     });
             }, "Export .snd kit", DEFAULT_STYLE.WithLabelText(text)));
-        graphics->AttachControl(new ITextControl(IRECT(20, 275, 580, 310),
+        graphics->AttachControl(new ITextControl(IRECT(20, 180, 580, 210),
+            "Morph target management", text));
+        graphics->AttachControl(new ITextControl(IRECT(20, 210, 580, 240),
+            "Morph target: <none>", text), kMorphTargetControlTag);
+        graphics->AttachControl(new IVButtonControl(IRECT(20, 245, 285, 285),
+            [this, graphics](IControl*) {
+                WDL_String file, directory;
+                graphics->PromptForFile(file, directory, EFileAction::Open, "snd",
+                    [this](const WDL_String& selected, const WDL_String&) {
+                        if (selected.GetLength() == 0)
+                        {
+                            (void) CancelMorphOperation(
+                                lxr::morph::management::Action::LoadTarget);
+                            SetLastMorphOperationPath(nullptr);
+                        }
+                        else
+                        {
+                            const iplug::UTF8AsUTF16 wide(selected);
+                            (void) LoadMorphTargetFile(wide.Get());
+                            SetLastMorphOperationPath(selected.Get());
+                        }
+                        RefreshMorphManagementControls();
+                    });
+            }, "Load Morph Target", DEFAULT_STYLE.WithLabelText(text)));
+        graphics->AttachControl(new IVButtonControl(IRECT(315, 245, 580, 285),
+            [this](IControl*) {
+                (void) ClearMorphTarget();
+                SetLastMorphOperationPath(nullptr);
+                RefreshMorphManagementControls();
+            }, "Clear Morph Target", DEFAULT_STYLE.WithLabelText(text)));
+        graphics->AttachControl(new IVKnobControl(
+            IRECT(20, 290, 190, 390), lxr::vst::kMorphAmountParam,
+            "Morph Amount", DEFAULT_STYLE.WithLabelText(text), true, true));
+        graphics->AttachControl(new IVButtonControl(IRECT(315, 315, 580, 365),
+            [this, graphics](IControl*) {
+                WDL_String file, directory;
+                graphics->PromptForFile(file, directory, EFileAction::Save, "snd",
+                    [this](const WDL_String& selected, const WDL_String&) {
+                        if (selected.GetLength() == 0)
+                        {
+                            (void) CancelMorphOperation(
+                                lxr::morph::management::Action::ExportMorphed);
+                            SetLastMorphOperationPath(nullptr);
+                        }
+                        else
+                        {
+                            const iplug::UTF8AsUTF16 wide(selected);
+                            (void) ExportMorphedKitFile(wide.Get());
+                            SetLastMorphOperationPath(selected.Get());
+                        }
+                        RefreshMorphManagementControls();
+                    });
+            }, "Export Morphed Kit", DEFAULT_STYLE.WithLabelText(text)));
+        graphics->AttachControl(new ITextControl(IRECT(210, 285, 580, 305),
+            "Target/amount are transient project state.", text));
+        graphics->AttachControl(new ITextControl(IRECT(20, 395, 580, 455),
+            "Ready. Load, clear, and export run outside audio processing.", text),
+            kMorphStatusControlTag);
+        graphics->AttachControl(new ITextControl(IRECT(20, 465, 580, 495),
             "Sequencer bank", text));
-        auto* bankStatus = new ITextControl(IRECT(20, 375, 580, 445),
+        auto* bankStatus = new ITextControl(IRECT(330, 500, 580, 580),
             "Load an LXQB bank. Transport uses host parameters 240-242.", text);
         graphics->AttachControl(bankStatus);
-        graphics->AttachControl(new IVButtonControl(IRECT(20, 320, 310, 365),
+        graphics->AttachControl(new IVButtonControl(IRECT(20, 505, 310, 550),
             [this, graphics, bankStatus](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Open, "lxqb",
@@ -777,6 +879,7 @@ LXR::LXR(
                     });
             }, "Import sequencer bank", DEFAULT_STYLE.WithLabelText(text)));
         RefreshKitManagementControls();
+        RefreshMorphManagementControls();
     };
 #endif
     // Preserve the native parameter contract.
@@ -1633,6 +1736,182 @@ lxr::morph::LoadResult LXR::LoadMorphTarget(
     return result;
 }
 
+bool LXR::CurrentMorphState(lxr::morph::Snapshot& state) const noexcept
+{
+    return mMorphState.trySnapshot(state, 1u);
+}
+
+lxr::morph::management::OperationResult LXR::LoadMorphTargetFile(
+    const wchar_t* path)
+{
+    using namespace lxr::morph::management;
+    lxr::kit::CanonicalKit target;
+    const auto file = lxr::kit::snd::ReadFile(path, target);
+    if (!file)
+        mLastMorphOperation = FromFileFailure(Action::LoadTarget, file);
+    else
+    {
+        const auto load = LoadMorphTarget(target);
+        if (!load)
+            mLastMorphOperation = FromPublicationFailure(load);
+        else
+        {
+            mLastMorphOperation = {};
+            mLastMorphOperation.action = Action::LoadTarget;
+            mLastMorphOperation.status = Status::Success;
+            mLastMorphOperation.publicationStatus = load.publication.status;
+            mLastMorphOperation.published = true;
+        }
+    }
+
+    lxr::morph::Snapshot snapshot;
+    if (CurrentMorphState(snapshot))
+        PopulateMorphOperationState(mLastMorphOperation, snapshot);
+    return mLastMorphOperation;
+}
+
+lxr::morph::management::OperationResult LXR::ClearMorphTarget()
+{
+    using namespace lxr::morph::management;
+    OperationResult result;
+    result.action = Action::ClearTarget;
+    const auto reservation =
+        mDeferredHostOrder.fetch_add(1u, std::memory_order_acq_rel);
+    if (reservation == 0u)
+    {
+        result.status = Status::HostUnavailable;
+        result.publicationStatus =
+            lxr::morph::PublicationStatus::GenerationExhausted;
+    }
+    else if (!FlushDeferredHostParameters(reservation - 1u))
+    {
+        result.status = Status::PublicationBusy;
+        result.publicationStatus = lxr::morph::PublicationStatus::Busy;
+    }
+    else
+    {
+        const auto expected = mMorphState.generation();
+        const auto publication = mMorphState.tryClear(reservation, expected);
+        result.publicationStatus = publication.status;
+        result.status = publication.status == lxr::morph::PublicationStatus::Ok
+            ? Status::Success
+            : publication.status == lxr::morph::PublicationStatus::Busy
+                ? Status::PublicationBusy
+                : publication.status == lxr::morph::PublicationStatus::Stale
+                    ? Status::StaleOperation : Status::HostUnavailable;
+        result.published = publication.status ==
+            lxr::morph::PublicationStatus::Ok;
+    }
+    lxr::morph::Snapshot snapshot;
+    if (CurrentMorphState(snapshot))
+        PopulateMorphOperationState(result, snapshot);
+    mLastMorphOperation = result;
+    return mLastMorphOperation;
+}
+
+lxr::morph::management::OperationResult LXR::CancelMorphOperation(
+    lxr::morph::management::Action action) noexcept
+{
+    mLastMorphOperation = {};
+    mLastMorphOperation.action = action;
+    mLastMorphOperation.status =
+        lxr::morph::management::Status::Cancelled;
+    lxr::morph::Snapshot snapshot;
+    if (CurrentMorphState(snapshot))
+        PopulateMorphOperationState(mLastMorphOperation, snapshot);
+    return mLastMorphOperation;
+}
+
+lxr::morph::management::OperationResult LXR::ExportMorphedKitFile(
+    const wchar_t* path)
+{
+    using namespace lxr::morph::management;
+    OperationResult result;
+    result.action = Action::ExportMorphed;
+
+    // Drain only operations older than this export. Newer host edits may enter
+    // fixed mailboxes while the gates are held and are applied after export.
+    const auto reservation =
+        mDeferredHostOrder.fetch_add(1u, std::memory_order_acq_rel);
+    if (reservation == 0u ||
+        !FlushDeferredHostParameters(reservation - 1u))
+    {
+        result.status = reservation == 0u
+            ? Status::HostUnavailable : Status::PublicationBusy;
+        result.publicationStatus = reservation == 0u
+            ? lxr::morph::PublicationStatus::GenerationExhausted
+            : lxr::morph::PublicationStatus::Busy;
+        mLastMorphOperation = result;
+        return mLastMorphOperation;
+    }
+
+    lxr::RoutingStateAuthority::Guard routingGuard;
+    StateAuthority::WriteHandle patchGuard;
+    lxr::morph::StateAuthority::WriteHandle morphGuard;
+    if (!mRoutingState.tryAcquire(routingGuard) ||
+        !mState.tryBeginWrite(patchGuard) ||
+        !mMorphState.tryBeginWrite(morphGuard))
+    {
+        if (morphGuard.active()) mMorphState.cancelUnmodified(morphGuard);
+        if (patchGuard.active()) mState.cancelUnmodified(patchGuard);
+        if (routingGuard.active()) mRoutingState.release(routingGuard);
+        result.status = Status::PublicationBusy;
+        result.publicationStatus = lxr::morph::PublicationStatus::Busy;
+        mLastMorphOperation = result;
+        return mLastMorphOperation;
+    }
+
+    lxr::RoutingStateAuthority::Snapshot routing;
+    StateAuthority::Values patch;
+    lxr::morph::Snapshot morph;
+    const bool copied = mRoutingState.copyLocked(routingGuard, routing) &&
+        mMorphState.copyLocked(morphGuard, morph);
+    for (std::size_t i = 0; copied && i < patch.size(); ++i)
+        patch[i] = mState.value(i);
+
+    lxr::kit::CanonicalKit projected;
+    result = copied
+        ? BuildProjectedKit(patch, routing.state.routes, morph, projected)
+        : OperationResult{};
+    if (!copied)
+    {
+        result.action = Action::ExportMorphed;
+        result.status = Status::HostUnavailable;
+    }
+
+    lxr::kit::snd::FileResult file;
+    if (result)
+    {
+        file = lxr::kit::snd::WriteNewFile(
+            path, projected, routing.state.routes);
+        if (!file)
+        {
+            const auto retainedName = result.name;
+            const auto retainedAmount = result.amount;
+            const auto retainedGeneration = result.generation;
+            result = FromFileFailure(Action::ExportMorphed, file);
+            result.targetPresent = true;
+            result.name = retainedName;
+            result.amount = retainedAmount;
+            result.generation = retainedGeneration;
+        }
+        else
+        {
+            result.published = file.published;
+            result.publicationStatus = lxr::morph::PublicationStatus::Ok;
+        }
+    }
+
+    // No accepted producer can change A, routes, B, or amount before the
+    // complete file is flushed and either published or rejected. The audio
+    // callback never waits on these gates; it keeps the prior projection.
+    mMorphState.cancelUnmodified(morphGuard);
+    mState.cancelUnmodified(patchGuard);
+    mRoutingState.release(routingGuard);
+    mLastMorphOperation = result;
+    return mLastMorphOperation;
+}
+
 bool LXR::SnapshotCurrentKit(
     lxr::kit::CanonicalKit& kit,
     std::array<lxr::PersistentRouteRecord,
@@ -1739,6 +2018,19 @@ void LXR::SetLastKitOperationPath(const char* path) noexcept
     }
 }
 
+void LXR::SetLastMorphOperationPath(const char* path) noexcept
+{
+    mLastMorphOperationPath.fill(0);
+    if (path == nullptr)
+        return;
+    std::size_t at = 0;
+    while (at + 1u < mLastMorphOperationPath.size() && path[at] != 0)
+    {
+        mLastMorphOperationPath[at] = path[at];
+        ++at;
+    }
+}
+
 #if IPLUG_EDITOR
 void LXR::RefreshKitManagementControls()
 {
@@ -1769,6 +2061,52 @@ void LXR::RefreshKitManagementControls()
         if (mLastKitOperation.route != 0xffu)
             text.AppendFormatted(64, " Route %u.", mLastKitOperation.route);
         static_cast<iplug::igraphics::ITextControl*>(statusControl)->SetStr(text.Get());
+    }
+}
+
+void LXR::RefreshMorphManagementControls()
+{
+    auto* graphics = GetUI();
+    if (graphics == nullptr)
+        return;
+    auto* targetControl = graphics->GetControlWithTag(kMorphTargetControlTag);
+    auto* statusControl = graphics->GetControlWithTag(kMorphStatusControlTag);
+    lxr::morph::Snapshot snapshot;
+    const bool available = CurrentMorphState(snapshot);
+    if (targetControl != nullptr)
+    {
+        WDL_String text;
+        if (available && snapshot.targetPresent)
+        {
+            const auto name = lxr::kit::management::FormatName(
+                snapshot.target.name);
+            text.SetFormatted(160, "Morph target: %s (loaded)",
+                              name.text.data());
+        }
+        else if (available)
+            text.Set("Morph target: <none>");
+        else
+            text.Set("Morph target: Busy; display unchanged soon.");
+        static_cast<iplug::igraphics::ITextControl*>(targetControl)->SetStr(
+            text.Get());
+    }
+    if (statusControl != nullptr)
+    {
+        WDL_String text;
+        const auto* description =
+            lxr::morph::management::StatusDescription(
+                mLastMorphOperation.status);
+        const unsigned amount = available
+            ? snapshot.amount : mLastMorphOperation.amount;
+        text.SetFormatted(1600, "Amount %u. %s", amount, description);
+        if (mLastMorphOperationPath[0] != 0)
+            text.AppendFormatted(1100, "\n%s", mLastMorphOperationPath.data());
+        if (mLastMorphOperation.field != 0xffffu)
+            text.AppendFormatted(64, " Field %u.", mLastMorphOperation.field);
+        if (mLastMorphOperation.route != 0xffu)
+            text.AppendFormatted(64, " Route %u.", mLastMorphOperation.route);
+        static_cast<iplug::igraphics::ITextControl*>(statusControl)->SetStr(
+            text.Get());
     }
 }
 #endif
@@ -2496,6 +2834,7 @@ void LXR::OnIdle()
 {
 #if IPLUG_EDITOR
     RefreshKitManagementControls();
+    RefreshMorphManagementControls();
 #endif
     if (mRollReleasePending.load(std::memory_order_acquire) &&
         !FlushDeferredHostParameters()) return;
