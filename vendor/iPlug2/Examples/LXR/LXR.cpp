@@ -27,6 +27,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #if IPLUG_EDITOR
 #include "IControls.h"
 #endif
@@ -45,6 +46,198 @@ constexpr int kKitNameControlTag = 17001;
 constexpr int kKitStatusControlTag = 17002;
 constexpr int kMorphTargetControlTag = 17003;
 constexpr int kMorphStatusControlTag = 17004;
+constexpr int kActiveViewControlTag = 17005;
+constexpr int kSelectedVoiceControlTag = 17006;
+constexpr int kPatternControlTag = 17007;
+constexpr int kClockControlTag = 17008;
+constexpr int kTempoControlTag = 17009;
+constexpr int kTransportControlTag = 17010;
+constexpr int kSequencerStatusControlTag = 17011;
+constexpr int kHeaderMorphControlTag = 17012;
+constexpr int kOperationStatusControlTag = 17013;
+constexpr int kKeyboardStatusControlTag = 17014;
+constexpr int kFocusRingControlTag = 17015;
+constexpr int kNavControlTag = 18000;
+constexpr int kVoiceControlTag = 18100;
+constexpr int kParameterControlTag = 19000;
+constexpr int kNoTag = iplug::kNoTag;
+constexpr std::array<const char*, 6> kSoundGroups {{
+    "lxr.view.sound.d1", "lxr.view.sound.d2", "lxr.view.sound.d3",
+    "lxr.view.sound.sn", "lxr.view.sound.cy", "lxr.view.sound.hh" }};
+constexpr std::array<const char*, 6> kModulationGroups {{
+    "lxr.view.modulation.d1", "lxr.view.modulation.d2", "lxr.view.modulation.d3",
+    "lxr.view.modulation.sn", "lxr.view.modulation.cy", "lxr.view.modulation.hh" }};
+
+const iplug::igraphics::IColor kLXRBackground(255, 15, 20, 29);
+const iplug::igraphics::IColor kLXRPanel(255, 27, 35, 48);
+const iplug::igraphics::IColor kLXRPanelLight(255, 39, 50, 67);
+const iplug::igraphics::IColor kLXRText(255, 233, 238, 244);
+const iplug::igraphics::IColor kLXRMuted(255, 160, 174, 191);
+const iplug::igraphics::IColor kLXRAccent(255, 44, 214, 188);
+const iplug::igraphics::IColor kLXRWarning(255, 255, 190, 73);
+
+class LXRDiscreteSelector final : public iplug::igraphics::IControl
+{
+public:
+    LXRDiscreteSelector(const iplug::igraphics::IRECT& bounds,
+                        const lxr::gui::ParameterBinding& binding)
+        : IControl(bounds, binding.parameter), mBinding(binding)
+    {
+        SetTooltip(binding.controlId);
+    }
+
+    void Draw(iplug::igraphics::IGraphics& graphics) override
+    {
+        using namespace iplug::igraphics;
+        graphics.FillRect(kLXRPanelLight, mRECT, &mBlend);
+        graphics.DrawRect(mFocused ? kLXRWarning : kLXRAccent,
+                          mRECT, &mBlend, mFocused ? 3.f : 1.f);
+        graphics.DrawText(IText(14.f, kLXRMuted, "LXRSystem",
+                          EAlign::Center, EVAlign::Top),
+                          mBinding.label, mRECT.GetPadded(-6.f), &mBlend);
+        WDL_String display;
+        formatValue(rawValue(), display);
+        graphics.DrawText(IText(16.f, kLXRText, "LXRSystem"),
+                          display.Get(), mRECT.GetPadded(-8.f, -20.f, -8.f, -4.f),
+                          &mBlend);
+    }
+
+    void OnMouseDown(float, float, const iplug::igraphics::IMouseMod& modifier) override
+    {
+        step(modifier.S ? -1 : 1);
+    }
+
+    void OnMouseWheel(float, float, const iplug::igraphics::IMouseMod&,
+                      float delta) override
+    {
+        if (delta == 0.f) return;
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        step(delta < 0.f ? -1 : 1);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+    void OnMouseDblClick(float, float,
+                         const iplug::igraphics::IMouseMod&) override
+    {
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        setRaw(mBinding.defaultValue);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+    void SetFocused(bool focused)
+    {
+        if (mFocused == focused) return;
+        mFocused = focused;
+        SetDirty(false);
+    }
+
+    void KeyboardStep(int direction)
+    {
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        step(direction);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+private:
+    int rawValue() const noexcept
+    {
+        const auto span = mBinding.maximum - mBinding.minimum;
+        return mBinding.minimum + static_cast<int>(std::floor(
+            GetValue() * static_cast<double>(span) + 0.5));
+    }
+
+    void setRaw(int raw)
+    {
+        if (raw < mBinding.minimum || raw > mBinding.maximum) return;
+        const auto span = mBinding.maximum - mBinding.minimum;
+        SetValue(static_cast<double>(raw - mBinding.minimum) /
+                 static_cast<double>(span));
+        SetDirty(true);
+    }
+
+    void step(int direction)
+    {
+        const auto raw = rawValue();
+        if (mBinding.kind == lxr::gui::ControlKind::TypedRoute)
+        {
+            const auto options = lxr::gui::routeOptions(
+                lxr::route_host::RouteHostParamId::fromRaw(
+                    static_cast<std::uint32_t>(mBinding.parameter)));
+            setRaw(options.adjacent(static_cast<std::uint16_t>(raw), direction));
+            return;
+        }
+        if (mBinding.kind == lxr::gui::ControlKind::SourceToggle)
+        {
+            setRaw(raw == 0 ? 127 : 0);
+            return;
+        }
+        if (mBinding.kind == lxr::gui::ControlKind::Enumeration)
+        {
+            // Only the source-defined built-in wave range is selectable. An
+            // unsupported restored SD value remains visible until changed.
+            const int at = raw >= 0 && raw <= 5 ? raw : (direction < 0 ? 0 : 5);
+            setRaw((at + (direction < 0 ? 5 : 1)) % 6);
+        }
+    }
+
+    void formatValue(int raw, WDL_String& display) const
+    {
+        if (mBinding.kind == lxr::gui::ControlKind::TypedRoute)
+        {
+            if (raw == 0) { display.Set("OFF"); return; }
+            const auto options = lxr::gui::routeOptions(
+                lxr::route_host::RouteHostParamId::fromRaw(
+                    static_cast<std::uint32_t>(mBinding.parameter)));
+            for (std::size_t i = 0; i < options.count; ++i)
+                if (options.values[i].token == raw)
+                {
+                    display.SetFormatted(96, "%u: %s", raw, options.values[i].symbol);
+                    return;
+                }
+            display.SetFormatted(64, "%u: invalid for owner", raw);
+            return;
+        }
+        if (mBinding.kind == lxr::gui::ControlKind::SourceToggle)
+        {
+            display.SetFormatted(32, "%s (%d)", raw == 0 ? "OFF" : "ON", raw);
+            return;
+        }
+        if (raw <= 5) display.SetFormatted(32, "Built-in %d", raw);
+        else display.SetFormatted(64, "Unsupported SD value %d", raw);
+    }
+
+    const lxr::gui::ParameterBinding& mBinding;
+    bool mFocused = false;
+};
+
+class LXRFocusRing final : public iplug::igraphics::IControl
+{
+public:
+    LXRFocusRing() : IControl(iplug::igraphics::IRECT())
+    {
+        SetIgnoreMouse(true);
+        Hide(true);
+    }
+    void Draw(iplug::igraphics::IGraphics& graphics) override
+    {
+        graphics.DrawRect(kLXRWarning, mRECT, &mBlend, 3.f);
+    }
+};
+
+bool SetTextIfChanged(iplug::igraphics::IControl* control, const char* value)
+{
+    if (control == nullptr || value == nullptr) return false;
+    auto* text = static_cast<iplug::igraphics::ITextControl*>(control);
+    if (std::strcmp(text->GetStr(), value) == 0) return false;
+    text->SetStr(value);
+    return true;
+}
 #endif
 
 void PopulateMorphOperationState(
@@ -748,17 +941,174 @@ LXR::LXR(
     mLayoutFunc = [&](iplug::igraphics::IGraphics* graphics) {
         using namespace iplug::igraphics;
         if (graphics->NControls() != 0) return;
-        graphics->AttachPanelBackground(COLOR_WHITE);
+        graphics->AttachPanelBackground(kLXRBackground);
         graphics->LoadFont("LXRSystem", "Segoe UI", ETextStyle::Normal);
-        const IText text(18, COLOR_BLACK, "LXRSystem");
-        graphics->AttachControl(new ITextControl(IRECT(20, 15, 580, 50),
-            "LXR whole-kit management", text));
-        graphics->AttachControl(new ITextControl(IRECT(20, 45, 580, 70),
-            "Current kit: <unnamed>", text), kKitNameControlTag);
-        graphics->AttachControl(new ITextControl(IRECT(20, 125, 580, 170),
-            "Ready. Import and export run outside audio processing.", text),
-            kKitStatusControlTag);
-        graphics->AttachControl(new IVButtonControl(IRECT(20, 75, 285, 120),
+        const IText title(25.f, kLXRText, "LXRSystem", EAlign::Near);
+        const IText text(15.f, kLXRText, "LXRSystem", EAlign::Near);
+        const IText centred(14.f, kLXRText, "LXRSystem");
+        const IText muted(13.f, kLXRMuted, "LXRSystem", EAlign::Near);
+        const IVStyle buttonStyle = DEFAULT_STYLE
+            .WithColor(kBG, kLXRPanelLight).WithColor(kFG, kLXRText)
+            .WithColor(kPR, kLXRAccent).WithLabelText(centred)
+            .WithValueText(centred);
+        const IVStyle controlStyle = DEFAULT_STYLE
+            .WithColor(kBG, kLXRPanel).WithColor(kFG, kLXRText)
+            .WithColor(kPR, kLXRAccent).WithLabelText(centred)
+            .WithValueText(centred);
+
+        graphics->AttachControl(new ITextControl(IRECT(24, 14, 220, 50),
+            "LXR 0.37", title, kLXRBackground));
+        graphics->AttachControl(new ITextControl(IRECT(230, 13, 550, 35),
+            "Current kit: <unnamed>", text, kLXRBackground), kKitNameControlTag);
+        graphics->AttachControl(new ITextControl(IRECT(230, 37, 430, 61),
+            "Voice: Drum 1", text, kLXRBackground), kSelectedVoiceControlTag);
+        graphics->AttachControl(new ITextControl(IRECT(445, 37, 610, 61),
+            "Pattern: 1", text, kLXRBackground), kPatternControlTag);
+        graphics->AttachControl(new ITextControl(IRECT(625, 13, 800, 35),
+            "Clock: Internal", text, kLXRBackground), kClockControlTag);
+        graphics->AttachControl(new ITextControl(IRECT(625, 37, 800, 61),
+            "BPM: 120", text, kLXRBackground), kTempoControlTag);
+        graphics->AttachControl(new ITextControl(IRECT(815, 13, 980, 35),
+            "Host: unavailable", text, kLXRBackground), kTransportControlTag);
+        graphics->AttachControl(new ITextControl(IRECT(815, 37, 980, 61),
+            "Sequencer: OFF", text, kLXRBackground), kSequencerStatusControlTag);
+        graphics->AttachControl(new ITextControl(IRECT(995, 13, 1255, 35),
+            "Morph Amount: 0", text, kLXRBackground), kHeaderMorphControlTag);
+        graphics->AttachControl(new ITextControl(IRECT(995, 37, 1255, 61),
+            "Operation: Ready", muted, kLXRBackground), kOperationStatusControlTag);
+
+        for (std::size_t i = 0; i < lxr::gui::kViewNames.size(); ++i)
+        {
+            const float left = 24.f + static_cast<float>(i) * 176.f;
+            graphics->AttachControl(new IVButtonControl(
+                IRECT(left, 76, left + 164.f, 116),
+                [this, i](IControl*) {
+                    SelectGUIView(static_cast<lxr::gui::PrimaryView>(i));
+                }, lxr::gui::kViewNames[i], buttonStyle),
+                kNavControlTag + static_cast<int>(i));
+        }
+        graphics->AttachControl(new ITextControl(IRECT(930, 76, 1255, 116),
+            "Active view: Overview", centred, kLXRPanel), kActiveViewControlTag);
+
+        graphics->AttachControl(new ITextControl(IRECT(24, 132, 165, 169),
+            "SYNTH OWNER", muted, kLXRBackground));
+        for (std::size_t i = 0; i < lxr::gui::kVoiceNames.size(); ++i)
+        {
+            const float left = 170.f + static_cast<float>(i) * 96.f;
+            graphics->AttachControl(new IVButtonControl(
+                IRECT(left, 128, left + 86.f, 171),
+                [this, i](IControl*) {
+                    SelectGUIVoice(static_cast<lxr::gui::VoiceOwner>(i));
+                }, lxr::gui::kVoiceShortNames[i], buttonStyle),
+                kVoiceControlTag + static_cast<int>(i));
+        }
+        graphics->AttachControl(new ITextControl(IRECT(770, 128, 1255, 171),
+            "Tab moves focus; arrows adjust; Enter activates navigation.",
+            muted, kLXRBackground), kKeyboardStatusControlTag);
+
+        // Overview: one editable binding per parameter; header values are
+        // read-only mirrors and never create duplicate host attachments.
+        constexpr const char* overview = "lxr.view.overview";
+        graphics->AttachControl(new ITextControl(IRECT(35, 195, 850, 235),
+            "OVERVIEW  /  CORE LEVELS", title, kLXRBackground), kNoTag, overview);
+        for (std::size_t i = 0; i < 6u; ++i)
+        {
+            const float left = 38.f + static_cast<float>(i) * 133.f;
+            const auto& binding = lxr::gui::kCoreBindings[i];
+            graphics->AttachControl(new IVKnobControl(
+                IRECT(left, 250, left + 114.f, 405), binding.parameter,
+                binding.label, controlStyle, true, true),
+                kParameterControlTag + binding.parameter, overview);
+        }
+        graphics->AttachControl(new IVKnobControl(IRECT(840, 250, 955, 405),
+            114, "Global Decimation", controlStyle, true, true),
+            kParameterControlTag + 114, overview);
+        graphics->AttachControl(new IVToggleControl(IRECT(980, 250, 1105, 325),
+            240, "Sequencer Enable", controlStyle),
+            kParameterControlTag + 240, overview);
+        graphics->AttachControl(new IVToggleControl(IRECT(1120, 250, 1245, 325),
+            241, "Clock: Internal / Host", controlStyle, "INTERNAL", "HOST"),
+            kParameterControlTag + 241, overview);
+        graphics->AttachControl(new IVKnobControl(IRECT(980, 345, 1105, 480),
+            242, "Internal BPM", controlStyle, true, true),
+            kParameterControlTag + 242, overview);
+        graphics->AttachControl(new IVKnobControl(IRECT(1120, 345, 1245, 480),
+            245, "Morph Amount", controlStyle, true, true),
+            kParameterControlTag + 245, overview);
+        graphics->AttachControl(new ITextControl(IRECT(38, 448, 800, 490),
+            "Pattern, transport and clock status above are coherent readback; host transport is not editable here.",
+            muted, kLXRBackground), kNoTag, overview);
+        graphics->AttachControl(new IVButtonControl(IRECT(38, 515, 285, 565),
+            [this](IControl*) { SelectGUIView(lxr::gui::PrimaryView::KitsMorph); },
+            "Kit Import / Export  >", buttonStyle), kNoTag, overview);
+        graphics->AttachControl(new IVButtonControl(IRECT(305, 515, 552, 565),
+            [this](IControl*) { SelectGUIView(lxr::gui::PrimaryView::KitsMorph); },
+            "Morph Target  >", buttonStyle), kNoTag, overview);
+        graphics->AttachControl(new ITextControl(IRECT(38, 590, 1240, 650),
+            "Core production controls only. Full voice editor, meters, matrix and sequencer grid are deferred.",
+            text, kLXRPanel), kNoTag, overview);
+
+        constexpr std::array<const char*, 6> soundGroups {{
+            "lxr.view.sound.d1", "lxr.view.sound.d2", "lxr.view.sound.d3",
+            "lxr.view.sound.sn", "lxr.view.sound.cy", "lxr.view.sound.hh" }};
+        constexpr std::array<const char*, 6> modulationGroups {{
+            "lxr.view.modulation.d1", "lxr.view.modulation.d2", "lxr.view.modulation.d3",
+            "lxr.view.modulation.sn", "lxr.view.modulation.cy", "lxr.view.modulation.hh" }};
+        for (std::size_t owner = 0; owner < 6u; ++owner)
+        {
+            graphics->AttachControl(new ITextControl(IRECT(35, 195, 1000, 235),
+                "SOUND  /  SELECTED OWNER CORE", title, kLXRBackground),
+                kNoTag, soundGroups[owner]);
+            const auto& pitch = lxr::gui::kCoreBindings[6u + owner];
+            const auto& filter = lxr::gui::kCoreBindings[12u + owner];
+            const auto& wave = lxr::gui::kCoreBindings[18u + owner];
+            graphics->AttachControl(new IVKnobControl(IRECT(70, 270, 260, 470),
+                pitch.parameter, pitch.label, controlStyle, true, true),
+                kParameterControlTag + pitch.parameter, soundGroups[owner]);
+            graphics->AttachControl(new IVKnobControl(IRECT(310, 270, 500, 470),
+                filter.parameter, filter.label, controlStyle, true, true),
+                kParameterControlTag + filter.parameter, soundGroups[owner]);
+            graphics->AttachControl(new LXRDiscreteSelector(
+                IRECT(550, 300, 850, 410), wave),
+                kParameterControlTag + wave.parameter, soundGroups[owner]);
+            graphics->AttachControl(new ITextControl(IRECT(70, 520, 1200, 600),
+                "P19-B representative controls. Built-in waveform choices are selectable; restored unsupported SD values remain visible and unchanged until edited.",
+                text, kLXRPanel), kNoTag, soundGroups[owner]);
+
+            graphics->AttachControl(new ITextControl(IRECT(35, 195, 1000, 235),
+                "MODULATION  /  TYPED ROUTE FOUNDATION", title, kLXRBackground),
+                kNoTag, modulationGroups[owner]);
+            const auto& toggle = lxr::gui::kCoreBindings[24u + owner];
+            const auto& route = lxr::gui::kCoreBindings[30u + owner];
+            graphics->AttachControl(new LXRDiscreteSelector(
+                IRECT(70, 285, 350, 395), toggle),
+                kParameterControlTag + toggle.parameter, modulationGroups[owner]);
+            graphics->AttachControl(new LXRDiscreteSelector(
+                IRECT(400, 285, 900, 395), route),
+                kParameterControlTag + route.parameter, modulationGroups[owner]);
+            graphics->AttachControl(new ITextControl(IRECT(70, 455, 1200, 550),
+                "The selector stores the firmware destination identity, filters by route owner, displays OFF and values above 127, and rejects unavailable cross-owner targets.",
+                text, kLXRPanel), kNoTag, modulationGroups[owner]);
+            graphics->AttachControl(new ITextControl(IRECT(70, 585, 1200, 635),
+                "Complete modulation editing is intentionally deferred to P19-D.",
+                muted, kLXRBackground), kNoTag, modulationGroups[owner]);
+        }
+
+        constexpr const char* sequencer = "lxr.view.sequencer";
+        graphics->AttachControl(new ITextControl(IRECT(35, 195, 900, 235),
+            "SEQUENCER  /  STATUS", title, kLXRBackground), kNoTag, sequencer);
+        graphics->AttachControl(new ITextControl(IRECT(60, 270, 1220, 430),
+            "Current pattern, sequencer enable, clock mode, valid BPM and playback status are shown in the persistent header.\n\nThe seven-track sequencer grid is not implemented in P19-B.",
+            text, kLXRPanel), kNoTag, sequencer);
+
+        constexpr const char* kits = "lxr.view.kits-morph";
+        graphics->AttachControl(new ITextControl(IRECT(35, 195, 900, 235),
+            "KITS + MORPH  /  PRODUCTION OPERATIONS", title, kLXRBackground),
+            kNoTag, kits);
+        graphics->AttachControl(new ITextControl(IRECT(55, 245, 620, 275),
+            "Ready. Import and export run outside audio processing.", text,
+            kLXRBackground), kKitStatusControlTag, kits);
+        graphics->AttachControl(new IVButtonControl(IRECT(55, 290, 300, 342),
             [this, graphics](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Open, "snd",
@@ -780,8 +1130,8 @@ LXR::LXR(
                         }
                         RefreshKitManagementControls();
                     });
-            }, "Import .snd kit", DEFAULT_STYLE.WithLabelText(text)));
-        graphics->AttachControl(new IVButtonControl(IRECT(315, 75, 580, 120),
+            }, "Import .snd kit", buttonStyle), kNoTag, kits);
+        graphics->AttachControl(new IVButtonControl(IRECT(320, 290, 565, 342),
             [this, graphics](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Save, "snd",
@@ -803,12 +1153,11 @@ LXR::LXR(
                         }
                         RefreshKitManagementControls();
                     });
-            }, "Export .snd kit", DEFAULT_STYLE.WithLabelText(text)));
-        graphics->AttachControl(new ITextControl(IRECT(20, 180, 580, 210),
-            "Morph target management", text));
-        graphics->AttachControl(new ITextControl(IRECT(20, 210, 580, 240),
-            "Morph target: <none>", text), kMorphTargetControlTag);
-        graphics->AttachControl(new IVButtonControl(IRECT(20, 245, 285, 285),
+            }, "Export .snd kit", buttonStyle), kNoTag, kits);
+        graphics->AttachControl(new ITextControl(IRECT(650, 245, 1215, 275),
+            "Morph target: <none>", text, kLXRBackground),
+            kMorphTargetControlTag, kits);
+        graphics->AttachControl(new IVButtonControl(IRECT(650, 290, 895, 342),
             [this, graphics](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Open, "snd",
@@ -827,17 +1176,14 @@ LXR::LXR(
                         }
                         RefreshMorphManagementControls();
                     });
-            }, "Load Morph Target", DEFAULT_STYLE.WithLabelText(text)));
-        graphics->AttachControl(new IVButtonControl(IRECT(315, 245, 580, 285),
+            }, "Load Morph Target", buttonStyle), kNoTag, kits);
+        graphics->AttachControl(new IVButtonControl(IRECT(915, 290, 1160, 342),
             [this](IControl*) {
                 (void) ClearMorphTarget();
                 SetLastMorphOperationPath(nullptr);
                 RefreshMorphManagementControls();
-            }, "Clear Morph Target", DEFAULT_STYLE.WithLabelText(text)));
-        graphics->AttachControl(new IVKnobControl(
-            IRECT(20, 290, 190, 390), lxr::vst::kMorphAmountParam,
-            "Morph Amount", DEFAULT_STYLE.WithLabelText(text), true, true));
-        graphics->AttachControl(new IVButtonControl(IRECT(315, 315, 580, 365),
+            }, "Clear Morph Target", buttonStyle), kNoTag, kits);
+        graphics->AttachControl(new IVButtonControl(IRECT(650, 370, 1160, 425),
             [this, graphics](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Save, "snd",
@@ -856,18 +1202,15 @@ LXR::LXR(
                         }
                         RefreshMorphManagementControls();
                     });
-            }, "Export Morphed Kit", DEFAULT_STYLE.WithLabelText(text)));
-        graphics->AttachControl(new ITextControl(IRECT(210, 285, 580, 305),
-            "Target/amount are transient project state.", text));
-        graphics->AttachControl(new ITextControl(IRECT(20, 395, 580, 455),
-            "Ready. Load, clear, and export run outside audio processing.", text),
-            kMorphStatusControlTag);
-        graphics->AttachControl(new ITextControl(IRECT(20, 465, 580, 495),
-            "Sequencer bank", text));
-        auto* bankStatus = new ITextControl(IRECT(330, 500, 580, 580),
-            "Load an LXQB bank. Transport uses host parameters 240-242.", text);
-        graphics->AttachControl(bankStatus);
-        graphics->AttachControl(new IVButtonControl(IRECT(20, 505, 310, 550),
+            }, "Export Morphed Kit (.snd)", buttonStyle), kNoTag, kits);
+        graphics->AttachControl(new ITextControl(IRECT(650, 445, 1215, 505),
+            "Ready. Load, clear and export run outside audio processing.",
+            text, kLXRBackground), kMorphStatusControlTag, kits);
+        auto* bankStatus = new ITextControl(IRECT(320, 515, 620, 590),
+            "Load an LXQB bank. Transport uses parameters 240-242.",
+            text, kLXRBackground);
+        graphics->AttachControl(bankStatus, kNoTag, kits);
+        graphics->AttachControl(new IVButtonControl(IRECT(55, 520, 300, 572),
             [this, graphics, bankStatus](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Open, "lxqb",
@@ -877,9 +1220,26 @@ LXR::LXR(
                             ? "Bank loaded. Enable the sequencer to play."
                             : "Import rejected or Busy. Previous state retained.");
                     });
-            }, "Import sequencer bank", DEFAULT_STYLE.WithLabelText(text)));
+            }, "Import sequencer bank", buttonStyle), kNoTag, kits);
+        graphics->AttachControl(new ITextControl(IRECT(55, 620, 1215, 665),
+            "Morph Amount is the single host-bound control in Overview and remains readable in the persistent header.",
+            muted, kLXRBackground), kNoTag, kits);
+
+        graphics->AttachControl(new ITextControl(IRECT(24, 728, 1255, 755),
+            "Operation status: Ready", muted, kLXRBackground),
+            kOperationStatusControlTag + 100);
+        graphics->AttachControl(new ITextControl(IRECT(24, 760, 1255, 790),
+            "Development GUI foundation — fixed 1280 x 800 — no host resize",
+            muted, kLXRBackground));
+        graphics->AttachControl(new LXRFocusRing(), kFocusRingControlTag);
+        graphics->SetKeyHandlerFunc([this](const iplug::IKeyPress& key, bool isUp) {
+            return HandleGUIKey(key, isUp);
+        });
+        SelectGUIView(lxr::gui::PrimaryView::Overview);
+        SelectGUIVoice(lxr::gui::VoiceOwner::Drum1);
         RefreshKitManagementControls();
         RefreshMorphManagementControls();
+        RefreshGUIReadback();
     };
 #endif
     // Preserve the native parameter contract.
@@ -2032,6 +2392,226 @@ void LXR::SetLastMorphOperationPath(const char* path) noexcept
 }
 
 #if IPLUG_EDITOR
+void LXR::SelectGUIView(lxr::gui::PrimaryView view)
+{
+    if (!mGUISelection.select(view)) return;
+    auto* graphics = GetUI();
+    if (graphics == nullptr) return;
+    const auto active = mGUISelection.view();
+    const auto owner = static_cast<std::size_t>(mGUISelection.voice());
+    auto setGroup = [graphics](const char* group, bool visible) {
+        graphics->ForControlInGroup(group, [visible](iplug::igraphics::IControl* control) {
+            control->Hide(!visible);
+            control->SetDisabled(!visible);
+        });
+    };
+    setGroup(lxr::gui::kViewGroups[0], active == lxr::gui::PrimaryView::Overview);
+    for (std::size_t i = 0; i < kSoundGroups.size(); ++i)
+    {
+        setGroup(kSoundGroups[i], active == lxr::gui::PrimaryView::Sound && i == owner);
+        setGroup(kModulationGroups[i],
+                 active == lxr::gui::PrimaryView::Modulation && i == owner);
+    }
+    setGroup(lxr::gui::kViewGroups[3], active == lxr::gui::PrimaryView::Sequencer);
+    setGroup(lxr::gui::kViewGroups[4], active == lxr::gui::PrimaryView::KitsMorph);
+
+    WDL_String label;
+    label.SetFormatted(96, "Active view: %s",
+        lxr::gui::kViewNames[static_cast<std::size_t>(active)]);
+    SetTextIfChanged(graphics->GetControlWithTag(kActiveViewControlTag), label.Get());
+    if (mGUIFocusTag >= 0)
+    {
+        auto* focused = graphics->GetControlWithTag(mGUIFocusTag);
+        if (focused == nullptr || focused->IsHidden())
+        {
+            mGUIFocusTag = -1;
+            auto* ring = graphics->GetControlWithTag(kFocusRingControlTag);
+            if (ring != nullptr) ring->Hide(true);
+        }
+    }
+}
+
+void LXR::SelectGUIVoice(lxr::gui::VoiceOwner voice)
+{
+    if (!mGUISelection.select(voice)) return;
+    auto* graphics = GetUI();
+    if (graphics == nullptr) return;
+    WDL_String label;
+    label.SetFormatted(96, "Voice: %s",
+        lxr::gui::kVoiceNames[static_cast<std::size_t>(voice)]);
+    SetTextIfChanged(graphics->GetControlWithTag(kSelectedVoiceControlTag), label.Get());
+    // Re-evaluate owner-specific visibility without touching any parameter.
+    SelectGUIView(mGUISelection.view());
+}
+
+bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
+{
+    using namespace iplug;
+    using namespace iplug::igraphics;
+    const bool relevant = key.VK == kVK_TAB || key.VK == kVK_RETURN ||
+        key.VK == kVK_SPACE || key.VK == kVK_LEFT || key.VK == kVK_RIGHT ||
+        key.VK == kVK_UP || key.VK == kVK_DOWN || key.VK == kVK_HOME ||
+        key.VK == kVK_END || key.VK == kVK_PRIOR || key.VK == kVK_NEXT;
+    if (!relevant) return false;
+    if (isUp) return true;
+    auto* graphics = GetUI();
+    if (graphics == nullptr) return false;
+
+    std::array<int, 64> order {};
+    std::size_t count = 0u;
+    for (std::size_t i = 0; i < lxr::gui::kViewNames.size(); ++i)
+        order[count++] = kNavControlTag + static_cast<int>(i);
+    for (std::size_t i = 0; i < lxr::gui::kVoiceNames.size(); ++i)
+        order[count++] = kVoiceControlTag + static_cast<int>(i);
+    for (const auto& binding : lxr::gui::kCoreBindings)
+    {
+        auto* control = graphics->GetControlWithTag(kParameterControlTag + binding.parameter);
+        if (control != nullptr && !control->IsHidden())
+            order[count++] = kParameterControlTag + binding.parameter;
+    }
+    for (const auto& binding : lxr::gui::kGlobalBindings)
+    {
+        auto* control = graphics->GetControlWithTag(kParameterControlTag + binding.parameter);
+        if (control != nullptr && !control->IsHidden())
+            order[count++] = kParameterControlTag + binding.parameter;
+    }
+
+    auto setFocus = [&](int tag) {
+        if (mGUIFocusTag >= kParameterControlTag)
+        {
+            const auto* oldBinding = lxr::gui::bindingForParameter(
+                mGUIFocusTag - kParameterControlTag);
+            auto* oldControl = graphics->GetControlWithTag(mGUIFocusTag);
+            if (oldBinding != nullptr && oldControl != nullptr &&
+                (oldBinding->kind == lxr::gui::ControlKind::Enumeration ||
+                 oldBinding->kind == lxr::gui::ControlKind::SourceToggle ||
+                 oldBinding->kind == lxr::gui::ControlKind::TypedRoute))
+                static_cast<LXRDiscreteSelector*>(oldControl)->SetFocused(false);
+        }
+        mGUIFocusTag = tag;
+        auto* control = graphics->GetControlWithTag(tag);
+        auto* ring = graphics->GetControlWithTag(kFocusRingControlTag);
+        if (control != nullptr && ring != nullptr)
+        {
+            ring->SetTargetAndDrawRECTs(control->GetRECT());
+            ring->Hide(false);
+            ring->SetDirty(false);
+        }
+        if (tag >= kParameterControlTag)
+        {
+            const auto* binding = lxr::gui::bindingForParameter(tag - kParameterControlTag);
+            if (binding != nullptr &&
+                (binding->kind == lxr::gui::ControlKind::Enumeration ||
+                 binding->kind == lxr::gui::ControlKind::SourceToggle ||
+                 binding->kind == lxr::gui::ControlKind::TypedRoute))
+                static_cast<LXRDiscreteSelector*>(control)->SetFocused(true);
+        }
+    };
+
+    if (key.VK == kVK_TAB)
+    {
+        std::size_t at = 0u;
+        while (at < count && order[at] != mGUIFocusTag) ++at;
+        if (key.S)
+            at = at == 0u || at == count ? count - 1u : at - 1u;
+        else
+            at = at == count ? 0u : (at + 1u) % count;
+        setFocus(order[at]);
+        return true;
+    }
+    if (mGUIFocusTag < 0) return false;
+    if (mGUIFocusTag >= kNavControlTag && mGUIFocusTag < kVoiceControlTag)
+    {
+        if (key.VK == kVK_RETURN || key.VK == kVK_SPACE)
+            SelectGUIView(static_cast<lxr::gui::PrimaryView>(mGUIFocusTag - kNavControlTag));
+        return true;
+    }
+    if (mGUIFocusTag >= kVoiceControlTag && mGUIFocusTag < kParameterControlTag)
+    {
+        if (key.VK == kVK_RETURN || key.VK == kVK_SPACE)
+            SelectGUIVoice(static_cast<lxr::gui::VoiceOwner>(mGUIFocusTag - kVoiceControlTag));
+        return true;
+    }
+
+    const int parameter = mGUIFocusTag - kParameterControlTag;
+    const auto* binding = lxr::gui::bindingForParameter(parameter);
+    auto* control = graphics->GetControlWithTag(mGUIFocusTag);
+    if (binding == nullptr || control == nullptr) return false;
+    if (key.VK == kVK_RETURN || key.VK == kVK_SPACE)
+    {
+        control->PromptUserInput();
+        return true;
+    }
+    int direction = 0;
+    if (key.VK == kVK_LEFT || key.VK == kVK_DOWN || key.VK == kVK_NEXT)
+        direction = -1;
+    if (key.VK == kVK_RIGHT || key.VK == kVK_UP || key.VK == kVK_PRIOR)
+        direction = 1;
+    if (binding->kind == lxr::gui::ControlKind::Enumeration ||
+        binding->kind == lxr::gui::ControlKind::SourceToggle ||
+        binding->kind == lxr::gui::ControlKind::TypedRoute)
+    {
+        if (direction != 0)
+            static_cast<LXRDiscreteSelector*>(control)->KeyboardStep(direction);
+        return true;
+    }
+
+    double normalized = control->GetValue();
+    if (key.VK == kVK_HOME) normalized = 0.0;
+    else if (key.VK == kVK_END) normalized = 1.0;
+    else if (direction != 0)
+    {
+        const int span = binding->maximum - binding->minimum;
+        const int steps = (key.VK == kVK_PRIOR || key.VK == kVK_NEXT) ? 10 : 1;
+        normalized = iplug::Clip(normalized + direction *
+            static_cast<double>(steps) / static_cast<double>(span), 0.0, 1.0);
+    }
+    else return true;
+    auto* delegate = control->GetDelegate();
+    delegate->BeginInformHostOfParamChangeFromUI(parameter);
+    control->SetValue(normalized);
+    control->SetDirty(true);
+    delegate->EndInformHostOfParamChangeFromUI(parameter);
+    return true;
+}
+
+void LXR::RefreshGUIReadback()
+{
+    auto* graphics = GetUI();
+    if (graphics == nullptr) return;
+    ++mGUIRefreshCount;
+    lxr::gui::AudioReadback snapshot;
+    if (!mGUIReadback.trySnapshot(snapshot)) return;
+    mLastGUIReadback = snapshot;
+    bool changed = false;
+    WDL_String value;
+    value.SetFormatted(64, "Pattern: %u", static_cast<unsigned>(snapshot.activePattern) + 1u);
+    changed |= SetTextIfChanged(graphics->GetControlWithTag(kPatternControlTag), value.Get());
+    value.SetFormatted(64, "Clock: %s", snapshot.clockMode == 0u ? "Internal" : "Host Sync");
+    changed |= SetTextIfChanged(graphics->GetControlWithTag(kClockControlTag), value.Get());
+    if (snapshot.clockMode == 0u)
+        value.SetFormatted(64, "BPM: %u", static_cast<unsigned>(snapshot.internalTempo));
+    else if (snapshot.hostTempoValid)
+        value.SetFormatted(64, "BPM: %.2f", snapshot.hostTempoBpm);
+    else
+        value.Set("BPM: unavailable");
+    changed |= SetTextIfChanged(graphics->GetControlWithTag(kTempoControlTag), value.Get());
+    if (!snapshot.hostTransportValid)
+        value.Set("Host: unavailable");
+    else
+        value.Set(snapshot.hostPlaying ? "Host: playing" : "Host: stopped");
+    changed |= SetTextIfChanged(graphics->GetControlWithTag(kTransportControlTag), value.Get());
+    value.SetFormatted(64, "Sequencer: %s%s",
+        snapshot.sequencerEnabled ? "ON" : "OFF",
+        snapshot.sequencerEnabled && snapshot.sequencerRunning ? " / running" : "");
+    changed |= SetTextIfChanged(graphics->GetControlWithTag(kSequencerStatusControlTag), value.Get());
+    const auto* morph = GetParam(lxr::vst::kMorphAmountParam);
+    value.SetFormatted(64, "Morph Amount: %u",
+        morph != nullptr ? static_cast<unsigned>(std::floor(morph->Value() + 0.5)) : 0u);
+    changed |= SetTextIfChanged(graphics->GetControlWithTag(kHeaderMorphControlTag), value.Get());
+    if (changed) ++mGUIRefreshChangedCount;
+}
+
 void LXR::RefreshKitManagementControls()
 {
     auto* graphics = GetUI();
@@ -2044,7 +2624,7 @@ void LXR::RefreshKitManagementControls()
         const auto name = CurrentKitDisplayName();
         WDL_String text;
         text.SetFormatted(96, "Current kit: %s", name.text.data());
-        static_cast<iplug::igraphics::ITextControl*>(nameControl)->SetStr(text.Get());
+        SetTextIfChanged(nameControl, text.Get());
     }
     if (statusControl != nullptr)
     {
@@ -2060,7 +2640,11 @@ void LXR::RefreshKitManagementControls()
             text.AppendFormatted(64, " Field %u.", mLastKitOperation.field);
         if (mLastKitOperation.route != 0xffu)
             text.AppendFormatted(64, " Route %u.", mLastKitOperation.route);
-        static_cast<iplug::igraphics::ITextControl*>(statusControl)->SetStr(text.Get());
+        SetTextIfChanged(statusControl, text.Get());
+        WDL_String operation;
+        operation.SetFormatted(256, "Kit: %s", text.Get());
+        SetTextIfChanged(graphics->GetControlWithTag(kOperationStatusControlTag), operation.Get());
+        SetTextIfChanged(graphics->GetControlWithTag(kOperationStatusControlTag + 100), operation.Get());
     }
 }
 
@@ -2087,8 +2671,7 @@ void LXR::RefreshMorphManagementControls()
             text.Set("Morph target: <none>");
         else
             text.Set("Morph target: Busy; display unchanged soon.");
-        static_cast<iplug::igraphics::ITextControl*>(targetControl)->SetStr(
-            text.Get());
+        SetTextIfChanged(targetControl, text.Get());
     }
     if (statusControl != nullptr)
     {
@@ -2105,11 +2688,37 @@ void LXR::RefreshMorphManagementControls()
             text.AppendFormatted(64, " Field %u.", mLastMorphOperation.field);
         if (mLastMorphOperation.route != 0xffu)
             text.AppendFormatted(64, " Route %u.", mLastMorphOperation.route);
-        static_cast<iplug::igraphics::ITextControl*>(statusControl)->SetStr(
-            text.Get());
+        SetTextIfChanged(statusControl, text.Get());
+        if (mLastMorphOperation.action != lxr::morph::management::Action::None)
+        {
+            WDL_String operation;
+            operation.SetFormatted(256, "Morph: %s", text.Get());
+            SetTextIfChanged(graphics->GetControlWithTag(kOperationStatusControlTag), operation.Get());
+            SetTextIfChanged(graphics->GetControlWithTag(kOperationStatusControlTag + 100), operation.Get());
+        }
     }
 }
 #endif
+
+void LXR::PublishGUIReadback() noexcept
+{
+    const bool tempoFlag = (mHostProcessContext.validFields &
+        lxr::sequencer::HostTempo) != 0u;
+    const bool transportFlag = (mHostProcessContext.validFields &
+        lxr::sequencer::HostTransportState) != 0u;
+    mGUIReadback.publish(
+        mHostProcessContext.tempoBpm,
+        mHostProcessContext.contextPresent,
+        tempoFlag,
+        transportFlag,
+        mHostProcessContext.playing,
+        mSequencer.running(),
+        mSequencer.selectedPattern(),
+        mSequencer.pendingPattern(),
+        mAppliedSequencerEnabled ? 1u : 0u,
+        mAppliedSequencerClockMode,
+        mAppliedSequencerInternalTempo);
+}
 
 // ---------------------------------------------------------
 // Versioned state serialization
@@ -2835,6 +3444,7 @@ void LXR::OnIdle()
 #if IPLUG_EDITOR
     RefreshKitManagementControls();
     RefreshMorphManagementControls();
+    RefreshGUIReadback();
 #endif
     if (mRollReleasePending.load(std::memory_order_acquire) &&
         !FlushDeferredHostParameters()) return;
@@ -3236,6 +3846,7 @@ void LXR::ProcessBlock(
 
     ApplySequencerTransport(nFrames);
     ApplyRollControls();
+    PublishGUIReadback();
 
     // Flush/no-output calls have no sample loop. Retain their MIDI/state
     // publication behavior without attempting native or FIR processing.

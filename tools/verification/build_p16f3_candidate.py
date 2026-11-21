@@ -37,7 +37,7 @@ def main():
     args = parser.parse_args()
     out = args.output.resolve()
     allowed = ('out/p16f3', 'out/p16f4', 'out/p16f5', 'out/p16f6',
-               'out/p17d', 'out/p17e', 'out/p17f')
+               'out/p17d', 'out/p17e', 'out/p17f', 'out/p18c', 'out/p19b')
     assert any((ROOT / p).resolve() in out.parents for p in allowed), \
         'Private output must be under an approved milestone evidence directory'
     before = protected()

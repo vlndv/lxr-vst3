@@ -4,6 +4,7 @@
 #include "LXRParamContract.h"
 #include "LXRState.h"
 #include "LXRProjectState.h"
+#include "LXRGUIFoundation.h"
 #if defined(VST3_API)
 #include "LXRKitManagementInterface.h"
 #include "LXRMorphManagementInterface.h"
@@ -292,6 +293,18 @@ private:
   std::uint8_t mAppliedSequencerClockMode = 0u;
   std::uint16_t mAppliedSequencerInternalTempo = 120u;
 
+  // One bounded audio-owner publication for non-parameter UI readback. Patch,
+  // routing and morph amount remain owned by their existing authorities.
+  lxr::gui::ReadbackAuthority mGUIReadback;
+#if IPLUG_EDITOR
+  // Editor navigation, owner selection and focus are intentionally transient.
+  lxr::gui::SelectionState mGUISelection;
+  lxr::gui::AudioReadback mLastGUIReadback {};
+  int mGUIFocusTag = -1;
+  std::uint64_t mGUIRefreshCount = 0u;
+  std::uint64_t mGUIRefreshChangedCount = 0u;
+#endif
+
   // Reset Engine and adapter state, then reconstruct the Engine from
   // one coherent authoritative state snapshot.
   void ResetEngineState();
@@ -336,7 +349,12 @@ private:
 #if IPLUG_EDITOR
   void RefreshKitManagementControls();
   void RefreshMorphManagementControls();
+  void SelectGUIView(lxr::gui::PrimaryView view);
+  void SelectGUIVoice(lxr::gui::VoiceOwner voice);
+  void RefreshGUIReadback();
+  bool HandleGUIKey(const iplug::IKeyPress& key, bool isUp);
 #endif
+  void PublishGUIReadback() noexcept;
   void SetLastMorphOperationPath(const char* path) noexcept;
   bool StageCompleteRestore(
     const StateAuthority::Values& parameters,
