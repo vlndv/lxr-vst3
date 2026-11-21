@@ -1,0 +1,16 @@
+{
+  "schema": "P19A-LXR-GUI-concept-v1",
+  "canvas": {"width": 1280, "height": 800},
+  "notice": "P19-A DESIGN CONCEPT - NOT A WORKING PLUGIN SCREENSHOT",
+  "views": [
+    {"file": "01-overview.svg", "title": "Overview", "kind": "overview", "selected_voice": "D1"},
+    {"file": "02-drum-voice.svg", "title": "Sound / Drum 1", "kind": "drum", "selected_voice": "D1"},
+    {"file": "03-snare-editor.svg", "title": "Sound / Snare", "kind": "snare", "selected_voice": "SN"},
+    {"file": "04-cymbal-editor.svg", "title": "Sound / Cymbal", "kind": "cymbal", "selected_voice": "CY"},
+    {"file": "05-hi-hat-editor.svg", "title": "Sound / Hi-hat", "kind": "hihat", "selected_voice": "HH"},
+    {"file": "06-modulation.svg", "title": "Modulation", "kind": "modulation", "selected_voice": "D1"},
+    {"file": "07-sequencer-grid.svg", "title": "Sequencer", "kind": "sequencer", "selected_voice": "D1"},
+    {"file": "08-step-detail.svg", "title": "Sequencer / Step Detail", "kind": "step", "selected_voice": "SN"},
+    {"file": "09-kits-morph.svg", "title": "Kits and Morph", "kind": "kits", "selected_voice": "D1"}
+  ]
+}

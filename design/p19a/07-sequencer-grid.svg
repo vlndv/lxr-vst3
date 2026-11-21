@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title desc">
+<title id="title">LXR Sequencer concept</title>
+<desc id="desc">P19-A DESIGN CONCEPT - NOT A WORKING PLUGIN SCREENSHOT. Dark industrial drum synthesizer interface.</desc>
+<rect width="1280" height="800" fill="#101318"/>
+<text class="" x="24" y="25" font-size="11" font-weight="500" text-anchor="start" fill="#9aa7b5">P19-A DESIGN CONCEPT - NOT A WORKING PLUGIN SCREENSHOT</text>
+<text class="" x="24" y="62" font-size="28" font-weight="500" text-anchor="start" fill="#f1b84b">LXR</text>
+<text class="" x="91" y="60" font-size="18" font-weight="500" text-anchor="start" fill="#edf2f7">Sequencer</text>
+<text class="" x="910" y="40" font-size="10" font-weight="400" text-anchor="start" fill="#9aa7b5">KIT</text>
+<text class="" x="910" y="60" font-size="14" font-weight="500" text-anchor="start" fill="#edf2f7">NEON 808</text>
+<text class="" x="1040" y="40" font-size="10" font-weight="400" text-anchor="start" fill="#9aa7b5">CLOCK</text>
+<text class="" x="1040" y="60" font-size="14" font-weight="500" text-anchor="start" fill="#49c6d4">HOST 124.0</text>
+<text class="" x="1180" y="40" font-size="10" font-weight="400" text-anchor="start" fill="#9aa7b5">STATUS</text>
+<text class="" x="1180" y="60" font-size="14" font-weight="500" text-anchor="start" fill="#70c48f">PLAYING</text>
+<line x1="24" y1="78" x2="1256" y2="78" stroke="#353e4b" stroke-width="1"/>
+<rect class="" x="24" y="92" width="146" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="97.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Overview</text>
+<rect class="" x="178" y="92" width="146" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="251.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Sound</text>
+<rect class="" x="332" y="92" width="146" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="405.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Modulation</text>
+<rect class="" x="486" y="92" width="146" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="559.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">Sequencer</text>
+<rect class="" x="640" y="92" width="170" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="725.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Kits + Morph</text>
+<rect class="" x="940" y="92" width="40" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="960.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">D1</text>
+<rect class="" x="984" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1004.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">D2</text>
+<rect class="" x="1028" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1048.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">D3</text>
+<rect class="" x="1072" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1092.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">SN</text>
+<rect class="" x="1116" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1136.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">CY</text>
+<rect class="" x="1160" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1180.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">CH</text>
+<rect class="" x="1204" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1224.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">OH</text>
+<rect class="" x="24" y="144" width="1232" height="542" rx="8" fill="#181d24" stroke="#353e4b"/>
+<text class="" x="40" y="170" font-size="12" font-weight="500" text-anchor="start" fill="#9aa7b5">PATTERN 3 - SEVEN TRACKS X SIXTEEN MAIN STEPS</text>
+<line x1="40" y1="181" x2="1240" y2="181" stroke="#353e4b" stroke-width="1"/>
+<rect class="" x="42" y="184" width="54" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="69.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">1</text>
+<rect class="" x="108" y="184" width="54" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="135.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">2</text>
+<rect class="" x="174" y="184" width="54" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="201.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">3</text>
+<rect class="" x="240" y="184" width="54" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="267.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">4</text>
+<rect class="" x="306" y="184" width="54" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="333.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">5</text>
+<rect class="" x="372" y="184" width="54" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="399.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">6</text>
+<rect class="" x="438" y="184" width="54" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="465.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">7</text>
+<rect class="" x="504" y="184" width="54" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="531.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">8</text>
+<rect class="" x="600" y="184" width="98" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="649.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Copy</text>
+<rect class="" x="708" y="184" width="98" height="34" rx="5" fill="#4b2528" stroke="#353e4b"/><text class="" x="757.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#ffd8d4">Clear</text>
+<rect class="" x="816" y="184" width="116" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="874.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Euclidean</text>
+<rect class="" x="942" y="184" width="94" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="989.0" y="206" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Shuffle</text>
+<text class="" x="1050" y="207" font-size="13" font-weight="500" text-anchor="start" fill="#edf2f7">34 / 127</text>
+<rect class="" x="42" y="252" width="48" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="66.0" y="274" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">D1</text>
+<text class="" x="102" y="273" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">L16 R0</text>
+<rect class="" x="170" y="252" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="231" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="292" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="353" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="414" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect x="418" y="280" width="42" height="3" fill="#70c48f"/>
+<rect class="" x="475" y="252" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="536" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#f8df8c"/>
+<rect class="" x="597" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="637" cy="261" r="4" fill="#49c6d4"/>
+<rect class="" x="658" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="719" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="780" y="252" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="841" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="902" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="963" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1024" y="252" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="1064" cy="261" r="4" fill="#49c6d4"/>
+<rect class="" x="1085" y="252" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="1158" y="252" width="42" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1179.0" y="274" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">M</text>
+<rect class="" x="1206" y="252" width="32" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1222.0" y="274" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">R</text>
+<rect class="" x="42" y="307" width="48" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="66.0" y="329" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">D2</text>
+<text class="" x="102" y="328" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">L15 R1</text>
+<rect class="" x="170" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="231" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="292" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="353" y="307" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="414" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect x="418" y="335" width="42" height="3" fill="#70c48f"/>
+<rect class="" x="475" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="536" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#f8df8c"/>
+<circle cx="576" cy="316" r="4" fill="#49c6d4"/>
+<rect class="" x="597" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="658" y="307" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="719" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="780" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="841" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="902" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="963" y="307" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="1024" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1085" y="307" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1158" y="307" width="42" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1179.0" y="329" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">M</text>
+<rect class="" x="1206" y="307" width="32" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1222.0" y="329" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">R</text>
+<rect class="" x="42" y="362" width="48" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="66.0" y="384" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">D3</text>
+<text class="" x="102" y="383" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">L14 R2</text>
+<rect class="" x="170" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="231" y="362" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="292" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="353" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="414" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect x="418" y="390" width="42" height="3" fill="#70c48f"/>
+<rect class="" x="475" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="515" cy="371" r="4" fill="#49c6d4"/>
+<rect class="" x="536" y="362" width="50" height="34" rx="5" fill="#f1b84b" stroke="#f8df8c"/>
+<rect class="" x="597" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="658" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="719" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="780" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="841" y="362" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="902" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="942" cy="371" r="4" fill="#49c6d4"/>
+<rect class="" x="963" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1024" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1085" y="362" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1158" y="362" width="42" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1179.0" y="384" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">M</text>
+<rect class="" x="1206" y="362" width="32" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1222.0" y="384" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">R</text>
+<rect class="" x="42" y="417" width="48" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="66.0" y="439" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">SN</text>
+<text class="" x="102" y="438" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">L13 R3</text>
+<rect class="" x="170" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="231" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="292" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="353" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="414" y="417" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect x="418" y="445" width="42" height="3" fill="#70c48f"/>
+<rect class="" x="475" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="536" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#f8df8c"/>
+<rect class="" x="597" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="658" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="719" y="417" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="780" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="841" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="881" cy="426" r="4" fill="#49c6d4"/>
+<rect class="" x="902" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="963" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1024" y="417" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="1085" y="417" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1158" y="417" width="42" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1179.0" y="439" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">M</text>
+<rect class="" x="1206" y="417" width="32" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1222.0" y="439" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">R</text>
+<rect class="" x="42" y="472" width="48" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="66.0" y="494" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">CY</text>
+<text class="" x="102" y="493" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">L12 R4</text>
+<rect class="" x="170" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="231" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="292" y="472" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="353" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="393" cy="481" r="4" fill="#49c6d4"/>
+<rect class="" x="414" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect x="418" y="500" width="42" height="3" fill="#70c48f"/>
+<rect class="" x="475" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="536" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#f8df8c"/>
+<rect class="" x="597" y="472" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="658" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="719" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="780" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="820" cy="481" r="4" fill="#49c6d4"/>
+<rect class="" x="841" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="902" y="472" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="963" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1024" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1085" y="472" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1158" y="472" width="42" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1179.0" y="494" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">M</text>
+<rect class="" x="1206" y="472" width="32" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1222.0" y="494" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">R</text>
+<rect class="" x="42" y="527" width="48" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="66.0" y="549" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">CH</text>
+<text class="" x="102" y="548" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">L11 R5</text>
+<rect class="" x="170" y="527" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="231" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="292" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="332" cy="536" r="4" fill="#49c6d4"/>
+<rect class="" x="353" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="414" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect x="418" y="555" width="42" height="3" fill="#70c48f"/>
+<rect class="" x="475" y="527" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="536" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#f8df8c"/>
+<rect class="" x="597" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="658" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="719" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="759" cy="536" r="4" fill="#49c6d4"/>
+<rect class="" x="780" y="527" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="841" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="902" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="963" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1024" y="527" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1085" y="527" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="1158" y="527" width="42" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1179.0" y="549" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">M</text>
+<rect class="" x="1206" y="527" width="32" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1222.0" y="549" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">R</text>
+<rect class="" x="42" y="582" width="48" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="66.0" y="604" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">OH</text>
+<text class="" x="102" y="603" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">L10 R6</text>
+<rect class="" x="170" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="231" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="271" cy="591" r="4" fill="#49c6d4"/>
+<rect class="" x="292" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="353" y="582" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="414" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect x="418" y="610" width="42" height="3" fill="#70c48f"/>
+<rect class="" x="475" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="536" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#f8df8c"/>
+<rect class="" x="597" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="658" y="582" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="719" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="780" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="841" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="902" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="963" y="582" width="50" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/>
+<rect class="" x="1024" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<rect class="" x="1085" y="582" width="50" height="34" rx="5" fill="#222934" stroke="#353e4b"/>
+<circle cx="1125" cy="591" r="4" fill="#49c6d4"/>
+<rect class="" x="1158" y="582" width="42" height="34" rx="5" fill="#4b2528" stroke="#353e4b"/><text class="" x="1179.0" y="604" font-size="12" font-weight="500" text-anchor="middle" fill="#ffd8d4">M</text>
+<rect class="" x="1206" y="582" width="32" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1222.0" y="604" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">R</text>
+<text class="" x="42" y="654" font-size="12" font-weight="400" text-anchor="start" fill="#9aa7b5">Amber = gate on  |  Cyan dot = stored substep/detail even when main gate is off  |  Green underline = playhead</text>
+</svg>

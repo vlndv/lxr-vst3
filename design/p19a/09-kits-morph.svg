@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title desc">
+<title id="title">LXR Kits and Morph concept</title>
+<desc id="desc">P19-A DESIGN CONCEPT - NOT A WORKING PLUGIN SCREENSHOT. Dark industrial drum synthesizer interface.</desc>
+<rect width="1280" height="800" fill="#101318"/>
+<text class="" x="24" y="25" font-size="11" font-weight="500" text-anchor="start" fill="#9aa7b5">P19-A DESIGN CONCEPT - NOT A WORKING PLUGIN SCREENSHOT</text>
+<text class="" x="24" y="62" font-size="28" font-weight="500" text-anchor="start" fill="#f1b84b">LXR</text>
+<text class="" x="91" y="60" font-size="18" font-weight="500" text-anchor="start" fill="#edf2f7">Kits and Morph</text>
+<text class="" x="910" y="40" font-size="10" font-weight="400" text-anchor="start" fill="#9aa7b5">KIT</text>
+<text class="" x="910" y="60" font-size="14" font-weight="500" text-anchor="start" fill="#edf2f7">NEON 808</text>
+<text class="" x="1040" y="40" font-size="10" font-weight="400" text-anchor="start" fill="#9aa7b5">CLOCK</text>
+<text class="" x="1040" y="60" font-size="14" font-weight="500" text-anchor="start" fill="#49c6d4">HOST 124.0</text>
+<text class="" x="1180" y="40" font-size="10" font-weight="400" text-anchor="start" fill="#9aa7b5">STATUS</text>
+<text class="" x="1180" y="60" font-size="14" font-weight="500" text-anchor="start" fill="#70c48f">PLAYING</text>
+<line x1="24" y1="78" x2="1256" y2="78" stroke="#353e4b" stroke-width="1"/>
+<rect class="" x="24" y="92" width="146" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="97.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Overview</text>
+<rect class="" x="178" y="92" width="146" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="251.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Sound</text>
+<rect class="" x="332" y="92" width="146" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="405.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Modulation</text>
+<rect class="" x="486" y="92" width="146" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="559.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Sequencer</text>
+<rect class="" x="640" y="92" width="170" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="725.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">Kits + Morph</text>
+<rect class="" x="940" y="92" width="40" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="960.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">D1</text>
+<rect class="" x="984" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1004.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">D2</text>
+<rect class="" x="1028" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1048.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">D3</text>
+<rect class="" x="1072" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1092.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">SN</text>
+<rect class="" x="1116" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1136.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">CY</text>
+<rect class="" x="1160" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1180.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">CH</text>
+<rect class="" x="1204" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1224.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">OH</text>
+<rect class="" x="24" y="144" width="598" height="542" rx="8" fill="#181d24" stroke="#353e4b"/>
+<text class="" x="40" y="170" font-size="12" font-weight="500" text-anchor="start" fill="#9aa7b5">CURRENT KIT</text>
+<line x1="40" y1="181" x2="606" y2="181" stroke="#353e4b" stroke-width="1"/>
+<text class="" x="46" y="198" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">Original eight-byte identity</text>
+<text class="" x="46" y="230" font-size="26" font-weight="500" text-anchor="start" fill="#edf2f7">NEON\x008</text>
+<text class="" x="46" y="264" font-size="12" font-weight="400" text-anchor="start" fill="#9aa7b5">Raw bytes are unchanged; nonprintable bytes use uppercase escapes.</text>
+<rect class="" x="46" y="300" width="162" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="127.0" y="322" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Import .snd</text>
+<rect class="" x="220" y="300" width="162" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="301.0" y="322" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Export .snd</text>
+<rect class="" x="394" y="300" width="182" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="485.0" y="322" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Host preset menu</text>
+<text class="" x="46" y="374" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">Operation status</text>
+<rect class="" x="46" y="390" width="530" height="92" rx="5" fill="#222934" stroke="#353e4b"/>
+<text class="" x="64" y="424" font-size="14" font-weight="400" text-anchor="start" fill="#70c48f">Exported exactly 236 bytes</text>
+<text class="" x="64" y="452" font-size="12" font-weight="400" text-anchor="start" fill="#9aa7b5">C:\Kits\NEON_808.snd</text>
+<text class="" x="46" y="538" font-size="12" font-weight="400" text-anchor="start" fill="#9aa7b5">Host preset restore includes kit identity when present.</text>
+<rect class="" x="638" y="144" width="618" height="542" rx="8" fill="#181d24" stroke="#353e4b"/>
+<text class="" x="654" y="170" font-size="12" font-weight="500" text-anchor="start" fill="#9aa7b5">MORPH TARGET</text>
+<line x1="654" y1="181" x2="1240" y2="181" stroke="#353e4b" stroke-width="1"/>
+<text class="" x="660" y="198" font-size="12" font-weight="500" text-anchor="start" fill="#70c48f">TARGET LOADED</text>
+<text class="" x="660" y="232" font-size="26" font-weight="500" text-anchor="start" fill="#edf2f7">METAL\x01</text>
+<rect class="" x="660" y="270" width="176" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="748.0" y="292" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">Load Morph Target</text>
+<rect class="" x="848" y="270" width="160" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="928.0" y="292" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Clear Target</text>
+<circle cx="726" cy="382" r="27" fill="#222934" stroke="#353e4b" stroke-width="2"/><line x1="726" y1="382" x2="740" y2="364" stroke="#f1b84b" stroke-width="3"/><text class="" x="726" y="430" font-size="11" font-weight="400" text-anchor="middle" fill="#9aa7b5">Morph Amount</text><text class="" x="726" y="445" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">127 / 255</text>
+<rect class="" x="838" y="354" width="204" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="940.0" y="376" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Export Morphed Kit</text>
+<text class="" x="660" y="474" font-size="12" font-weight="400" text-anchor="start" fill="#9aa7b5">Source A remains the current mutable kit.</text>
+<text class="" x="660" y="500" font-size="12" font-weight="400" text-anchor="start" fill="#9aa7b5">Target B and amount are transient and do not survive reload.</text>
+<text class="" x="660" y="548" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">Last operation</text>
+<rect class="" x="660" y="564" width="566" height="72" rx="5" fill="#222934" stroke="#353e4b"/>
+<text class="" x="678" y="594" font-size="13" font-weight="400" text-anchor="start" fill="#70c48f">Target replaced atomically; source kit unchanged</text>
+<text class="" x="678" y="618" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">No existing file overwritten</text>
+</svg>

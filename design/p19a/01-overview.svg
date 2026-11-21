@@ -1,0 +1,210 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title desc">
+<title id="title">LXR Overview concept</title>
+<desc id="desc">P19-A DESIGN CONCEPT - NOT A WORKING PLUGIN SCREENSHOT. Dark industrial drum synthesizer interface.</desc>
+<rect width="1280" height="800" fill="#101318"/>
+<text class="" x="24" y="25" font-size="11" font-weight="500" text-anchor="start" fill="#9aa7b5">P19-A DESIGN CONCEPT - NOT A WORKING PLUGIN SCREENSHOT</text>
+<text class="" x="24" y="62" font-size="28" font-weight="500" text-anchor="start" fill="#f1b84b">LXR</text>
+<text class="" x="91" y="60" font-size="18" font-weight="500" text-anchor="start" fill="#edf2f7">Overview</text>
+<text class="" x="910" y="40" font-size="10" font-weight="400" text-anchor="start" fill="#9aa7b5">KIT</text>
+<text class="" x="910" y="60" font-size="14" font-weight="500" text-anchor="start" fill="#edf2f7">NEON 808</text>
+<text class="" x="1040" y="40" font-size="10" font-weight="400" text-anchor="start" fill="#9aa7b5">CLOCK</text>
+<text class="" x="1040" y="60" font-size="14" font-weight="500" text-anchor="start" fill="#49c6d4">HOST 124.0</text>
+<text class="" x="1180" y="40" font-size="10" font-weight="400" text-anchor="start" fill="#9aa7b5">STATUS</text>
+<text class="" x="1180" y="60" font-size="14" font-weight="500" text-anchor="start" fill="#70c48f">PLAYING</text>
+<line x1="24" y1="78" x2="1256" y2="78" stroke="#353e4b" stroke-width="1"/>
+<rect class="" x="24" y="92" width="146" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="97.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">Overview</text>
+<rect class="" x="178" y="92" width="146" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="251.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Sound</text>
+<rect class="" x="332" y="92" width="146" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="405.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Modulation</text>
+<rect class="" x="486" y="92" width="146" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="559.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Sequencer</text>
+<rect class="" x="640" y="92" width="170" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="725.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Kits + Morph</text>
+<rect class="" x="940" y="92" width="40" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="960.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">D1</text>
+<rect class="" x="984" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1004.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">D2</text>
+<rect class="" x="1028" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1048.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">D3</text>
+<rect class="" x="1072" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1092.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">SN</text>
+<rect class="" x="1116" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1136.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">CY</text>
+<rect class="" x="1160" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1180.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">CH</text>
+<rect class="" x="1204" y="92" width="40" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1224.0" y="114" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">OH</text>
+<rect class="" x="24" y="144" width="300" height="210" rx="8" fill="#181d24" stroke="#353e4b"/>
+<text class="" x="40" y="170" font-size="12" font-weight="500" text-anchor="start" fill="#9aa7b5">KIT AND CLOCK</text>
+<line x1="40" y1="181" x2="308" y2="181" stroke="#353e4b" stroke-width="1"/>
+<text class="" x="42" y="198" font-size="12" font-weight="400" text-anchor="start" fill="#9aa7b5">Current kit</text>
+<text class="" x="42" y="222" font-size="22" font-weight="500" text-anchor="start" fill="#edf2f7">NEON 808</text>
+<rect class="" x="42" y="246" width="112" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="98.0" y="268" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Import .snd</text>
+<rect class="" x="164" y="246" width="112" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="220.0" y="268" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Export .snd</text>
+<text class="" x="42" y="312" font-size="12" font-weight="400" text-anchor="start" fill="#9aa7b5">Internal BPM</text>
+<text class="" x="145" y="312" font-size="18" font-weight="500" text-anchor="start" fill="#edf2f7">120</text>
+<rect class="" x="190" y="294" width="86" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="233.0" y="316" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">Host Sync</text>
+<rect class="" x="340" y="144" width="916" height="210" rx="8" fill="#181d24" stroke="#353e4b"/>
+<text class="" x="356" y="170" font-size="12" font-weight="500" text-anchor="start" fill="#9aa7b5">SEVEN-TRACK ACTIVITY</text>
+<line x1="356" y1="181" x2="1240" y2="181" stroke="#353e4b" stroke-width="1"/>
+<text class="" x="404" y="188" font-size="13" font-weight="500" text-anchor="middle" fill="#edf2f7">D1</text>
+<rect class="" x="362" y="204" width="84" height="82" rx="6" fill="#222934" stroke="#353e4b"/>
+<rect x="372" y="270" width="64" height="6" rx="3" fill="#49c6d4"/>
+<rect class="" x="362" y="298" width="84" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="404.0" y="320" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">SELECT</text>
+<text class="" x="526" y="188" font-size="13" font-weight="500" text-anchor="middle" fill="#edf2f7">D2</text>
+<rect class="" x="484" y="204" width="84" height="82" rx="6" fill="#222934" stroke="#353e4b"/>
+<rect x="494" y="265" width="64" height="11" rx="3" fill="#49c6d4"/>
+<rect class="" x="484" y="298" width="84" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="526.0" y="320" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">SELECT</text>
+<text class="" x="648" y="188" font-size="13" font-weight="500" text-anchor="middle" fill="#edf2f7">D3</text>
+<rect class="" x="606" y="204" width="84" height="82" rx="6" fill="#222934" stroke="#353e4b"/>
+<rect x="616" y="260" width="64" height="16" rx="3" fill="#49c6d4"/>
+<rect class="" x="606" y="298" width="84" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="648.0" y="320" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">SELECT</text>
+<text class="" x="770" y="188" font-size="13" font-weight="500" text-anchor="middle" fill="#edf2f7">SN</text>
+<rect class="" x="728" y="204" width="84" height="82" rx="6" fill="#222934" stroke="#353e4b"/>
+<rect x="738" y="255" width="64" height="21" rx="3" fill="#49c6d4"/>
+<rect class="" x="728" y="298" width="84" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="770.0" y="320" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">MUTE</text>
+<text class="" x="892" y="188" font-size="13" font-weight="500" text-anchor="middle" fill="#edf2f7">CY</text>
+<rect class="" x="850" y="204" width="84" height="82" rx="6" fill="#222934" stroke="#353e4b"/>
+<rect x="860" y="250" width="64" height="26" rx="3" fill="#49c6d4"/>
+<rect class="" x="850" y="298" width="84" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="892.0" y="320" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">SELECT</text>
+<text class="" x="1014" y="188" font-size="13" font-weight="500" text-anchor="middle" fill="#edf2f7">CH</text>
+<rect class="" x="972" y="204" width="84" height="82" rx="6" fill="#222934" stroke="#353e4b"/>
+<rect x="982" y="245" width="64" height="31" rx="3" fill="#49c6d4"/>
+<rect class="" x="972" y="298" width="84" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1014.0" y="320" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">SELECT</text>
+<text class="" x="1136" y="188" font-size="13" font-weight="500" text-anchor="middle" fill="#edf2f7">OH</text>
+<rect class="" x="1094" y="204" width="84" height="82" rx="6" fill="#222934" stroke="#353e4b"/>
+<rect x="1104" y="240" width="64" height="36" rx="3" fill="#49c6d4"/>
+<rect class="" x="1094" y="298" width="84" height="34" rx="5" fill="#4b2528" stroke="#353e4b"/><text class="" x="1136.0" y="320" font-size="12" font-weight="500" text-anchor="middle" fill="#ffd8d4">MUTE</text>
+<rect class="" x="24" y="372" width="618" height="314" rx="8" fill="#181d24" stroke="#353e4b"/>
+<text class="" x="40" y="398" font-size="12" font-weight="500" text-anchor="start" fill="#9aa7b5">PATTERN AND PERFORMANCE</text>
+<line x1="40" y1="409" x2="626" y2="409" stroke="#353e4b" stroke-width="1"/>
+<rect class="" x="42" y="420" width="58" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="71.0" y="442" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">1</text>
+<rect class="" x="110" y="420" width="58" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="139.0" y="442" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">2</text>
+<rect class="" x="178" y="420" width="58" height="34" rx="5" fill="#f1b84b" stroke="#353e4b"/><text class="" x="207.0" y="442" font-size="12" font-weight="500" text-anchor="middle" fill="#16130c">3</text>
+<rect class="" x="246" y="420" width="58" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="275.0" y="442" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">4</text>
+<rect class="" x="314" y="420" width="58" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="343.0" y="442" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">5</text>
+<rect class="" x="382" y="420" width="58" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="411.0" y="442" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">6</text>
+<rect class="" x="450" y="420" width="58" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="479.0" y="442" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">7</text>
+<rect class="" x="518" y="420" width="58" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="547.0" y="442" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">8</text>
+<text class="" x="44" y="493" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">D1</text>
+<rect class="" x="76" y="480" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="107" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="138" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="169" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="200" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="231" y="480" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="262" y="480" width="23" height="18" rx="3" fill="#49c6d4" stroke="#49c6d4"/>
+<rect class="" x="293" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="324" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="355" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="386" y="480" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="417" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="448" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="479" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="510" y="480" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="541" y="480" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<text class="" x="44" y="518" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">D2</text>
+<rect class="" x="76" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="107" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="138" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="169" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="200" y="505" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="231" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="262" y="505" width="23" height="18" rx="3" fill="#49c6d4" stroke="#49c6d4"/>
+<rect class="" x="293" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="324" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="355" y="505" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="386" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="417" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="448" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="479" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="510" y="505" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="541" y="505" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<text class="" x="44" y="543" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">D3</text>
+<rect class="" x="76" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="107" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="138" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="169" y="530" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="200" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="231" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="262" y="530" width="23" height="18" rx="3" fill="#49c6d4" stroke="#49c6d4"/>
+<rect class="" x="293" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="324" y="530" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="355" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="386" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="417" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="448" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="479" y="530" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="510" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="541" y="530" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<text class="" x="44" y="568" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">SN</text>
+<rect class="" x="76" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="107" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="138" y="555" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="169" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="200" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="231" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="262" y="555" width="23" height="18" rx="3" fill="#49c6d4" stroke="#49c6d4"/>
+<rect class="" x="293" y="555" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="324" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="355" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="386" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="417" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="448" y="555" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="479" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="510" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="541" y="555" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<text class="" x="44" y="593" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">CY</text>
+<rect class="" x="76" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="107" y="580" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="138" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="169" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="200" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="231" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="262" y="580" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="293" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="324" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="355" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="386" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="417" y="580" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="448" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="479" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="510" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="541" y="580" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<text class="" x="44" y="618" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">CH</text>
+<rect class="" x="76" y="605" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="107" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="138" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="169" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="200" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="231" y="605" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="262" y="605" width="23" height="18" rx="3" fill="#49c6d4" stroke="#49c6d4"/>
+<rect class="" x="293" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="324" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="355" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="386" y="605" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="417" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="448" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="479" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="510" y="605" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="541" y="605" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<text class="" x="44" y="643" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">OH</text>
+<rect class="" x="76" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="107" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="138" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="169" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="200" y="630" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="231" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="262" y="630" width="23" height="18" rx="3" fill="#49c6d4" stroke="#49c6d4"/>
+<rect class="" x="293" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="324" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="355" y="630" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="386" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="417" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="448" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="479" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="510" y="630" width="23" height="18" rx="3" fill="#f1b84b" stroke="#f1b84b"/>
+<rect class="" x="541" y="630" width="23" height="18" rx="3" fill="#222934" stroke="#222934"/>
+<rect class="" x="658" y="372" width="598" height="314" rx="8" fill="#181d24" stroke="#353e4b"/>
+<text class="" x="674" y="398" font-size="12" font-weight="500" text-anchor="start" fill="#9aa7b5">MORPH AND OUTPUT</text>
+<line x1="674" y1="409" x2="1240" y2="409" stroke="#353e4b" stroke-width="1"/>
+<text class="" x="678" y="420" font-size="12" font-weight="400" text-anchor="start" fill="#9aa7b5">Target</text>
+<text class="" x="750" y="420" font-size="16" font-weight="500" text-anchor="start" fill="#edf2f7">METAL\x01</text>
+<circle cx="744" cy="494" r="27" fill="#222934" stroke="#353e4b" stroke-width="2"/><line x1="744" y1="494" x2="758" y2="476" stroke="#f1b84b" stroke-width="3"/><text class="" x="744" y="542" font-size="11" font-weight="400" text-anchor="middle" fill="#9aa7b5">Morph Amount</text><text class="" x="744" y="557" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">127 / 255</text>
+<circle cx="854" cy="494" r="27" fill="#222934" stroke="#353e4b" stroke-width="2"/><line x1="854" y1="494" x2="868" y2="476" stroke="#f1b84b" stroke-width="3"/><text class="" x="854" y="542" font-size="11" font-weight="400" text-anchor="middle" fill="#9aa7b5">Master Level</text><text class="" x="854" y="557" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">100</text>
+<rect class="" x="934" y="458" width="130" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="999.0" y="480" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Clear Target</text>
+<rect class="" x="1076" y="458" width="150" height="34" rx="5" fill="#222934" stroke="#353e4b"/><text class="" x="1151.0" y="480" font-size="12" font-weight="500" text-anchor="middle" fill="#edf2f7">Export Morphed</text>
+<text class="" x="678" y="582" font-size="11" font-weight="400" text-anchor="start" fill="#9aa7b5">Last operation</text>
+<text class="" x="678" y="607" font-size="13" font-weight="400" text-anchor="start" fill="#70c48f">Morph target loaded - source kit unchanged</text>
+<text class="" x="678" y="652" font-size="12" font-weight="400" text-anchor="start" fill="#9aa7b5">Target and amount are transient on project reload</text>
+</svg>
