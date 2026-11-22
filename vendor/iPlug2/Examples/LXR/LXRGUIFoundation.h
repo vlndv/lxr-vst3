@@ -43,6 +43,8 @@ enum class VoiceOwner : std::uint8_t
     Count
 };
 
+#include "LXRSoundEditorContract.h"
+
 inline constexpr std::array<const char*, 5> kViewNames {{
     "Overview", "Sound", "Modulation", "Sequencer", "Kits + Morph"
 }};

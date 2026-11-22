@@ -75,6 +75,208 @@ const iplug::igraphics::IColor kLXRText(255, 233, 238, 244);
 const iplug::igraphics::IColor kLXRMuted(255, 160, 174, 191);
 const iplug::igraphics::IColor kLXRAccent(255, 44, 214, 188);
 const iplug::igraphics::IColor kLXRWarning(255, 255, 190, 73);
+const iplug::igraphics::IColor kLXRError(255, 235, 92, 92);
+
+class LXRSoundControl final : public iplug::igraphics::IControl
+{
+public:
+    LXRSoundControl(const iplug::igraphics::IRECT& bounds,
+                    const lxr::gui::SoundParameterBinding& binding)
+        : IControl(bounds, binding.parameter), mBinding(binding)
+    {
+        SetTooltip(binding.controlId);
+    }
+
+    void Draw(iplug::igraphics::IGraphics& graphics) override
+    {
+        using namespace iplug::igraphics;
+        const int raw = rawValue();
+        const bool unsupported = mBinding.enumeration !=
+                lxr::gui::EnumerationDomain::None &&
+            !lxr::gui::enumerationValueSupported(mBinding.enumeration, raw);
+        graphics.FillRoundRect(kLXRPanelLight, mRECT, 5.f, &mBlend);
+        graphics.DrawRoundRect(mFocused ? kLXRWarning :
+                (unsupported ? kLXRError : kLXRAccent),
+            mRECT, 5.f, &mBlend, mFocused ? 3.f : 1.f);
+        graphics.DrawText(IText(11.f, kLXRMuted, "LXRSystem",
+                          EAlign::Center, EVAlign::Top),
+                          mBinding.label, mRECT.GetPadded(-4.f), &mBlend);
+        WDL_String display;
+        formatValue(raw, display);
+        graphics.DrawText(IText(14.f, unsupported ? kLXRError : kLXRText,
+                          "LXRSystem"), display.Get(),
+                          mRECT.GetPadded(-4.f, -19.f, -4.f, -17.f), &mBlend);
+        const IRECT track(mRECT.L + 8.f, mRECT.B - 13.f,
+                          mRECT.R - 8.f, mRECT.B - 7.f);
+        graphics.FillRoundRect(kLXRBackground, track, 2.f, &mBlend);
+        IRECT fill = track;
+        fill.R = fill.L + static_cast<float>(GetValue()) * track.W();
+        graphics.FillRoundRect(unsupported ? kLXRError : kLXRAccent,
+                               fill, 2.f, &mBlend);
+    }
+
+    void OnMouseDown(float x, float, const iplug::igraphics::IMouseMod& modifier) override
+    {
+        if (isDiscrete())
+            step(modifier.S ? -1 : 1, 1);
+        else
+            setRawFromX(x);
+    }
+
+    void OnMouseDrag(float, float, float dX, float dY,
+                     const iplug::igraphics::IMouseMod& modifier) override
+    {
+        if (isDiscrete()) return;
+        mDragRemainder += dX - dY;
+        const float threshold = modifier.S ? 8.f : 2.f;
+        const int whole = static_cast<int>(mDragRemainder / threshold);
+        if (whole != 0)
+        {
+            step(whole < 0 ? -1 : 1, whole < 0 ? -whole : whole);
+            mDragRemainder -= static_cast<float>(whole) * threshold;
+        }
+    }
+
+    void OnMouseUp(float, float, const iplug::igraphics::IMouseMod&) override
+    {
+        mDragRemainder = 0.f;
+    }
+
+    void OnMouseWheel(float, float, const iplug::igraphics::IMouseMod& modifier,
+                      float delta) override
+    {
+        if (delta == 0.f) return;
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        step(delta < 0.f ? -1 : 1, modifier.S ? 1 : 4);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+    void OnMouseDblClick(float, float,
+                         const iplug::igraphics::IMouseMod&) override
+    {
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        setRaw(lxr::vst::kParamDescriptors[
+            static_cast<std::size_t>(mBinding.parameter)].defaultValue);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+    void SetFocused(bool focused)
+    {
+        if (mFocused == focused) return;
+        mFocused = focused;
+        SetDirty(false);
+    }
+
+    void SetValueFromUserInput(double value, int valueIndex = 0) override
+    {
+        if (!std::isfinite(value) || value < 0.0 || value > 1.0)
+            return;
+        if (isDiscrete())
+        {
+            int raw = 0;
+            if (!lxr::gui::denormalizeNativeInteger(value, raw) ||
+                !lxr::gui::enumerationValueSupported(mBinding.enumeration, raw))
+                return;
+        }
+        IControl::SetValueFromUserInput(value, valueIndex);
+    }
+
+    void KeyboardStep(int direction, int amount)
+    {
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        step(direction, amount);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+    void KeyboardEndpoint(bool maximum)
+    {
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        setRaw(lxr::gui::soundEndpoint(mBinding, maximum));
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+private:
+    bool isDiscrete() const noexcept
+    {
+        return mBinding.kind == lxr::gui::SoundControlKind::Enumeration ||
+            mBinding.kind == lxr::gui::SoundControlKind::Boolean;
+    }
+
+    int rawValue() const noexcept
+    {
+        int raw = 0;
+        (void) lxr::gui::denormalizeNativeInteger(GetValue(), raw);
+        return raw;
+    }
+
+    void setRaw(int raw)
+    {
+        double normalized = 0.0;
+        if (!lxr::gui::normalizeNativeInteger(raw, normalized)) return;
+        SetValue(normalized);
+        SetDirty(true);
+    }
+
+    void setRawFromX(float x)
+    {
+        const float width = mRECT.W();
+        if (width <= 0.f) return;
+        const double normalized = iplug::Clip(
+            static_cast<double>((x - mRECT.L) / width), 0.0, 1.0);
+        int raw = 0;
+        if (lxr::gui::denormalizeNativeInteger(normalized, raw))
+            setRaw(raw);
+    }
+
+    void step(int direction, int amount)
+    {
+        const int raw = rawValue();
+        if (isDiscrete())
+        {
+            setRaw(lxr::gui::adjacentEnumerationValue(
+                mBinding.enumeration, raw, direction));
+            return;
+        }
+        const int signedAmount = direction < 0 ? -amount : amount;
+        setRaw(iplug::Clip(raw + signedAmount, 0, 127));
+    }
+
+    void formatValue(int raw, WDL_String& display) const
+    {
+        if (mBinding.enumeration != lxr::gui::EnumerationDomain::None)
+        {
+            const char* label = lxr::gui::enumerationLabel(
+                mBinding.enumeration, raw);
+            if (label != nullptr)
+                display.SetFormatted(48, "%s  [%d]", label, raw);
+            else
+                display.SetFormatted(64, "Unsupported [%d]", raw);
+            return;
+        }
+        if (mBinding.kind == lxr::gui::SoundControlKind::Note)
+        {
+            static constexpr std::array<const char*, 12> names {{
+                "C", "C#", "D", "D#", "E", "F",
+                "F#", "G", "G#", "A", "A#", "B" }};
+            display.SetFormatted(48, "%s%d  [%d]",
+                names[static_cast<std::size_t>(raw % 12)], raw / 12 - 1, raw);
+            return;
+        }
+        display.SetFormatted(24, "%d", raw);
+    }
+
+    const lxr::gui::SoundParameterBinding& mBinding;
+    float mDragRemainder = 0.f;
+    bool mFocused = false;
+};
 
 class LXRDiscreteSelector final : public iplug::igraphics::IControl
 {
@@ -174,7 +376,10 @@ private:
         }
         if (mBinding.kind == lxr::gui::ControlKind::SourceToggle)
         {
-            setRaw(raw == 0 ? 127 : 0);
+            // Firmware DTYPE_ON_OFF selects identities 0 and 1. Restored
+            // legacy byte values above 1 remain readable until explicitly
+            // changed rather than being silently coerced.
+            setRaw(raw == 0 ? 1 : 0);
             return;
         }
         if (mBinding.kind == lxr::gui::ControlKind::Enumeration)
@@ -1006,20 +1211,15 @@ LXR::LXR(
             "Tab moves focus; arrows adjust; Enter activates navigation.",
             muted, kLXRBackground), kKeyboardStatusControlTag);
 
-        // Overview: one editable binding per parameter; header values are
-        // read-only mirrors and never create duplicate host attachments.
+        // Overview contains only global editable controls. Voice-owned levels
+        // have their sole editable attachment in the corresponding Sound
+        // editor, preventing duplicate host gestures and competing focus.
         constexpr const char* overview = "lxr.view.overview";
         graphics->AttachControl(new ITextControl(IRECT(35, 195, 850, 235),
-            "OVERVIEW  /  CORE LEVELS", title, kLXRBackground), kNoTag, overview);
-        for (std::size_t i = 0; i < 6u; ++i)
-        {
-            const float left = 38.f + static_cast<float>(i) * 133.f;
-            const auto& binding = lxr::gui::kCoreBindings[i];
-            graphics->AttachControl(new IVKnobControl(
-                IRECT(left, 250, left + 114.f, 405), binding.parameter,
-                binding.label, controlStyle, true, true),
-                kParameterControlTag + binding.parameter, overview);
-        }
+            "OVERVIEW  /  GLOBAL STATUS", title, kLXRBackground), kNoTag, overview);
+        graphics->AttachControl(new ITextControl(IRECT(38, 248, 800, 286),
+            "Voice levels and all source-owned synthesis fields are edited in Sound.",
+            text, kLXRPanel), kNoTag, overview);
         graphics->AttachControl(new IVKnobControl(IRECT(840, 250, 955, 405),
             114, "Global Decimation", controlStyle, true, true),
             kParameterControlTag + 114, overview);
@@ -1048,46 +1248,53 @@ LXR::LXR(
             "Core production controls only. Full voice editor, meters, matrix and sequencer grid are deferred.",
             text, kLXRPanel), kNoTag, overview);
 
-        constexpr std::array<const char*, 6> soundGroups {{
-            "lxr.view.sound.d1", "lxr.view.sound.d2", "lxr.view.sound.d3",
-            "lxr.view.sound.sn", "lxr.view.sound.cy", "lxr.view.sound.hh" }};
         constexpr std::array<const char*, 6> modulationGroups {{
             "lxr.view.modulation.d1", "lxr.view.modulation.d2", "lxr.view.modulation.d3",
             "lxr.view.modulation.sn", "lxr.view.modulation.cy", "lxr.view.modulation.hh" }};
         for (std::size_t owner = 0; owner < 6u; ++owner)
         {
-            graphics->AttachControl(new ITextControl(IRECT(35, 195, 1000, 235),
-                "SOUND  /  SELECTED OWNER CORE", title, kLXRBackground),
-                kNoTag, soundGroups[owner]);
-            const auto& pitch = lxr::gui::kCoreBindings[6u + owner];
-            const auto& filter = lxr::gui::kCoreBindings[12u + owner];
-            const auto& wave = lxr::gui::kCoreBindings[18u + owner];
-            graphics->AttachControl(new IVKnobControl(IRECT(70, 270, 260, 470),
-                pitch.parameter, pitch.label, controlStyle, true, true),
-                kParameterControlTag + pitch.parameter, soundGroups[owner]);
-            graphics->AttachControl(new IVKnobControl(IRECT(310, 270, 500, 470),
-                filter.parameter, filter.label, controlStyle, true, true),
-                kParameterControlTag + filter.parameter, soundGroups[owner]);
-            graphics->AttachControl(new LXRDiscreteSelector(
-                IRECT(550, 300, 850, 410), wave),
-                kParameterControlTag + wave.parameter, soundGroups[owner]);
-            graphics->AttachControl(new ITextControl(IRECT(70, 520, 1200, 600),
-                "P19-B representative controls. Built-in waveform choices are selectable; restored unsupported SD values remain visible and unchanged until edited.",
-                text, kLXRPanel), kNoTag, soundGroups[owner]);
+            const auto ownerId = static_cast<lxr::gui::VoiceOwner>(owner);
+            for (std::size_t section = 0;
+                 section < lxr::gui::kSoundSectionBounds.size(); ++section)
+            {
+                const auto bounds = lxr::gui::kSoundSectionBounds[section];
+                graphics->AttachControl(new ITextControl(
+                    IRECT(static_cast<float>(bounds.left),
+                          static_cast<float>(bounds.top),
+                          static_cast<float>(bounds.right),
+                          static_cast<float>(bounds.bottom)),
+                    lxr::gui::kSoundSectionNames[section],
+                    IText(12.f, kLXRMuted, "LXRSystem", EAlign::Near,
+                          EVAlign::Top), kLXRPanel),
+                    kNoTag, kSoundGroups[owner]);
+            }
+            for (const auto& binding : lxr::gui::kSoundBindings)
+            {
+                if (binding.owner != ownerId) continue;
+                const auto bounds = lxr::gui::soundControlBounds(binding);
+                graphics->AttachControl(new LXRSoundControl(
+                    IRECT(static_cast<float>(bounds.left),
+                          static_cast<float>(bounds.top),
+                          static_cast<float>(bounds.right),
+                          static_cast<float>(bounds.bottom)), binding),
+                    kParameterControlTag + binding.parameter,
+                    kSoundGroups[owner]);
+            }
+            graphics->AttachControl(new ITextControl(IRECT(24, 690, 1256, 718),
+                ownerId == lxr::gui::VoiceOwner::HiHat
+                    ? "Shared hi-hat engine: closed/open are trigger articulations, not separate synthesis owners."
+                    : "Exact byte-domain values; Enter permits text entry; Shift-drag/wheel is fine adjustment.",
+                muted, kLXRBackground), kNoTag, kSoundGroups[owner]);
 
             graphics->AttachControl(new ITextControl(IRECT(35, 195, 1000, 235),
                 "MODULATION  /  TYPED ROUTE FOUNDATION", title, kLXRBackground),
                 kNoTag, modulationGroups[owner]);
-            const auto& toggle = lxr::gui::kCoreBindings[24u + owner];
             const auto& route = lxr::gui::kCoreBindings[30u + owner];
             graphics->AttachControl(new LXRDiscreteSelector(
-                IRECT(70, 285, 350, 395), toggle),
-                kParameterControlTag + toggle.parameter, modulationGroups[owner]);
-            graphics->AttachControl(new LXRDiscreteSelector(
-                IRECT(400, 285, 900, 395), route),
+                IRECT(70, 285, 570, 395), route),
                 kParameterControlTag + route.parameter, modulationGroups[owner]);
             graphics->AttachControl(new ITextControl(IRECT(70, 455, 1200, 550),
-                "The selector stores the firmware destination identity, filters by route owner, displays OFF and values above 127, and rejects unavailable cross-owner targets.",
+                "Velocity-to-amp belongs to Sound. This typed selector stores the firmware destination identity, filters by route owner, and rejects unavailable cross-owner targets.",
                 text, kLXRPanel), kNoTag, modulationGroups[owner]);
             graphics->AttachControl(new ITextControl(IRECT(70, 585, 1200, 635),
                 "Complete modulation editing is intentionally deferred to P19-D.",
@@ -2457,14 +2664,22 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
     auto* graphics = GetUI();
     if (graphics == nullptr) return false;
 
-    std::array<int, 64> order {};
+    std::array<int, 96> order {};
     std::size_t count = 0u;
     for (std::size_t i = 0; i < lxr::gui::kViewNames.size(); ++i)
         order[count++] = kNavControlTag + static_cast<int>(i);
     for (std::size_t i = 0; i < lxr::gui::kVoiceNames.size(); ++i)
         order[count++] = kVoiceControlTag + static_cast<int>(i);
+    for (const auto& binding : lxr::gui::kSoundBindings)
+    {
+        auto* control = graphics->GetControlWithTag(kParameterControlTag + binding.parameter);
+        if (control != nullptr && !control->IsHidden())
+            order[count++] = kParameterControlTag + binding.parameter;
+    }
     for (const auto& binding : lxr::gui::kCoreBindings)
     {
+        if (lxr::gui::soundBindingForParameter(binding.parameter) != nullptr)
+            continue;
         auto* control = graphics->GetControlWithTag(kParameterControlTag + binding.parameter);
         if (control != nullptr && !control->IsHidden())
             order[count++] = kParameterControlTag + binding.parameter;
@@ -2479,10 +2694,13 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
     auto setFocus = [&](int tag) {
         if (mGUIFocusTag >= kParameterControlTag)
         {
-            const auto* oldBinding = lxr::gui::bindingForParameter(
-                mGUIFocusTag - kParameterControlTag);
+            const int oldParameter = mGUIFocusTag - kParameterControlTag;
+            const auto* oldSound = lxr::gui::soundBindingForParameter(oldParameter);
+            const auto* oldBinding = lxr::gui::bindingForParameter(oldParameter);
             auto* oldControl = graphics->GetControlWithTag(mGUIFocusTag);
-            if (oldBinding != nullptr && oldControl != nullptr &&
+            if (oldSound != nullptr && oldControl != nullptr)
+                static_cast<LXRSoundControl*>(oldControl)->SetFocused(false);
+            else if (oldBinding != nullptr && oldControl != nullptr &&
                 (oldBinding->kind == lxr::gui::ControlKind::Enumeration ||
                  oldBinding->kind == lxr::gui::ControlKind::SourceToggle ||
                  oldBinding->kind == lxr::gui::ControlKind::TypedRoute))
@@ -2499,8 +2717,12 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
         }
         if (tag >= kParameterControlTag)
         {
-            const auto* binding = lxr::gui::bindingForParameter(tag - kParameterControlTag);
-            if (binding != nullptr &&
+            const int parameter = tag - kParameterControlTag;
+            const auto* sound = lxr::gui::soundBindingForParameter(parameter);
+            const auto* binding = lxr::gui::bindingForParameter(parameter);
+            if (sound != nullptr)
+                static_cast<LXRSoundControl*>(control)->SetFocused(true);
+            else if (binding != nullptr &&
                 (binding->kind == lxr::gui::ControlKind::Enumeration ||
                  binding->kind == lxr::gui::ControlKind::SourceToggle ||
                  binding->kind == lxr::gui::ControlKind::TypedRoute))
@@ -2534,9 +2756,10 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
     }
 
     const int parameter = mGUIFocusTag - kParameterControlTag;
+    const auto* sound = lxr::gui::soundBindingForParameter(parameter);
     const auto* binding = lxr::gui::bindingForParameter(parameter);
     auto* control = graphics->GetControlWithTag(mGUIFocusTag);
-    if (binding == nullptr || control == nullptr) return false;
+    if ((sound == nullptr && binding == nullptr) || control == nullptr) return false;
     if (key.VK == kVK_RETURN || key.VK == kVK_SPACE)
     {
         control->PromptUserInput();
@@ -2547,6 +2770,16 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
         direction = -1;
     if (key.VK == kVK_RIGHT || key.VK == kVK_UP || key.VK == kVK_PRIOR)
         direction = 1;
+    if (sound != nullptr)
+    {
+        auto* soundControl = static_cast<LXRSoundControl*>(control);
+        if (key.VK == kVK_HOME || key.VK == kVK_END)
+            soundControl->KeyboardEndpoint(key.VK == kVK_END);
+        else if (direction != 0)
+            soundControl->KeyboardStep(direction,
+                (key.VK == kVK_PRIOR || key.VK == kVK_NEXT) ? 10 : 1);
+        return true;
+    }
     if (binding->kind == lxr::gui::ControlKind::Enumeration ||
         binding->kind == lxr::gui::ControlKind::SourceToggle ||
         binding->kind == lxr::gui::ControlKind::TypedRoute)

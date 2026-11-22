@@ -125,11 +125,13 @@ def native_row(descriptor: dict, mapped: dict[int, dict[str, str]]) -> dict[str,
         status = "implemented"
         if ident == 114:
             view = "Overview"
-        elif 115 <= ident <= 190:
+        elif (115 <= ident <= 126 or 143 <= ident <= 148 or
+              155 <= ident <= 160 or 173 <= ident <= 190):
             view = "Modulation"
         else:
             view = "Sound"
-        if semantic in ("Waveform", "FilterType", "Transient", "OutputRouting"):
+        if (semantic in ("Waveform", "FilterType", "OutputRouting") or
+                203 <= ident <= 208 or 134 <= ident <= 136):
             widget = "enumerated-selector"
         elif semantic == "Boolean":
             widget = "toggle"
@@ -143,7 +145,7 @@ def native_row(descriptor: dict, mapped: dict[int, dict[str, str]]) -> dict[str,
         "PM63": "signed value = raw - 63",
         "NOTE_NAME": "MIDI note name plus integer",
         "MENU:lfo_waves": "eight verified LFO waveform names",
-        "MENU:filter": "source filter enumeration; 0..8 valid",
+        "MENU:filter": "source filter enumeration; 0..7 valid",
         "MENU:waveform": "built-in waveform names; user SD waves unsupported",
         "MENU:trans": "source transient enumeration",
         "MENU:audio_out": "source hardware-route enumeration with plugin topology warning",
@@ -154,7 +156,9 @@ def native_row(descriptor: dict, mapped: dict[int, dict[str, str]]) -> dict[str,
     if semantic == "Waveform":
         validation += "; preserve unsupported source values but disable unsupported user-SD selections"
     if semantic == "FilterType":
-        validation += "; present only source-defined filter types 0..8"
+        validation += "; present only source-defined filter types 0..7; preserve unsupported stored bytes"
+    if 134 <= ident <= 142:
+        validation += "; only identities 0 and 1 are selectable; preserve unsupported stored bytes"
     if semantic == "OutputRouting":
         validation += "; explain ST1-only exposed plugin output topology"
     return {

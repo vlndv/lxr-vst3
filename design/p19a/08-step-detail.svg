@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" font-family="Segoe UI, Arial, sans-serif" role="img" aria-labelledby="title desc">
 <title id="title">LXR Sequencer / Step Detail concept</title>
 <desc id="desc">P19-A DESIGN CONCEPT - NOT A WORKING PLUGIN SCREENSHOT. Dark industrial drum synthesizer interface.</desc>
 <rect width="1280" height="800" fill="#101318"/>
@@ -68,13 +68,18 @@
 <text class="" x="818" y="170" font-size="12" font-weight="500" text-anchor="start" fill="#9aa7b5">FIRMWARE BEHAVIOR NOTES</text>
 <line x1="818" y1="181" x2="1240" y2="181" stroke="#353e4b" stroke-width="1"/>
 <circle cx="826" cy="204" r="5" fill="#f1b84b"/>
-<text class="" x="844" y="198" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">Probability 0 still passes when the inclusive random draw equals zero.</text>
+<text class="" x="844" y="198" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">Probability 0 still passes when the inclusive</text>
+<text class="" x="844" y="216" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">random draw equals zero.</text>
 <circle cx="826" cy="286" r="5" fill="#f1b84b"/>
-<text class="" x="844" y="280" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">Slot 2 wins when both slots target the same parameter.</text>
+<text class="" x="844" y="280" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">Slot 2 wins when both slots target</text>
+<text class="" x="844" y="298" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">the same parameter.</text>
 <circle cx="826" cy="368" r="5" fill="#f1b84b"/>
-<text class="" x="844" y="362" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">Turning the main gate off never erases stored physical positions.</text>
+<text class="" x="844" y="362" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">Turning the main gate off never erases</text>
+<text class="" x="844" y="380" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">stored physical positions.</text>
 <circle cx="826" cy="450" r="5" fill="#f1b84b"/>
-<text class="" x="844" y="444" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">Accepted locks may remain active until a later accepted lock or reset boundary.</text>
+<text class="" x="844" y="444" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">Accepted locks may remain active until a later</text>
+<text class="" x="844" y="462" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">accepted lock or reset boundary.</text>
 <circle cx="826" cy="532" r="5" fill="#f1b84b"/>
-<text class="" x="844" y="526" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">OFF selector is stored as 0 or 255; unsupported targets are rejected.</text>
+<text class="" x="844" y="526" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">OFF is stored as 0 or 255; unsupported</text>
+<text class="" x="844" y="544" font-size="12" font-weight="400" text-anchor="start" fill="#edf2f7">targets are rejected.</text>
 </svg>

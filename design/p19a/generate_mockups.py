@@ -49,6 +49,15 @@ def knob(x, y, label, value, accent="accent") -> str:
     return "".join(parts)
 
 
+def compact_knob(x, y, label, value, accent="accent") -> str:
+    """Sound-view knob sized for the certified 1280x800 concept canvas."""
+    parts = [f'<circle cx="{x}" cy="{y}" r="20" fill="{COLORS["raised"]}" stroke="{COLORS["line"]}" stroke-width="2"/>',
+             line(x, y, x + 10, y - 13, accent, 3),
+             text(x, y + 33, label, 10, "muted", 400, "middle"),
+             text(x, y + 46, value, 11, "text", 500, "middle")]
+    return "".join(parts)
+
+
 def panel(x, y, w, h, title_value) -> list[str]:
     return [rect(x, y, w, h), text(x + 16, y + 26, title_value.upper(), 12, "muted", 500),
             line(x + 16, y + 37, x + w - 16, y + 37)]
@@ -57,7 +66,7 @@ def panel(x, y, w, h, title_value) -> list[str]:
 def shell(title_value, selected_voice="D1", selected_tab=None) -> list[str]:
     tabs = ["Overview", "Sound", "Modulation", "Sequencer", "Kits + Morph"]
     selected_tab = selected_tab or title_value.split(" /")[0]
-    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-labelledby="title desc">',
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="Segoe UI, Arial, sans-serif" role="img" aria-labelledby="title desc">',
              f'<title id="title">LXR {esc(title_value)} concept</title>',
              f'<desc id="desc">{esc(SPEC["notice"])}. Dark industrial drum synthesizer interface.</desc>',
              f'<rect width="{W}" height="{H}" fill="{COLORS["bg"]}"/>',
@@ -133,16 +142,21 @@ def sound(parts: list[str], kind: str) -> None:
                   ("Transient", ["Wave", "Level", "Pitch"]),
                   ("Filter and output", ["Type", "Cutoff", "Resonance", "Drive", "Volume", "Pan", "Distortion", "Decimate"])],
     }[kind]
+    # Compact source-faithful bands keep every concept element inside the
+    # approved 800-pixel canvas. The former 132/150-pixel stack overflowed the
+    # drum and snare sheets below y=878/896.
     y = 144
     for section, controls in labels:
-        height = 132 if len(controls) <= 5 else 150
+        height = 98
         parts += panel(24, y, 1232, height, section)
         for i, label in enumerate(controls):
-            x = 80 + i * min(128, 1120 / max(1, len(controls) - 1))
-            parts.append(knob(x, y + 70, label, str((i * 19 + 63) % 128), "cyan" if i % 3 == 1 else "accent"))
-        y += height + 14
-    parts += [text(24, 762, "Exact values: click label or press Enter. Shift/arrow = fine adjustment. Double-click = registered default.", 12, "muted"),
-              f'<rect x="75" y="{y-78}" width="58" height="58" rx="6" fill="none" stroke="{COLORS["focus"]}" stroke-width="3"/>']
+            x = 70 + i * (1140 / max(1, len(controls) - 1))
+            parts.append(compact_knob(x, y + 49, label,
+                str((i * 19 + 63) % 128),
+                "cyan" if i % 3 == 1 else "accent"))
+        y += height + 6
+    parts += [text(24, min(720, y + 14), "Exact values: click label or press Enter. Shift/arrow = fine adjustment. Double-click = registered default.", 12, "muted"),
+              f'<rect x="48" y="173" width="44" height="44" rx="6" fill="none" stroke="{COLORS["focus"]}" stroke-width="3"/>']
 
 
 def modulation(parts: list[str]) -> None:
@@ -207,14 +221,16 @@ def step_detail(parts: list[str]) -> None:
                   rect(170, y-24, 330, 42, "raised", "line", 5), text(186, y+2, "Filter Cutoff [40]", 13, "text"),
                   rect(516, y-24, 190, 42, "raised", "line", 5), text(611, y+2, "91 / 127" if slot == 2 else "17 / 127", 13, "text", 500, "middle")]
     parts += panel(802, 144, 454, 542, "Firmware behavior notes")
-    notes = ["Probability 0 still passes when the inclusive random draw equals zero.",
-             "Slot 2 wins when both slots target the same parameter.",
-             "Turning the main gate off never erases stored physical positions.",
-             "Accepted locks may remain active until a later accepted lock or reset boundary.",
-             "OFF selector is stored as 0 or 255; unsupported targets are rejected."]
-    for i, note in enumerate(notes):
-        parts += [f'<circle cx="826" cy="{204+i*82}" r="5" fill="{COLORS["accent"]}"/>',
-                  text(844, 198+i*82, note, 12, "text")]
+    notes = [("Probability 0 still passes when the inclusive", "random draw equals zero."),
+             ("Slot 2 wins when both slots target", "the same parameter."),
+             ("Turning the main gate off never erases", "stored physical positions."),
+             ("Accepted locks may remain active until a later", "accepted lock or reset boundary."),
+             ("OFF is stored as 0 or 255; unsupported", "targets are rejected.")]
+    for i, lines in enumerate(notes):
+        y = 198 + i * 82
+        parts += [f'<circle cx="826" cy="{y+6}" r="5" fill="{COLORS["accent"]}"/>',
+                  text(844, y, lines[0], 12, "text"),
+                  text(844, y + 18, lines[1], 12, "text")]
 
 
 def kits(parts: list[str]) -> None:

@@ -47,7 +47,9 @@ void require(const char* name, bool condition)
 struct ComponentHandler final : IComponentHandler
 {
     uint32 refs = 1;
+    int begins = 0;
     int edits = 0;
+    int ends = 0;
     tresult PLUGIN_API queryInterface(const TUID iid, void** object) override
     {
         if (FUnknownPrivate::iidEqual(iid, IComponentHandler::iid) ||
@@ -62,9 +64,9 @@ struct ComponentHandler final : IComponentHandler
     }
     uint32 PLUGIN_API addRef() override { return ++refs; }
     uint32 PLUGIN_API release() override { return --refs; }
-    tresult PLUGIN_API beginEdit(ParamID) override { return kResultOk; }
+    tresult PLUGIN_API beginEdit(ParamID) override { ++begins; return kResultOk; }
     tresult PLUGIN_API performEdit(ParamID, ParamValue) override { ++edits; return kResultOk; }
-    tresult PLUGIN_API endEdit(ParamID) override { return kResultOk; }
+    tresult PLUGIN_API endEdit(ParamID) override { ++ends; return kResultOk; }
     tresult PLUGIN_API restartComponent(int32) override { return kResultOk; }
 };
 

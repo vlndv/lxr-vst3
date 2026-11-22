@@ -297,3 +297,14 @@ machine, with separately recorded maximum and percentile data.
 
 P19-F does not inherit or relabel the outstanding P16-F release gates. Those
 remain separately BLOCKED until their exact host observations are completed.
+
+## P19-C source reconciliation
+
+P19-C rechecked the conceptual inventory against the pinned firmware voice
+menus and production ownership switch. IDs 128–133 (filter drive), 134–136
+(Drum 1–3 Mix/FM) and 137–142 (velocity-to-amplitude) are synthesis-owner Sound
+controls, not P19-D routing controls. The corrected Sound view contains 162
+unique parameters across six owners (27/27/27/26/27/28); the deferred typed
+velocity/LFO Modulation view contains 54. The total 246-parameter registry and
+all host IDs remain unchanged. The regenerated SVG concepts also correct the
+original 800-pixel overflow without increasing the canvas.
