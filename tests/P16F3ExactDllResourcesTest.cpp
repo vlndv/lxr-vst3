@@ -64,7 +64,11 @@ void scope(){allocations=0;requested=0;measuring=true;}
 void report(const char* name,size_t stack){measuring=false;std::printf("MEASURE %s allocations=%llu bytes=%llu stack_watermark=%zu\n",name,static_cast<unsigned long long>(allocations),static_cast<unsigned long long>(requested),stack);}
 }
 int main(int argc,char**argv){
-    if(argc!=4)return 2;measuredThread=GetCurrentThreadId();
+    // P19-E's whole-program build can inline the non-real-time bank-import
+    // helper completely. The original four-argument P16 probe remains intact;
+    // a module-only invocation retains all state/publication and processing
+    // measurements without depending on that optional private symbol.
+    if(argc!=2&&argc!=4)return 2;measuredThread=GetCurrentThreadId();
     ULONG_PTR stackLow=0,stackHigh=0;GetCurrentThreadStackLimits(&stackLow,&stackHigh);
     std::printf("STACK reserved=%llu\n",static_cast<unsigned long long>(stackHigh-stackLow));
     auto module=LoadLibraryA(argv[1]);if(!module){std::printf("LOAD_ERROR %lu\n",GetLastError());return 2;}hooks(module);
@@ -76,7 +80,7 @@ int main(int argc,char**argv){
     {
         scope();HostInstance h(factory,info.cid);h.setup(48000,8192);measuring=false;
         auto initAlloc=allocations;report("initialization",0);check("allocation positive control",initAlloc>0);
-        prime();scope();bool imported=P16F3VST3CertificationProbe::import(h,argv[2],module,std::strtoull(argv[3],nullptr,10));measuring=false;auto importStack=watermark();report("production_file_import",importStack);require("real production import",imported);
+        if(argc==4){prime();scope();bool imported=P16F3VST3CertificationProbe::import(h,argv[2],module,std::strtoull(argv[3],nullptr,10));measuring=false;auto importStack=watermark();report("production_file_import",importStack);require("real production import",imported);}
         auto bytes=h.saveState();lxr::state::ProjectCandidate c;require("decode setup",lxr::state::DecodeProject(bytes.data(),bytes.size(),c,true));
         c.transport.enabled=1;c.transport.clock=1;lxr::state::ProjectBytes encoded;std::size_t n=0;require("encode setup",lxr::state::EncodeProject(c,encoded,n,true));bytes.assign(encoded.begin(),encoded.begin()+n);
         prime();scope();bool loaded=h.loadState(bytes);measuring=false;auto restoreStack=watermark();report("component_setState",restoreStack);require("restore",loaded);

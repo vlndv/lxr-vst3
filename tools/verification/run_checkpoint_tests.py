@@ -113,7 +113,7 @@ class Runner:
         overlay.mkdir(parents=True)
         for name in ("LXR.h", "LXRState.h", "LXRProjectState.h", "LXRParamContract.h",
                      "LXRGUIFoundation.h", "LXRSoundEditorContract.h",
-                     "LXRModulationEditorContract.h",
+                     "LXRModulationEditorContract.h", "LXRSequencerEditorContract.h",
                      "LXRKitManagementInterface.h", "LXRMorphManagementInterface.h", "config.h"):
             shutil.copyfile(self.root / "vendor/iPlug2/Examples/LXR" / name, overlay / name)
         # The production project supplies projects/ as include context for its

@@ -7,6 +7,7 @@
 #include "LXRParamContract.h"
 
 #include "../../../../dsp/RouteHostControls.h"
+#include "../../../../dsp/PatternBank.h"
 
 #include <array>
 #include <atomic>
@@ -45,6 +46,7 @@ enum class VoiceOwner : std::uint8_t
 
 #include "LXRSoundEditorContract.h"
 #include "LXRModulationEditorContract.h"
+#include "LXRSequencerEditorContract.h"
 
 inline constexpr std::array<const char*, 5> kViewNames {{
     "Overview", "Sound", "Modulation", "Sequencer", "Kits + Morph"
@@ -384,6 +386,11 @@ struct AudioReadback final
     bool hostTransportValid = false;
     bool hostPlaying = false;
     bool sequencerRunning = false;
+    bool reanchored = false;
+    std::uint8_t hostTransition = 0u;
+    std::uint8_t mutedTracks = 0u;
+    std::uint8_t rollTracks = 0u;
+    std::array<std::uint8_t, 7> trackPositions {};
 };
 
 class ReadbackAuthority final
@@ -398,6 +405,21 @@ public:
                  bool sequencerRunning, std::uint8_t activePattern,
                  std::uint8_t pendingPattern, std::uint8_t sequencerEnabled,
                  std::uint8_t clockMode, std::uint16_t internalTempo) noexcept
+    {
+        publish(hostTempoBpm, hostContextPresent, hostTempoFlag,
+                hostTransportFlag, hostPlaying, sequencerRunning,
+                activePattern, pendingPattern, sequencerEnabled, clockMode,
+                internalTempo, {}, 0u, 0u, 0u, false);
+    }
+
+    void publish(double hostTempoBpm, bool hostContextPresent,
+                 bool hostTempoFlag, bool hostTransportFlag, bool hostPlaying,
+                 bool sequencerRunning, std::uint8_t activePattern,
+                 std::uint8_t pendingPattern, std::uint8_t sequencerEnabled,
+                 std::uint8_t clockMode, std::uint16_t internalTempo,
+                 const std::array<std::uint8_t, 7>& trackPositions,
+                 std::uint8_t mutedTracks, std::uint8_t rollTracks,
+                 std::uint8_t hostTransition, bool reanchored) noexcept
     {
         const bool tempoValid = hostContextPresent && hostTempoFlag &&
             std::isfinite(hostTempoBpm) && hostTempoBpm >= 1.0 &&
@@ -420,10 +442,19 @@ public:
             hostContextPresent && hostTransportFlag && hostPlaying) << 11u;
         state |= static_cast<std::uint64_t>(sequencerRunning) << 12u;
         state |= static_cast<std::uint64_t>(internalTempo & 0xffu) << 16u;
+        state |= static_cast<std::uint64_t>(hostTransition & 0x0fu) << 24u;
+        state |= static_cast<std::uint64_t>(reanchored) << 28u;
+
+        std::uint64_t performance = mutedTracks & 0x7fu;
+        performance |= static_cast<std::uint64_t>(rollTracks & 0x7fu) << 7u;
+        for (std::size_t track = 0u; track < trackPositions.size(); ++track)
+            performance |= static_cast<std::uint64_t>(
+                trackPositions[track] & 0x7fu) << (14u + track * 7u);
 
         const auto odd = mSequence.fetch_add(1u, std::memory_order_acq_rel) + 1u;
         mTempoBits.store(tempoBits, std::memory_order_relaxed);
         mState.store(state, std::memory_order_relaxed);
+        mPerformance.store(performance, std::memory_order_relaxed);
         mSequence.store(odd + 1u, std::memory_order_release);
     }
 
@@ -435,6 +466,7 @@ public:
             if ((begin & 1u) != 0u)
                 continue;
             const auto state = mState.load(std::memory_order_relaxed);
+            const auto performance = mPerformance.load(std::memory_order_relaxed);
             const auto tempoBits = mTempoBits.load(std::memory_order_relaxed);
             const auto end = mSequence.load(std::memory_order_acquire);
             if (begin != end || (end & 1u) != 0u)
@@ -453,6 +485,13 @@ public:
             output.hostPlaying = ((state >> 11u) & 1u) != 0u;
             output.sequencerRunning = ((state >> 12u) & 1u) != 0u;
             output.internalTempo = static_cast<std::uint16_t>((state >> 16u) & 0xffu);
+            output.hostTransition = static_cast<std::uint8_t>((state >> 24u) & 0x0fu);
+            output.reanchored = ((state >> 28u) & 1u) != 0u;
+            output.mutedTracks = static_cast<std::uint8_t>(performance & 0x7fu);
+            output.rollTracks = static_cast<std::uint8_t>((performance >> 7u) & 0x7fu);
+            for (std::size_t track = 0u; track < output.trackPositions.size(); ++track)
+                output.trackPositions[track] = static_cast<std::uint8_t>(
+                    (performance >> (14u + track * 7u)) & 0x7fu);
             return true;
         }
         return false;
@@ -464,6 +503,7 @@ private:
     mutable std::atomic<std::uint64_t> mSequence {0u};
     std::atomic<std::uint64_t> mTempoBits {0u};
     std::atomic<std::uint64_t> mState {0u};
+    std::atomic<std::uint64_t> mPerformance {0u};
 };
 
 } // namespace lxr::gui

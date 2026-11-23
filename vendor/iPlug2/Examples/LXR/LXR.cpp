@@ -26,8 +26,10 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #if IPLUG_EDITOR
 #include "IControls.h"
 #endif
@@ -67,6 +69,15 @@ constexpr int kLoadMorphOperationTag = kOperationControlTag + 2;
 constexpr int kClearMorphOperationTag = kOperationControlTag + 3;
 constexpr int kExportMorphOperationTag = kOperationControlTag + 4;
 constexpr int kParameterControlTag = 19000;
+constexpr int kSequencerPatternTag = 20000;
+constexpr int kSequencerCellTag = 20100;
+constexpr int kSequencerTrackTag = 20300;
+constexpr int kSequencerMuteTag = 20400;
+constexpr int kSequencerRollTag = 20500;
+constexpr int kSequencerSubstepTag = 20600;
+constexpr int kSequencerValueTag = 20700;
+constexpr int kSequencerOperationTag = 20800;
+constexpr int kSequencerStatusTag = 20900;
 constexpr int kNoTag = iplug::kNoTag;
 constexpr std::uint8_t kKitGUIOperation = 1u;
 constexpr std::uint8_t kMorphGUIOperation = 2u;
@@ -662,6 +673,181 @@ private:
 
     const lxr::gui::ParameterBinding& mBinding;
     bool mFocused = false;
+};
+
+class LXRSequencerCell final : public iplug::igraphics::IControl
+{
+public:
+    LXRSequencerCell(const iplug::igraphics::IRECT& bounds,
+                     const char* tooltip, std::function<void()> action)
+        : IControl(bounds), mAction(std::move(action))
+    { SetTooltip(tooltip); }
+
+    void SetState(bool active, bool detail, bool selected, bool playhead,
+                  std::uint8_t velocity = 0u,
+                  std::uint8_t probability = 127u) noexcept
+    {
+        if (mActive == active && mDetail == detail && mSelected == selected &&
+            mPlayhead == playhead && mVelocity == velocity &&
+            mProbability == probability) return;
+        mActive = active; mDetail = detail; mSelected = selected;
+        mPlayhead = playhead; mVelocity = velocity; mProbability = probability;
+        SetDirty(false);
+    }
+
+    void Draw(iplug::igraphics::IGraphics& graphics) override
+    {
+        using namespace iplug::igraphics;
+        graphics.FillRoundRect(mActive ? kLXRWarning : kLXRPanelLight,
+                               mRECT, 4.f, &mBlend);
+        graphics.DrawRoundRect(mSelected ? IColor(255, 248, 223, 140) : kLXRMuted,
+                               mRECT, 4.f, &mBlend, mSelected ? 3.f : 1.f);
+        if (mDetail)
+            graphics.FillCircle(kLXRAccent, mRECT.R - 7.f, mRECT.T + 7.f,
+                                3.f, &mBlend);
+        if (mPlayhead)
+            graphics.FillRect(IColor(255, 112, 196, 143),
+                              IRECT(mRECT.L + 3.f, mRECT.B - 4.f,
+                                    mRECT.R - 3.f, mRECT.B - 1.f), &mBlend);
+        if (mVelocity != 0u)
+        {
+            const float width = (mRECT.W() - 8.f) *
+                static_cast<float>(mVelocity) / 127.f;
+            graphics.FillRect(kLXRText, IRECT(mRECT.L + 4.f, mRECT.B - 9.f,
+                              mRECT.L + 4.f + width, mRECT.B - 7.f), &mBlend);
+        }
+        if (mProbability < 127u)
+        {
+            WDL_String value; value.SetFormatted(8, "%u", mProbability);
+            graphics.DrawText(IText(8.f, mActive ? kLXRBackground : kLXRMuted,
+                              "LXRSystem"), value.Get(),
+                              mRECT.GetPadded(-2.f), &mBlend);
+        }
+    }
+
+    void OnMouseDown(float, float,
+                     const iplug::igraphics::IMouseMod&) override
+    { if (mAction) mAction(); }
+
+private:
+    std::function<void()> mAction;
+    bool mActive = false;
+    bool mDetail = false;
+    bool mSelected = false;
+    bool mPlayhead = false;
+    std::uint8_t mVelocity = 0u;
+    std::uint8_t mProbability = 127u;
+};
+
+class LXRSequencerValueControl final : public iplug::igraphics::IControl
+{
+public:
+    LXRSequencerValueControl(const iplug::igraphics::IRECT& bounds,
+        const char* label, const char* tooltip, int minimum, int maximum,
+        std::function<void(int)> action)
+        : IControl(bounds), mLabel(label), mMinimum(minimum), mMaximum(maximum),
+          mAction(std::move(action))
+    { SetTooltip(tooltip); }
+
+    void SetRaw(int value) noexcept
+    {
+        value = iplug::Clip(value, mMinimum, mMaximum);
+        if (mRaw == value) return;
+        mRaw = value; SetDirty(false);
+    }
+    int Raw() const noexcept { return mRaw; }
+
+    void Draw(iplug::igraphics::IGraphics& graphics) override
+    {
+        using namespace iplug::igraphics;
+        graphics.FillRoundRect(kLXRPanelLight, mRECT, 4.f, &mBlend);
+        graphics.DrawRoundRect(kLXRAccent, mRECT, 4.f, &mBlend, 1.f);
+        graphics.DrawText(IText(9.f, kLXRMuted, "LXRSystem", EAlign::Center,
+                          EVAlign::Top), mLabel, mRECT.GetPadded(-2.f), &mBlend);
+        WDL_String value; value.SetFormatted(16, "%d", mRaw);
+        graphics.DrawText(IText(13.f, kLXRText, "LXRSystem"), value.Get(),
+                          mRECT.GetPadded(-2.f, -13.f, -2.f, -2.f), &mBlend);
+    }
+    void OnMouseDown(float x, float,
+                     const iplug::igraphics::IMouseMod& modifier) override
+    {
+        const int direction = x < (mRECT.L + mRECT.R) * 0.5f ? -1 : 1;
+        apply(mRaw + direction * (modifier.S ? 1 : 1));
+    }
+    void OnMouseWheel(float, float, const iplug::igraphics::IMouseMod&,
+                      float delta) override
+    { if (delta != 0.f) apply(mRaw + (delta < 0.f ? -1 : 1)); }
+    void OnMouseDblClick(float, float,
+                         const iplug::igraphics::IMouseMod&) override
+    { PromptUserInput(mRECT); }
+    void OnTextEntryCompletion(const char* text, int) override
+    {
+        if (text == nullptr || *text == 0) return;
+        char* end = nullptr;
+        const long value = std::strtol(text, &end, 10);
+        if (end != text && *end == 0 && value >= mMinimum && value <= mMaximum)
+            apply(static_cast<int>(value));
+    }
+    void KeyboardStep(int direction, int amount = 1)
+    { apply(mRaw + direction * amount); }
+    void KeyboardEndpoint(bool maximum)
+    { apply(maximum ? mMaximum : mMinimum); }
+
+private:
+    void apply(int value)
+    {
+        if (value < mMinimum || value > mMaximum || value == mRaw) return;
+        if (mAction) mAction(value);
+    }
+    const char* mLabel = nullptr;
+    int mMinimum = 0;
+    int mMaximum = 127;
+    int mRaw = 0;
+    std::function<void(int)> mAction;
+};
+
+class LXRSequencerRollPad final : public iplug::igraphics::IControl
+{
+public:
+    LXRSequencerRollPad(const iplug::igraphics::IRECT& bounds,
+                       std::uint8_t track)
+        : IControl(bounds, lxr::vst::kSequencerRollTracksParam), mTrack(track)
+    { SetTooltip("lxr.seq.roll"); }
+
+    void Draw(iplug::igraphics::IGraphics& graphics) override
+    {
+        using namespace iplug::igraphics;
+        const auto mask = static_cast<std::uint8_t>(
+            std::floor(GetValue() * 127.0 + 0.5));
+        const bool active = (mask & (1u << mTrack)) != 0u;
+        graphics.FillRoundRect(active ? kLXRWarning : kLXRPanelLight,
+                               mRECT, 4.f, &mBlend);
+        graphics.DrawText(IText(12.f, active ? kLXRBackground : kLXRText,
+                          "LXRSystem"), "R", mRECT, &mBlend);
+    }
+    void OnMouseDown(float, float,
+                     const iplug::igraphics::IMouseMod&) override
+    { setPressed(true); }
+    void OnMouseUp(float, float,
+                   const iplug::igraphics::IMouseMod&) override
+    { setPressed(false); }
+
+private:
+    void setPressed(bool pressed)
+    {
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        auto mask = static_cast<std::uint8_t>(
+            std::floor(GetValue() * 127.0 + 0.5));
+        const auto bit = static_cast<std::uint8_t>(1u << mTrack);
+        mask = pressed ? static_cast<std::uint8_t>(mask | bit)
+                       : static_cast<std::uint8_t>(mask & ~bit);
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        SetValue(static_cast<double>(mask) / 127.0);
+        SetDirty(true);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+    std::uint8_t mTrack = 0u;
 };
 
 class LXRFocusRing final : public iplug::igraphics::IControl
@@ -1555,11 +1741,275 @@ LXR::LXR(
         }
 
         constexpr const char* sequencer = "lxr.view.sequencer";
-        graphics->AttachControl(new ITextControl(IRECT(35, 195, 900, 235),
-            "SEQUENCER  /  STATUS", title, kLXRBackground), kNoTag, sequencer);
-        graphics->AttachControl(new ITextControl(IRECT(60, 270, 1220, 430),
-            "Current pattern, sequencer enable, clock mode, valid BPM and playback status are shown in the persistent header.\n\nThe seven-track sequencer grid is not implemented in P19-B.",
-            text, kLXRPanel), kNoTag, sequencer);
+        graphics->AttachControl(new ITextControl(IRECT(24, 181, 520, 213),
+            "SEQUENCER  /  7 TRACKS x 16 STEPS", title, kLXRBackground),
+            kNoTag, sequencer);
+        for (std::uint8_t pattern = 0u; pattern < 8u; ++pattern)
+        {
+            const auto b = lxr::gui::sequencer_editor::patternBounds(pattern);
+            WDL_String label; label.SetFormatted(4, "%u", pattern + 1u);
+            graphics->AttachControl(new IVButtonControl(
+                IRECT(static_cast<float>(b.left), static_cast<float>(b.top),
+                      static_cast<float>(b.right), static_cast<float>(b.bottom)),
+                [this, pattern](IControl*) {
+                    mGUISequencerSelection.selectPattern(pattern);
+                    const bool accepted = SelectSequencerPattern(pattern);
+                    SetSequencerStatus(accepted
+                        ? "Pattern request accepted; running changes remain pending to track-0 boundary."
+                        : "Pattern request rejected.");
+                    RefreshSequencerControls(true);
+                }, label.Get(), buttonStyle),
+                kSequencerPatternTag + pattern, sequencer);
+        }
+        graphics->AttachControl(new IVKnobControl(IRECT(470, 190, 540, 232),
+            lxr::vst::kSequencerRollRateParam, "Roll", controlStyle, true, true),
+            kParameterControlTag + lxr::vst::kSequencerRollRateParam, sequencer);
+        graphics->AttachControl(new ITextControl(IRECT(550, 194, 980, 226),
+            "Amber gate | cyan detail | green playhead | M mute | hold R roll",
+            muted, kLXRBackground), kNoTag, sequencer);
+
+        for (std::uint8_t track = 0u; track < 7u; ++track)
+        {
+            const float top = 250.f + static_cast<float>(track) * 45.f;
+            graphics->AttachControl(new IVButtonControl(IRECT(35, top, 77, top + 39.f),
+                [this, track](IControl*) {
+                    mGUISequencerSelection.selectStep(
+                        track, mGUISequencerSelection.mainStep());
+                    RefreshSequencerControls(true);
+                }, lxr::gui::sequencer_editor::kTrackNames[track], buttonStyle),
+                kSequencerTrackTag + track, sequencer);
+            graphics->AttachControl(new ITextControl(IRECT(79, top, 122, top + 39.f),
+                "L16\nR0", IText(9.f, kLXRMuted, "LXRSystem"), kLXRBackground),
+                kSequencerTrackTag + 20 + track, sequencer);
+            for (std::uint8_t step = 0u; step < 16u; ++step)
+            {
+                const auto b = lxr::gui::sequencer_editor::gridBounds(track, step);
+                graphics->AttachControl(new LXRSequencerCell(
+                    IRECT(static_cast<float>(b.left), static_cast<float>(b.top),
+                          static_cast<float>(b.right), static_cast<float>(b.bottom)),
+                    "lxr.seq.main-step", [this, track, step]() {
+                        mGUISequencerSelection.selectStep(track, step);
+                        lxr::sequencer::SequencerEditFacade::Request edit;
+                        edit.operation = lxr::sequencer::SequencerEditFacade::Operation::ToggleMainGate;
+                        edit.pattern = mGUISequencerSelection.pattern();
+                        edit.track = track; edit.mainStep = step;
+                        ApplySequencerEdit(edit);
+                    }), kSequencerCellTag + track * 16 + step, sequencer);
+            }
+            const auto mb = lxr::gui::sequencer_editor::muteBounds(track);
+            graphics->AttachControl(new IVButtonControl(
+                IRECT(static_cast<float>(mb.left), static_cast<float>(mb.top),
+                      static_cast<float>(mb.right), static_cast<float>(mb.bottom)),
+                [this, track](IControl*) {
+                    const bool muted = !mSequencerEditor.trackMuted(track);
+                    (void)mSequencerEditor.setTrackMuted(track, muted);
+                    SetSequencerStatus(muted ? "Track muted (transient)." : "Track unmuted.");
+                    RefreshSequencerControls(true);
+                }, "M", buttonStyle), kSequencerMuteTag + track, sequencer);
+            const auto rb = lxr::gui::sequencer_editor::rollBounds(track);
+            graphics->AttachControl(new LXRSequencerRollPad(
+                IRECT(static_cast<float>(rb.left), static_cast<float>(rb.top),
+                      static_cast<float>(rb.right), static_cast<float>(rb.bottom)), track),
+                kSequencerRollTag + track, sequencer);
+        }
+
+        graphics->AttachControl(new ITextControl(IRECT(1002, 194, 1248, 230),
+            "SELECTED STEP DETAIL", IText(12.f, kLXRMuted, "LXRSystem",
+            EAlign::Near), kLXRPanel), kNoTag, sequencer);
+        for (std::uint8_t substep = 0u; substep < 8u; ++substep)
+        {
+            const auto b = lxr::gui::sequencer_editor::substepBounds(substep);
+            graphics->AttachControl(new LXRSequencerCell(
+                IRECT(static_cast<float>(b.left), static_cast<float>(b.top),
+                      static_cast<float>(b.right), static_cast<float>(b.bottom)),
+                "lxr.seq.detail.substep", [this, substep]() {
+                    mGUISequencerSelection.selectSubstep(substep);
+                    lxr::sequencer::SequencerEditFacade::Request edit;
+                    edit.operation = lxr::sequencer::SequencerEditFacade::Operation::SetSubstep;
+                    edit.pattern = mGUISequencerSelection.pattern();
+                    edit.track = mGUISequencerSelection.track();
+                    edit.mainStep = mGUISequencerSelection.mainStep();
+                    edit.substep = substep;
+                    if (mGUISequencerPatternValid)
+                        edit.active = !lxr::sequencer::IsStepActive(
+                            mGUISequencerPattern.pattern.steps[edit.track]
+                            [lxr::sequencer::PhysicalPosition(edit.mainStep, substep)]);
+                    ApplySequencerEdit(edit);
+                }), kSequencerSubstepTag + substep, sequencer);
+        }
+
+        auto attachStepValue = [&](int tag, const IRECT& bounds, const char* label,
+                                   int maximum,
+                                   lxr::sequencer::SequencerEditFacade::Operation operation) {
+            graphics->AttachControl(new LXRSequencerValueControl(bounds, label,
+                label, 0, maximum, [this, operation](int value) {
+                    lxr::sequencer::SequencerEditFacade::Request edit;
+                    edit.operation = operation;
+                    edit.pattern = mGUISequencerSelection.pattern();
+                    edit.track = mGUISequencerSelection.track();
+                    edit.mainStep = mGUISequencerSelection.mainStep();
+                    edit.substep = mGUISequencerSelection.substep();
+                    edit.value = static_cast<std::uint8_t>(value);
+                    ApplySequencerEdit(edit);
+                }), tag, sequencer);
+        };
+        attachStepValue(kSequencerValueTag, IRECT(1005, 357, 1080, 407),
+                        "Note", 127, lxr::sequencer::SequencerEditFacade::Operation::SetNote);
+        attachStepValue(kSequencerValueTag + 1, IRECT(1085, 357, 1160, 407),
+                        "Velocity", 127, lxr::sequencer::SequencerEditFacade::Operation::SetVelocity);
+        attachStepValue(kSequencerValueTag + 2, IRECT(1165, 357, 1240, 407),
+                        "Probability", 127, lxr::sequencer::SequencerEditFacade::Operation::SetProbability);
+        for (std::uint8_t slot = 0u; slot < 2u; ++slot)
+        {
+            const float top = 414.f + slot * 54.f;
+            graphics->AttachControl(new LXRSequencerValueControl(
+                IRECT(1005, top, 1110, top + 48.f), slot == 0u ? "Lock 1 target" : "Lock 2 target",
+                "Original selector; 0/255 OFF", 0, 255,
+                [this, slot](int value) {
+                    if (mGUISequencerPatternValid)
+                    {
+                        const auto& currentStep = mGUISequencerPattern.pattern.steps
+                            [mGUISequencerSelection.track()]
+                            [lxr::sequencer::PhysicalPosition(
+                                mGUISequencerSelection.mainStep(),
+                                mGUISequencerSelection.substep())];
+                        const int current = slot == 0u
+                            ? currentStep.parameter1 : currentStep.parameter2;
+                        const int direction = value < current ? -1 : 1;
+                        int candidate = value;
+                        for (int attempt = 0; attempt < 256; ++attempt)
+                        {
+                            if (candidate < 0) candidate = 255;
+                            if (candidate > 255) candidate = 0;
+                            if (lxr::sequencer::DecodeAutomationSlot(
+                                    static_cast<std::uint8_t>(candidate), 0u))
+                            { value = candidate; break; }
+                            candidate += direction;
+                        }
+                    }
+                    mGUISequencerSelection.selectLockSlot(slot);
+                    lxr::sequencer::SequencerEditFacade::Request edit;
+                    edit.operation = lxr::sequencer::SequencerEditFacade::Operation::SetLockTarget;
+                    edit.pattern = mGUISequencerSelection.pattern();
+                    edit.track = mGUISequencerSelection.track();
+                    edit.mainStep = mGUISequencerSelection.mainStep();
+                    edit.substep = mGUISequencerSelection.substep(); edit.slot = slot;
+                    edit.value = static_cast<std::uint8_t>(value);
+                    ApplySequencerEdit(edit);
+                }), kSequencerValueTag + 3 + slot * 2, sequencer);
+            graphics->AttachControl(new LXRSequencerValueControl(
+                IRECT(1115, top, 1190, top + 48.f), "Value", "Absolute 0..127",
+                0, 127, [this, slot](int value) {
+                    lxr::sequencer::SequencerEditFacade::Request edit;
+                    edit.operation = lxr::sequencer::SequencerEditFacade::Operation::SetLockValue;
+                    edit.pattern = mGUISequencerSelection.pattern();
+                    edit.track = mGUISequencerSelection.track();
+                    edit.mainStep = mGUISequencerSelection.mainStep();
+                    edit.substep = mGUISequencerSelection.substep(); edit.slot = slot;
+                    edit.value = static_cast<std::uint8_t>(value);
+                    ApplySequencerEdit(edit);
+                }), kSequencerValueTag + 4 + slot * 2, sequencer);
+            graphics->AttachControl(new IVButtonControl(IRECT(1195, top, 1240, top + 48.f),
+                [this, slot](IControl*) {
+                    lxr::sequencer::SequencerEditFacade::Request edit;
+                    edit.operation = lxr::sequencer::SequencerEditFacade::Operation::ClearLock;
+                    edit.pattern = mGUISequencerSelection.pattern();
+                    edit.track = mGUISequencerSelection.track();
+                    edit.mainStep = mGUISequencerSelection.mainStep();
+                    edit.substep = mGUISequencerSelection.substep(); edit.slot = slot;
+                    ApplySequencerEdit(edit);
+                }, "OFF", buttonStyle), kSequencerOperationTag + slot, sequencer);
+        }
+
+        auto attachPatternValue = [&](int tag, const IRECT& bounds, const char* label,
+                                      int minimum, int maximum,
+                                      std::function<void(int)> action) {
+            graphics->AttachControl(new LXRSequencerValueControl(bounds, label,
+                label, minimum, maximum, std::move(action)), tag, sequencer);
+        };
+        attachPatternValue(kSequencerValueTag + 7, IRECT(1005, 526, 1060, 574),
+            "Length", 1, 16, [this](int value) {
+                lxr::sequencer::SequencerEditFacade::Request edit;
+                edit.operation = lxr::sequencer::SequencerEditFacade::Operation::SetTrackLength;
+                edit.pattern = mGUISequencerSelection.pattern(); edit.track = mGUISequencerSelection.track();
+                edit.value = static_cast<std::uint8_t>(value); ApplySequencerEdit(edit); });
+        attachPatternValue(kSequencerValueTag + 8, IRECT(1065, 526, 1120, 574),
+            "Rotation", 0, 15, [this](int value) {
+                lxr::sequencer::SequencerEditFacade::Request edit;
+                edit.operation = lxr::sequencer::SequencerEditFacade::Operation::SetRotation;
+                edit.pattern = mGUISequencerSelection.pattern(); edit.track = mGUISequencerSelection.track();
+                edit.value = static_cast<std::uint8_t>(value); ApplySequencerEdit(edit); });
+        attachPatternValue(kSequencerValueTag + 9, IRECT(1125, 526, 1180, 574),
+            "Repeat", 0, 127, [this](int value) {
+                if (!mGUISequencerPatternValid) return;
+                lxr::sequencer::SequencerEditFacade::Request edit;
+                edit.operation = lxr::sequencer::SequencerEditFacade::Operation::SetPatternChain;
+                edit.pattern = mGUISequencerSelection.pattern(); edit.value = static_cast<std::uint8_t>(value);
+                edit.value2 = mGUISequencerPattern.pattern.nextPattern; ApplySequencerEdit(edit); });
+        attachPatternValue(kSequencerValueTag + 10, IRECT(1185, 526, 1240, 574),
+            "Next", 0, 14, [this](int value) {
+                if (!mGUISequencerPatternValid) return;
+                lxr::sequencer::SequencerEditFacade::Request edit;
+                edit.operation = lxr::sequencer::SequencerEditFacade::Operation::SetPatternChain;
+                edit.pattern = mGUISequencerSelection.pattern(); edit.value = mGUISequencerPattern.pattern.repeat;
+                edit.value2 = static_cast<std::uint8_t>(value); ApplySequencerEdit(edit); });
+        attachPatternValue(kSequencerValueTag + 11, IRECT(1005, 580, 1060, 628),
+            "Shuffle", 0, 127, [this](int value) {
+                lxr::sequencer::SequencerEditFacade::Request edit;
+                edit.operation = lxr::sequencer::SequencerEditFacade::Operation::SetShuffle;
+                edit.value = static_cast<std::uint8_t>(value); ApplySequencerEdit(edit); });
+        attachPatternValue(kSequencerValueTag + 12, IRECT(1065, 580, 1120, 628),
+            "Euc Len", 1, 16, [this](int value) { mGUIEuclideanLength = static_cast<std::uint8_t>(value); RefreshSequencerControls(true); });
+        attachPatternValue(kSequencerValueTag + 13, IRECT(1125, 580, 1180, 628),
+            "Pulses", 1, 16, [this](int value) { mGUIEuclideanPulses = static_cast<std::uint8_t>(value); RefreshSequencerControls(true); });
+        attachPatternValue(kSequencerValueTag + 14, IRECT(1185, 580, 1240, 628),
+            "Euc Rot", 0, 16, [this](int value) { mGUIEuclideanRotation = static_cast<std::uint8_t>(value); RefreshSequencerControls(true); });
+        graphics->AttachControl(new IVButtonControl(IRECT(1005, 635, 1120, 675),
+            [this](IControl*) {
+                lxr::sequencer::SequencerEditFacade::Request edit;
+                edit.operation = lxr::sequencer::SequencerEditFacade::Operation::GenerateEuclidean;
+                edit.pattern = mGUISequencerSelection.pattern(); edit.track = mGUISequencerSelection.track();
+                edit.value = mGUIEuclideanLength; edit.value2 = mGUIEuclideanPulses;
+                edit.value3 = mGUIEuclideanRotation; ApplySequencerEdit(edit);
+            }, "Generate", buttonStyle), kSequencerOperationTag + 2, sequencer);
+        attachPatternValue(kSequencerValueTag + 15, IRECT(35, 580, 95, 628),
+            "Copy to P", 1, 8, [this](int value) { mGUICopyDestination = static_cast<std::uint8_t>(value - 1); RefreshSequencerControls(true); });
+        graphics->AttachControl(new IVButtonControl(IRECT(100, 580, 220, 628),
+            [this](IControl*) {
+                lxr::sequencer::SequencerEditFacade::Request edit;
+                edit.operation = lxr::sequencer::SequencerEditFacade::Operation::CopyPattern;
+                edit.source = mGUISequencerSelection.pattern(); edit.destination = mGUICopyDestination;
+                ApplySequencerEdit(edit);
+            }, "Copy pattern", buttonStyle), kSequencerOperationTag + 3, sequencer);
+        graphics->AttachControl(new IVButtonControl(IRECT(225, 580, 350, 628),
+            [this](IControl*) {
+                if (!mGUIClearArmed) { mGUIClearArmed = true; SetSequencerStatus("Press Clear pattern again to confirm; Escape cancels."); return; }
+                mGUIClearArmed = false;
+                lxr::sequencer::SequencerEditFacade::Request edit;
+                edit.operation = lxr::sequencer::SequencerEditFacade::Operation::ClearPattern;
+                edit.pattern = mGUISequencerSelection.pattern(); ApplySequencerEdit(edit);
+            }, "Clear pattern", buttonStyle), kSequencerOperationTag + 4, sequencer);
+        attachPatternValue(kSequencerValueTag + 16, IRECT(365, 580, 425, 628),
+            "Track to", 1, 7, [this](int value) { mGUICopyTrackDestination = static_cast<std::uint8_t>(value - 1); RefreshSequencerControls(true); });
+        graphics->AttachControl(new IVButtonControl(IRECT(430, 580, 540, 628),
+            [this](IControl*) {
+                lxr::sequencer::SequencerEditFacade::Request edit;
+                edit.operation = lxr::sequencer::SequencerEditFacade::Operation::CopyTrack;
+                edit.pattern = mGUISequencerSelection.pattern(); edit.source = mGUISequencerSelection.track();
+                edit.destination = mGUICopyTrackDestination; ApplySequencerEdit(edit);
+            }, "Copy track", buttonStyle), kSequencerOperationTag + 5, sequencer);
+        graphics->AttachControl(new IVButtonControl(IRECT(545, 580, 660, 628),
+            [this](IControl*) {
+                if (!mGUIClearTrackArmed) { mGUIClearTrackArmed = true; SetSequencerStatus("Press Clear track again to confirm; Escape cancels."); return; }
+                mGUIClearTrackArmed = false;
+                lxr::sequencer::SequencerEditFacade::Request edit;
+                edit.operation = lxr::sequencer::SequencerEditFacade::Operation::ClearTrack;
+                edit.pattern = mGUISequencerSelection.pattern(); edit.track = mGUISequencerSelection.track();
+                ApplySequencerEdit(edit);
+            }, "Clear track", buttonStyle), kSequencerOperationTag + 6, sequencer);
+        graphics->AttachControl(new ITextControl(IRECT(35, 642, 980, 682),
+            "Ready. Probability uses inclusive random <= value; 0 is not OFF. Gate OFF preserves all physical data.",
+            muted, kLXRPanel), kSequencerStatusTag, sequencer);
 
         constexpr const char* kits = "lxr.view.kits-morph";
         graphics->AttachControl(new ITextControl(IRECT(35, 195, 900, 235),
@@ -2879,6 +3329,8 @@ void LXR::SelectGUIView(lxr::gui::PrimaryView view)
     label.SetFormatted(96, "Active view: %s",
         lxr::gui::kViewNames[static_cast<std::size_t>(active)]);
     SetTextIfChanged(graphics->GetControlWithTag(kActiveViewControlTag), label.Get());
+    if (active == lxr::gui::PrimaryView::Sequencer)
+        RefreshSequencerControls(true);
     if (mGUIFocusTag >= 0)
     {
         auto* focused = graphics->GetControlWithTag(mGUIFocusTag);
@@ -2911,13 +3363,36 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
     const bool relevant = key.VK == kVK_TAB || key.VK == kVK_RETURN ||
         key.VK == kVK_SPACE || key.VK == kVK_LEFT || key.VK == kVK_RIGHT ||
         key.VK == kVK_UP || key.VK == kVK_DOWN || key.VK == kVK_HOME ||
-        key.VK == kVK_END || key.VK == kVK_PRIOR || key.VK == kVK_NEXT;
+        key.VK == kVK_END || key.VK == kVK_PRIOR || key.VK == kVK_NEXT ||
+        key.VK == kVK_ESCAPE;
     if (!relevant) return false;
-    if (isUp) return true;
     auto* graphics = GetUI();
     if (graphics == nullptr) return false;
+    if (mGUIFocusTag >= kSequencerRollTag &&
+        mGUIFocusTag < kSequencerRollTag + 7 &&
+        (key.VK == kVK_RETURN || key.VK == kVK_SPACE))
+    {
+        auto* control = graphics->GetControlWithTag(mGUIFocusTag);
+        if (control != nullptr)
+        {
+            const auto bounds = control->GetRECT();
+            const float x = (bounds.L + bounds.R) * 0.5f;
+            const float y = (bounds.T + bounds.B) * 0.5f;
+            if (isUp) control->OnMouseUp(x, y, IMouseMod());
+            else control->OnMouseDown(x, y, IMouseMod(true, false, key.S));
+        }
+        return true;
+    }
+    if (isUp) return true;
+    if (key.VK == kVK_ESCAPE)
+    {
+        mGUIClearArmed = false;
+        mGUIClearTrackArmed = false;
+        SetSequencerStatus("Edit cancelled; accepted pattern unchanged.");
+        return true;
+    }
 
-    std::array<int, 128> order {};
+    std::array<int, 384> order {};
     std::size_t count = 0u;
     for (std::size_t i = 0; i < lxr::gui::kViewNames.size(); ++i)
         order[count++] = kNavControlTag + static_cast<int>(i);
@@ -2956,6 +3431,42 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
         auto* control = graphics->GetControlWithTag(kParameterControlTag + binding.parameter);
         if (control != nullptr && !control->IsHidden())
             order[count++] = kParameterControlTag + binding.parameter;
+    }
+    for (int tag = kSequencerPatternTag; tag < kSequencerPatternTag + 8; ++tag)
+    {
+        auto* control = graphics->GetControlWithTag(tag);
+        if (control != nullptr && !control->IsHidden()) order[count++] = tag;
+    }
+    for (int tag = kSequencerTrackTag; tag < kSequencerTrackTag + 7; ++tag)
+    {
+        auto* control = graphics->GetControlWithTag(tag);
+        if (control != nullptr && !control->IsHidden()) order[count++] = tag;
+    }
+    for (int tag = kSequencerCellTag; tag < kSequencerCellTag + 112; ++tag)
+    {
+        auto* control = graphics->GetControlWithTag(tag);
+        if (control != nullptr && !control->IsHidden()) order[count++] = tag;
+    }
+    for (int base : {kSequencerMuteTag, kSequencerRollTag})
+        for (int tag = base; tag < base + 7; ++tag)
+        {
+            auto* control = graphics->GetControlWithTag(tag);
+            if (control != nullptr && !control->IsHidden()) order[count++] = tag;
+        }
+    for (int tag = kSequencerSubstepTag; tag < kSequencerSubstepTag + 8; ++tag)
+    {
+        auto* control = graphics->GetControlWithTag(tag);
+        if (control != nullptr && !control->IsHidden()) order[count++] = tag;
+    }
+    for (int tag = kSequencerValueTag; tag <= kSequencerValueTag + 16; ++tag)
+    {
+        auto* control = graphics->GetControlWithTag(tag);
+        if (control != nullptr && !control->IsHidden()) order[count++] = tag;
+    }
+    for (int tag = kSequencerOperationTag; tag <= kSequencerOperationTag + 6; ++tag)
+    {
+        auto* control = graphics->GetControlWithTag(tag);
+        if (control != nullptr && !control->IsHidden()) order[count++] = tag;
     }
 
     auto setFocus = [&](int tag) {
@@ -3017,6 +3528,94 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
         return true;
     }
     if (mGUIFocusTag < 0) return false;
+    auto activateFocused = [&]() {
+        auto* control = graphics->GetControlWithTag(mGUIFocusTag);
+        if (control == nullptr) return;
+        const auto bounds = control->GetRECT();
+        const float x = (bounds.L + bounds.R) * 0.5f;
+        const float y = (bounds.T + bounds.B) * 0.5f;
+        control->OnMouseDown(x, y, IMouseMod(true, false, key.S));
+        control->OnMouseUp(x, y, IMouseMod());
+    };
+    if (mGUIFocusTag >= kSequencerPatternTag &&
+        mGUIFocusTag < kSequencerPatternTag + 8)
+    {
+        if (key.VK == kVK_RETURN || key.VK == kVK_SPACE) activateFocused();
+        else if (key.VK == kVK_LEFT || key.VK == kVK_RIGHT)
+        {
+            const int pattern = (mGUIFocusTag - kSequencerPatternTag +
+                (key.VK == kVK_LEFT ? 7 : 1)) % 8;
+            setFocus(kSequencerPatternTag + pattern);
+        }
+        return true;
+    }
+    if (mGUIFocusTag >= kSequencerTrackTag &&
+        mGUIFocusTag < kSequencerTrackTag + 7)
+    {
+        if (key.VK == kVK_RETURN || key.VK == kVK_SPACE) activateFocused();
+        return true;
+    }
+    if (mGUIFocusTag >= kSequencerCellTag &&
+        mGUIFocusTag < kSequencerCellTag + 112)
+    {
+        int index = mGUIFocusTag - kSequencerCellTag;
+        int track = index / 16;
+        int step = index % 16;
+        if (key.VK == kVK_RETURN || key.VK == kVK_SPACE) activateFocused();
+        else
+        {
+            if (key.VK == kVK_LEFT) step = (step + 15) % 16;
+            else if (key.VK == kVK_RIGHT) step = (step + 1) % 16;
+            else if (key.VK == kVK_UP) track = (track + 6) % 7;
+            else if (key.VK == kVK_DOWN) track = (track + 1) % 7;
+            else return true;
+            mGUISequencerSelection.selectStep(static_cast<std::uint8_t>(track),
+                                               static_cast<std::uint8_t>(step));
+            setFocus(kSequencerCellTag + track * 16 + step);
+            RefreshSequencerControls(true);
+        }
+        return true;
+    }
+    if ((mGUIFocusTag >= kSequencerMuteTag && mGUIFocusTag < kSequencerMuteTag + 7) ||
+        (mGUIFocusTag >= kSequencerOperationTag && mGUIFocusTag <= kSequencerOperationTag + 6))
+    {
+        if (key.VK == kVK_RETURN || key.VK == kVK_SPACE) activateFocused();
+        return true;
+    }
+    if (mGUIFocusTag >= kSequencerSubstepTag &&
+        mGUIFocusTag < kSequencerSubstepTag + 8)
+    {
+        if (key.VK == kVK_RETURN || key.VK == kVK_SPACE) activateFocused();
+        else if (key.VK == kVK_LEFT || key.VK == kVK_RIGHT)
+        {
+            const int substep = (mGUIFocusTag - kSequencerSubstepTag +
+                (key.VK == kVK_LEFT ? 7 : 1)) % 8;
+            mGUISequencerSelection.selectSubstep(static_cast<std::uint8_t>(substep));
+            setFocus(kSequencerSubstepTag + substep);
+            RefreshSequencerControls(true);
+        }
+        return true;
+    }
+    if (mGUIFocusTag >= kSequencerValueTag &&
+        mGUIFocusTag <= kSequencerValueTag + 16)
+    {
+        auto* value = static_cast<LXRSequencerValueControl*>(
+            graphics->GetControlWithTag(mGUIFocusTag));
+        if (value == nullptr) return true;
+        if (key.VK == kVK_RETURN || key.VK == kVK_SPACE) value->PromptUserInput();
+        else if (key.VK == kVK_HOME || key.VK == kVK_END)
+            value->KeyboardEndpoint(key.VK == kVK_END);
+        else if (key.VK == kVK_LEFT || key.VK == kVK_DOWN ||
+                 key.VK == kVK_RIGHT || key.VK == kVK_UP ||
+                 key.VK == kVK_PRIOR || key.VK == kVK_NEXT)
+        {
+            const int direction = key.VK == kVK_LEFT || key.VK == kVK_DOWN ||
+                key.VK == kVK_NEXT ? -1 : 1;
+            value->KeyboardStep(direction,
+                key.VK == kVK_PRIOR || key.VK == kVK_NEXT ? 10 : 1);
+        }
+        return true;
+    }
     if (mGUIFocusTag >= kNavControlTag && mGUIFocusTag < kVoiceControlTag)
     {
         if (key.VK == kVK_RETURN || key.VK == kVK_SPACE)
@@ -3125,7 +3724,13 @@ void LXR::RefreshGUIReadback()
     mLastGUIReadback = snapshot;
     bool changed = false;
     WDL_String value;
-    value.SetFormatted(64, "Pattern: %u", static_cast<unsigned>(snapshot.activePattern) + 1u);
+    if (snapshot.pendingPattern != snapshot.activePattern)
+        value.SetFormatted(64, "Pattern: %u > %u pending",
+            static_cast<unsigned>(snapshot.activePattern) + 1u,
+            static_cast<unsigned>(snapshot.pendingPattern) + 1u);
+    else
+        value.SetFormatted(64, "Pattern: %u",
+            static_cast<unsigned>(snapshot.activePattern) + 1u);
     changed |= SetTextIfChanged(graphics->GetControlWithTag(kPatternControlTag), value.Get());
     value.SetFormatted(64, "Clock: %s", snapshot.clockMode == 0u ? "Internal" : "Host Sync");
     changed |= SetTextIfChanged(graphics->GetControlWithTag(kClockControlTag), value.Get());
@@ -3149,7 +3754,166 @@ void LXR::RefreshGUIReadback()
     value.SetFormatted(64, "Morph Amount: %u",
         morph != nullptr ? static_cast<unsigned>(std::floor(morph->Value() + 0.5)) : 0u);
     changed |= SetTextIfChanged(graphics->GetControlWithTag(kHeaderMorphControlTag), value.Get());
+    if (mGUISelection.view() == lxr::gui::PrimaryView::Sequencer)
+        RefreshSequencerControls(false);
     if (changed) ++mGUIRefreshChangedCount;
+}
+
+void LXR::SetSequencerStatus(const char* text)
+{
+    auto* graphics = GetUI();
+    if (graphics == nullptr || text == nullptr) return;
+    SetTextIfChanged(graphics->GetControlWithTag(kSequencerStatusTag), text);
+    WDL_String operation; operation.SetFormatted(512, "Sequencer: %s", text);
+    SetTextIfChanged(graphics->GetControlWithTag(kOperationStatusControlTag),
+                     operation.Get());
+    SetTextIfChanged(graphics->GetControlWithTag(kOperationStatusControlTag + 100),
+                     operation.Get());
+}
+
+bool LXR::SelectSequencerPattern(std::uint8_t pattern)
+{
+    if (!lxr::sequencer::IsValidPattern(pattern)) return false;
+    lxr::RoutingStateAuthority::Guard outer;
+    if (!mRoutingState.tryAcquire(outer)) return false;
+    mTransportConfig.pattern = pattern;
+    mRoutingState.commitPatchLocked(outer);
+    return mSequencerEditor.selectPattern(pattern) ==
+        lxr::sequencer::SequencerEditFacade::Result::Ok;
+}
+
+void LXR::ApplySequencerEdit(
+    const lxr::sequencer::SequencerEditFacade::Request& request)
+{
+    using Result = lxr::sequencer::SequencerEditFacade::Result;
+    if (!mGUISequencerPatternValid)
+    {
+        RefreshSequencerControls(true);
+        if (!mGUISequencerPatternValid) { SetSequencerStatus("Pattern snapshot Busy."); return; }
+    }
+    const auto applied = mSequencerEditor.apply(
+        request, mGUISequencerPattern.generation);
+    switch (applied.status)
+    {
+    case Result::Ok: SetSequencerStatus("Edit accepted and published atomically."); break;
+    case Result::Busy: SetSequencerStatus("Busy; no pattern data changed."); break;
+    case Result::Stale: SetSequencerStatus("Stale edit rejected; refreshed newest pattern."); break;
+    case Result::InvalidLockTarget: SetSequencerStatus("Unsupported lock target; previous record retained."); break;
+    case Result::InvalidLockSlot: SetSequencerStatus("Invalid lock slot; previous record retained."); break;
+    case Result::GenerationExhausted: SetSequencerStatus("Pattern generation exhausted; edit rejected."); break;
+    default: SetSequencerStatus("Invalid sequencer value; previous state retained."); break;
+    }
+    RefreshSequencerControls(applied.status == Result::Ok ||
+                             applied.status == Result::Stale);
+}
+
+void LXR::RefreshSequencerControls(bool force)
+{
+    auto* graphics = GetUI();
+    if (graphics == nullptr) return;
+    const std::uint8_t selectedPattern = mGUISequencerSelection.pattern();
+    const std::uint64_t currentGeneration = mSequencer.patternAuthority().generation();
+    if (force || !mGUISequencerPatternValid ||
+        mGUISequencerPattern.patternIndex != selectedPattern ||
+        mGUISequencerPattern.generation != currentGeneration)
+    {
+        lxr::sequencer::SequencerEditFacade::PatternSnapshot snapshot;
+        const auto read = mSequencerEditor.readPattern(selectedPattern, snapshot, 4u);
+        if (read != lxr::sequencer::SequencerEditFacade::Result::Ok)
+        {
+            SetSequencerStatus("Pattern snapshot Busy; retaining last complete display.");
+            return;
+        }
+        mGUISequencerPattern = snapshot;
+        mGUISequencerPatternValid = true;
+    }
+
+    const auto& pattern = mGUISequencerPattern.pattern;
+    for (std::uint8_t tab = 0u; tab < 8u; ++tab)
+    {
+        auto* control = graphics->GetControlWithTag(kSequencerPatternTag + tab);
+        if (control != nullptr)
+        {
+            control->SetValue(tab == mLastGUIReadback.activePattern ? 1.0 :
+                              tab == mLastGUIReadback.pendingPattern ? 0.5 : 0.0);
+            control->SetDirty(false);
+        }
+    }
+    for (std::uint8_t track = 0u; track < 7u; ++track)
+    {
+        const std::uint8_t length = pattern.lengthCodes[track] == 0u
+            ? 16u : pattern.lengthCodes[track];
+        WDL_String lr; lr.SetFormatted(24, "L%u\nR%u", length,
+            static_cast<unsigned>(pattern.rotations[track]));
+        SetTextIfChanged(graphics->GetControlWithTag(kSequencerTrackTag + 20 + track),
+                         lr.Get());
+        for (std::uint8_t main = 0u; main < 16u; ++main)
+        {
+            auto* control = static_cast<LXRSequencerCell*>(
+                graphics->GetControlWithTag(kSequencerCellTag + track * 16 + main));
+            if (control == nullptr) continue;
+            const bool gate = (pattern.mainGates[track] & (1u << main)) != 0u;
+            const auto& boundary = pattern.steps[track]
+                [lxr::sequencer::PhysicalPosition(main, 0u)];
+            control->SetState(gate,
+                lxr::gui::sequencer_editor::hasStoredDetail(pattern, track, main),
+                track == mGUISequencerSelection.track() &&
+                    main == mGUISequencerSelection.mainStep(),
+                mLastGUIReadback.sequencerRunning &&
+                    lxr::sequencer::MainStepOf(
+                        mLastGUIReadback.trackPositions[track]) == main,
+                lxr::sequencer::StepVelocity(boundary), boundary.probability);
+        }
+        auto* mute = graphics->GetControlWithTag(kSequencerMuteTag + track);
+        if (mute != nullptr)
+        {
+            mute->SetValue(mSequencerEditor.trackMuted(track) ? 1.0 : 0.0);
+            mute->SetDirty(false);
+        }
+    }
+
+    const auto selectedTrack = mGUISequencerSelection.track();
+    const auto selectedMain = mGUISequencerSelection.mainStep();
+    const auto selectedSub = mGUISequencerSelection.substep();
+    for (std::uint8_t substep = 0u; substep < 8u; ++substep)
+    {
+        auto* control = static_cast<LXRSequencerCell*>(
+            graphics->GetControlWithTag(kSequencerSubstepTag + substep));
+        if (control == nullptr) continue;
+        const auto& value = pattern.steps[selectedTrack]
+            [lxr::sequencer::PhysicalPosition(selectedMain, substep)];
+        control->SetState(lxr::sequencer::IsStepActive(value), false,
+            selectedSub == substep,
+            mLastGUIReadback.sequencerRunning &&
+                mLastGUIReadback.trackPositions[selectedTrack] ==
+                    lxr::sequencer::PhysicalPosition(selectedMain, substep),
+            lxr::sequencer::StepVelocity(value), value.probability);
+    }
+    const auto& step = pattern.steps[selectedTrack]
+        [lxr::sequencer::PhysicalPosition(selectedMain, selectedSub)];
+    auto setValue = [graphics](int tag, int raw) {
+        auto* control = static_cast<LXRSequencerValueControl*>(
+            graphics->GetControlWithTag(tag));
+        if (control != nullptr) control->SetRaw(raw);
+    };
+    setValue(kSequencerValueTag, step.note);
+    setValue(kSequencerValueTag + 1, lxr::sequencer::StepVelocity(step));
+    setValue(kSequencerValueTag + 2, step.probability);
+    setValue(kSequencerValueTag + 3, step.parameter1);
+    setValue(kSequencerValueTag + 4, step.value1);
+    setValue(kSequencerValueTag + 5, step.parameter2);
+    setValue(kSequencerValueTag + 6, step.value2);
+    setValue(kSequencerValueTag + 7, pattern.lengthCodes[selectedTrack] == 0u
+        ? 16 : pattern.lengthCodes[selectedTrack]);
+    setValue(kSequencerValueTag + 8, pattern.rotations[selectedTrack]);
+    setValue(kSequencerValueTag + 9, pattern.repeat);
+    setValue(kSequencerValueTag + 10, pattern.nextPattern);
+    setValue(kSequencerValueTag + 11, mGUISequencerPattern.shuffle);
+    setValue(kSequencerValueTag + 12, mGUIEuclideanLength);
+    setValue(kSequencerValueTag + 13, mGUIEuclideanPulses);
+    setValue(kSequencerValueTag + 14, mGUIEuclideanRotation);
+    setValue(kSequencerValueTag + 15, mGUICopyDestination + 1u);
+    setValue(kSequencerValueTag + 16, mGUICopyTrackDestination + 1u);
 }
 
 void LXR::RefreshKitManagementControls()
@@ -3265,6 +4029,10 @@ void LXR::PublishGUIReadback() noexcept
         lxr::sequencer::HostTempo) != 0u;
     const bool transportFlag = (mHostProcessContext.validFields &
         lxr::sequencer::HostTransportState) != 0u;
+    std::array<std::uint8_t, 7> positions {};
+    for (std::uint8_t track = 0u; track < positions.size(); ++track)
+        positions[track] = mSequencer.trackPosition(track);
+    const auto& hostDecision = mSequencer.lastHostDecision();
     mGUIReadback.publish(
         mHostProcessContext.tempoBpm,
         mHostProcessContext.contextPresent,
@@ -3276,7 +4044,12 @@ void LXR::PublishGUIReadback() noexcept
         mSequencer.pendingPattern(),
         mAppliedSequencerEnabled ? 1u : 0u,
         mAppliedSequencerClockMode,
-        mAppliedSequencerInternalTempo);
+        mAppliedSequencerInternalTempo,
+        positions,
+        mSequencer.mutedTracksMask(),
+        mSequencer.rollTracksMask(),
+        static_cast<std::uint8_t>(hostDecision.transition),
+        hostDecision.reanchor);
 }
 
 // ---------------------------------------------------------
@@ -4086,6 +4859,14 @@ void LXR::OnIdle()
     }
     mControllerSyncBusy = false;
 #endif
+}
+
+void LXR::OnUIClose()
+{
+    // Manual rolls are transient performance presses. Editor reconstruction
+    // and close must never leave or create an armed roll.
+    ReleaseRollControls();
+    iplug::Plugin::OnUIClose();
 }
 
 // ---------------------------------------------------------

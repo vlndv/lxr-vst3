@@ -195,11 +195,15 @@ public:
     { return mRequestedShuffle.load(std::memory_order_acquire); }
     Status setTrackMuted(std::uint8_t track, bool muted) noexcept;
     bool trackMuted(std::uint8_t track) const noexcept;
+    std::uint8_t mutedTracksMask() const noexcept
+    { return mMutedTracks.load(std::memory_order_acquire); }
     void unmuteAll() noexcept { mMutedTracks.store(0u, std::memory_order_release); }
     Status setRollRate(std::uint8_t selector) noexcept;
     std::uint8_t rollRateSelector() const noexcept
     { return mRollRateSelector.load(std::memory_order_acquire); }
     Status setRoll(std::uint8_t track, bool active) noexcept;
+    std::uint8_t rollTracksMask() const noexcept
+    { return mRollState.load(std::memory_order_acquire); }
     // Processing-owner host safety boundary: cancel held and queued presses.
     void cancelRolls() noexcept
     {

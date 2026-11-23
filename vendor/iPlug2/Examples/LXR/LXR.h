@@ -22,6 +22,7 @@
 #include "../../../../../dsp/MorphManagement.h"
 #include "../../../../../dsp/RuntimeKitLoad.h"
 #include "../../../../../dsp/TriggerScheduler.h"
+#include "../../../../../dsp/SequencerEditFacade.h"
 #include "../../../../../dsp/RollHostControls.h"
 
 #include <array>
@@ -73,6 +74,7 @@ public:
   ) override;
 
   void OnIdle() override;
+  void OnUIClose() override;
 
   // Non-audio ingress for an already decoded P17-B canonical whole kit. The
   // call validates and publishes exactly one bounded transaction; callers may
@@ -186,6 +188,7 @@ private:
   lxr::LXRAudioAdapter mAudioAdapter;
   // Sequencer transport and the existing immutable three-slot bank authority.
   lxr::sequencer::TriggerScheduler mSequencer;
+  lxr::sequencer::SequencerEditFacade mSequencerEditor {mSequencer};
   // Declared after scheduler, so this pin releases before its authority dies.
   lxr::sequencer::PatternStateAuthority::ReadHandle mAppliedPattern;
   lxr::sequencer::state::TransportConfig mTransportConfig {}; // outer gate
@@ -300,6 +303,16 @@ private:
   // Editor navigation, owner selection and focus are intentionally transient.
   lxr::gui::SelectionState mGUISelection;
   lxr::gui::AudioReadback mLastGUIReadback {};
+  lxr::gui::sequencer_editor::Selection mGUISequencerSelection;
+  lxr::sequencer::SequencerEditFacade::PatternSnapshot mGUISequencerPattern {};
+  bool mGUISequencerPatternValid = false;
+  bool mGUIClearArmed = false;
+  bool mGUIClearTrackArmed = false;
+  std::uint8_t mGUICopyDestination = 1u;
+  std::uint8_t mGUICopyTrackDestination = 1u;
+  std::uint8_t mGUIEuclideanLength = 16u;
+  std::uint8_t mGUIEuclideanPulses = 4u;
+  std::uint8_t mGUIEuclideanRotation = 0u;
   int mGUIFocusTag = -1;
   std::uint64_t mGUIRefreshCount = 0u;
   std::uint64_t mGUIRefreshChangedCount = 0u;
@@ -356,6 +369,10 @@ private:
   void SelectGUIView(lxr::gui::PrimaryView view);
   void SelectGUIVoice(lxr::gui::VoiceOwner voice);
   void RefreshGUIReadback();
+  void RefreshSequencerControls(bool force = false);
+  void ApplySequencerEdit(const lxr::sequencer::SequencerEditFacade::Request& request);
+  void SetSequencerStatus(const char* text);
+  bool SelectSequencerPattern(std::uint8_t pattern);
   bool HandleGUIKey(const iplug::IKeyPress& key, bool isUp);
 #endif
   void PublishGUIReadback() noexcept;
