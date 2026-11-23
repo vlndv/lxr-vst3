@@ -113,6 +113,7 @@ class Runner:
         overlay.mkdir(parents=True)
         for name in ("LXR.h", "LXRState.h", "LXRProjectState.h", "LXRParamContract.h",
                      "LXRGUIFoundation.h", "LXRSoundEditorContract.h",
+                     "LXRModulationEditorContract.h",
                      "LXRKitManagementInterface.h", "LXRMorphManagementInterface.h", "config.h"):
             shutil.copyfile(self.root / "vendor/iPlug2/Examples/LXR" / name, overlay / name)
         # The production project supplies projects/ as include context for its
@@ -258,7 +259,8 @@ class Runner:
             if name == "P16F2VST3StateTest":
                 arguments.append(fixtures / "musical.lxqb")
             if name in ("P17EVST3KitManagementTest", "P17FVST3PresetTest",
-                        "P18BVST3MorphTest", "P18CVST3MorphManagementTest"):
+                        "P18BVST3MorphTest", "P18CVST3MorphManagementTest",
+                        "P19DVST3GUIIntegrationTest"):
                 arguments.append(kit_fixtures)
             self.command(name, arguments, env=env, test=True, timeout=55)
         self.command("SteinbergValidator", [build / "bin/Release/validator.exe", plugin], env=env, test=True, timeout=55)

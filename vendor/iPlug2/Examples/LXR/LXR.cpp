@@ -57,10 +57,19 @@ constexpr int kHeaderMorphControlTag = 17012;
 constexpr int kOperationStatusControlTag = 17013;
 constexpr int kKeyboardStatusControlTag = 17014;
 constexpr int kFocusRingControlTag = 17015;
+constexpr int kKitIdentityDetailTag = 17016;
 constexpr int kNavControlTag = 18000;
 constexpr int kVoiceControlTag = 18100;
+constexpr int kOperationControlTag = 18200;
+constexpr int kImportKitOperationTag = kOperationControlTag;
+constexpr int kExportKitOperationTag = kOperationControlTag + 1;
+constexpr int kLoadMorphOperationTag = kOperationControlTag + 2;
+constexpr int kClearMorphOperationTag = kOperationControlTag + 3;
+constexpr int kExportMorphOperationTag = kOperationControlTag + 4;
 constexpr int kParameterControlTag = 19000;
 constexpr int kNoTag = iplug::kNoTag;
+constexpr std::uint8_t kKitGUIOperation = 1u;
+constexpr std::uint8_t kMorphGUIOperation = 2u;
 constexpr std::array<const char*, 6> kSoundGroups {{
     "lxr.view.sound.d1", "lxr.view.sound.d2", "lxr.view.sound.d3",
     "lxr.view.sound.sn", "lxr.view.sound.cy", "lxr.view.sound.hh" }};
@@ -274,6 +283,240 @@ private:
     }
 
     const lxr::gui::SoundParameterBinding& mBinding;
+    float mDragRemainder = 0.f;
+    bool mFocused = false;
+};
+
+class LXRModulationControl final : public iplug::igraphics::IControl
+{
+public:
+    LXRModulationControl(
+        const iplug::igraphics::IRECT& bounds,
+        const lxr::gui::ModulationParameterBinding& binding)
+        : IControl(bounds, binding.parameter), mBinding(binding)
+    {
+        SetTooltip(binding.controlId);
+    }
+
+    void Draw(iplug::igraphics::IGraphics& graphics) override
+    {
+        using namespace iplug::igraphics;
+        const int raw = rawValue();
+        const bool unsupported = !valueAcceptedForDisplay(raw);
+        graphics.FillRoundRect(kLXRPanelLight, mRECT, 5.f, &mBlend);
+        graphics.DrawRoundRect(mFocused ? kLXRWarning :
+                (unsupported ? kLXRError : kLXRAccent),
+            mRECT, 5.f, &mBlend, mFocused ? 3.f : 1.f);
+        graphics.DrawText(IText(11.f, kLXRMuted, "LXRSystem",
+                          EAlign::Center, EVAlign::Top),
+                          mBinding.label, mRECT.GetPadded(-4.f), &mBlend);
+        WDL_String display;
+        formatValue(raw, display);
+        graphics.DrawText(IText(mBinding.domain ==
+                lxr::gui::ModulationDomain::TypedRoute ? 12.f : 14.f,
+                unsupported ? kLXRError : kLXRText, "LXRSystem"),
+            display.Get(), mRECT.GetPadded(-5.f, -19.f, -5.f, -15.f), &mBlend);
+        if (mBinding.domain == lxr::gui::ModulationDomain::IntegerByte)
+        {
+            const IRECT track(mRECT.L + 8.f, mRECT.B - 13.f,
+                              mRECT.R - 8.f, mRECT.B - 7.f);
+            graphics.FillRoundRect(kLXRBackground, track, 2.f, &mBlend);
+            IRECT fill = track;
+            fill.R = fill.L + static_cast<float>(GetValue()) * track.W();
+            graphics.FillRoundRect(kLXRAccent, fill, 2.f, &mBlend);
+        }
+    }
+
+    void OnMouseDown(float x, float,
+                     const iplug::igraphics::IMouseMod& modifier) override
+    {
+        if (mBinding.domain == lxr::gui::ModulationDomain::IntegerByte)
+            setRawFromX(x);
+        else
+            step(modifier.S ? -1 : 1, 1);
+    }
+
+    void OnMouseDrag(float, float, float dX, float dY,
+                     const iplug::igraphics::IMouseMod& modifier) override
+    {
+        if (mBinding.domain != lxr::gui::ModulationDomain::IntegerByte)
+            return;
+        mDragRemainder += dX - dY;
+        const float threshold = modifier.S ? 8.f : 2.f;
+        const int whole = static_cast<int>(mDragRemainder / threshold);
+        if (whole != 0)
+        {
+            step(whole < 0 ? -1 : 1, whole < 0 ? -whole : whole);
+            mDragRemainder -= static_cast<float>(whole) * threshold;
+        }
+    }
+
+    void OnMouseUp(float, float,
+                   const iplug::igraphics::IMouseMod&) override
+    {
+        mDragRemainder = 0.f;
+    }
+
+    void OnMouseWheel(float, float,
+                      const iplug::igraphics::IMouseMod& modifier,
+                      float delta) override
+    {
+        if (delta == 0.f) return;
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        step(delta < 0.f ? -1 : 1,
+             modifier.S || mBinding.domain !=
+                 lxr::gui::ModulationDomain::IntegerByte ? 1 : 4);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+    void OnMouseDblClick(float, float,
+                         const iplug::igraphics::IMouseMod&) override
+    {
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        setRaw(mBinding.defaultValue);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+    void SetFocused(bool focused)
+    {
+        if (mFocused == focused) return;
+        mFocused = focused;
+        SetDirty(false);
+    }
+
+    void SetValueFromUserInput(double value, int valueIndex = 0) override
+    {
+        if (!std::isfinite(value) || value < 0.0 || value > 1.0)
+            return;
+        const int raw = denormalize(value);
+        if (mBinding.domain != lxr::gui::ModulationDomain::IntegerByte &&
+            !valueSelectable(raw))
+            return;
+        IControl::SetValueFromUserInput(value, valueIndex);
+    }
+
+    void KeyboardStep(int direction, int amount)
+    {
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        step(direction, amount);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+    void KeyboardEndpoint(bool maximum)
+    {
+        auto* delegate = GetDelegate();
+        if (delegate == nullptr) return;
+        delegate->BeginInformHostOfParamChangeFromUI(GetParamIdx());
+        if (mBinding.domain == lxr::gui::ModulationDomain::TypedRoute)
+        {
+            const auto options = lxr::gui::routeOptions(
+                lxr::route_host::RouteHostParamId::fromRaw(
+                    static_cast<std::uint32_t>(mBinding.parameter)));
+            setRaw(maximum && options.count != 0u
+                ? options.values[options.count - 1u].token : 0);
+        }
+        else
+            setRaw(maximum
+                ? lxr::gui::modulationSelectableMaximum(mBinding.domain) : 0);
+        delegate->EndInformHostOfParamChangeFromUI(GetParamIdx());
+    }
+
+private:
+    int denormalize(double normalized) const noexcept
+    {
+        return mBinding.minimum + static_cast<int>(std::floor(
+            normalized * static_cast<double>(mBinding.maximum -
+                mBinding.minimum) + 0.5));
+    }
+
+    int rawValue() const noexcept { return denormalize(GetValue()); }
+
+    bool valueSelectable(int raw) const noexcept
+    {
+        if (mBinding.domain != lxr::gui::ModulationDomain::TypedRoute)
+            return lxr::gui::modulationValueSelectable(mBinding.domain, raw);
+        if (raw == 0) return true;
+        const auto options = lxr::gui::routeOptions(
+            lxr::route_host::RouteHostParamId::fromRaw(
+                static_cast<std::uint32_t>(mBinding.parameter)));
+        for (std::size_t i = 0; i < options.count; ++i)
+            if (options.values[i].token == raw) return true;
+        return false;
+    }
+
+    bool valueAcceptedForDisplay(int raw) const noexcept
+    {
+        return mBinding.domain == lxr::gui::ModulationDomain::IntegerByte ||
+               valueSelectable(raw);
+    }
+
+    void setRaw(int raw)
+    {
+        if (raw < mBinding.minimum || raw > mBinding.maximum) return;
+        const int span = mBinding.maximum - mBinding.minimum;
+        if (span <= 0) return;
+        SetValue(static_cast<double>(raw - mBinding.minimum) /
+                 static_cast<double>(span));
+        SetDirty(true);
+    }
+
+    void setRawFromX(float x)
+    {
+        if (mRECT.W() <= 0.f) return;
+        setRaw(denormalize(iplug::Clip(
+            static_cast<double>((x - mRECT.L) / mRECT.W()), 0.0, 1.0)));
+    }
+
+    void step(int direction, int amount)
+    {
+        int raw = rawValue();
+        if (mBinding.domain == lxr::gui::ModulationDomain::IntegerByte)
+        {
+            const int signedAmount = direction < 0 ? -amount : amount;
+            setRaw(iplug::Clip(raw + signedAmount,
+                              mBinding.minimum, mBinding.maximum));
+            return;
+        }
+        while (amount-- > 0)
+            raw = lxr::gui::adjacentModulationValue(mBinding, raw, direction);
+        setRaw(raw);
+    }
+
+    void formatValue(int raw, WDL_String& display) const
+    {
+        if (mBinding.domain == lxr::gui::ModulationDomain::TypedRoute)
+        {
+            if (raw == 0) { display.Set("OFF [0]"); return; }
+            const auto options = lxr::gui::routeOptions(
+                lxr::route_host::RouteHostParamId::fromRaw(
+                    static_cast<std::uint32_t>(mBinding.parameter)));
+            for (std::size_t i = 0; i < options.count; ++i)
+                if (options.values[i].token == raw)
+                {
+                    display.SetFormatted(128, "%u: %s", raw,
+                                         options.values[i].symbol);
+                    return;
+                }
+            display.SetFormatted(96, "%u: invalid / unsupported", raw);
+            return;
+        }
+        const char* label = lxr::gui::modulationValueLabel(
+            mBinding.domain, raw);
+        if (label != nullptr)
+            display.SetFormatted(64, "%s [%d]", label, raw);
+        else if (mBinding.domain != lxr::gui::ModulationDomain::IntegerByte)
+            display.SetFormatted(64, "Unsupported [%d]", raw);
+        else
+            display.SetFormatted(24, "%d", raw);
+    }
+
+    const lxr::gui::ModulationParameterBinding& mBinding;
     float mDragRemainder = 0.f;
     bool mFocused = false;
 };
@@ -1232,9 +1475,6 @@ LXR::LXR(
         graphics->AttachControl(new IVKnobControl(IRECT(980, 345, 1105, 480),
             242, "Internal BPM", controlStyle, true, true),
             kParameterControlTag + 242, overview);
-        graphics->AttachControl(new IVKnobControl(IRECT(1120, 345, 1245, 480),
-            245, "Morph Amount", controlStyle, true, true),
-            kParameterControlTag + 245, overview);
         graphics->AttachControl(new ITextControl(IRECT(38, 448, 800, 490),
             "Pattern, transport and clock status above are coherent readback; host transport is not editable here.",
             muted, kLXRBackground), kNoTag, overview);
@@ -1248,9 +1488,6 @@ LXR::LXR(
             "Core production controls only. Full voice editor, meters, matrix and sequencer grid are deferred.",
             text, kLXRPanel), kNoTag, overview);
 
-        constexpr std::array<const char*, 6> modulationGroups {{
-            "lxr.view.modulation.d1", "lxr.view.modulation.d2", "lxr.view.modulation.d3",
-            "lxr.view.modulation.sn", "lxr.view.modulation.cy", "lxr.view.modulation.hh" }};
         for (std::size_t owner = 0; owner < 6u; ++owner)
         {
             const auto ownerId = static_cast<lxr::gui::VoiceOwner>(owner);
@@ -1287,18 +1524,34 @@ LXR::LXR(
                 muted, kLXRBackground), kNoTag, kSoundGroups[owner]);
 
             graphics->AttachControl(new ITextControl(IRECT(35, 195, 1000, 235),
-                "MODULATION  /  TYPED ROUTE FOUNDATION", title, kLXRBackground),
-                kNoTag, modulationGroups[owner]);
-            const auto& route = lxr::gui::kCoreBindings[30u + owner];
-            graphics->AttachControl(new LXRDiscreteSelector(
-                IRECT(70, 285, 570, 395), route),
-                kParameterControlTag + route.parameter, modulationGroups[owner]);
-            graphics->AttachControl(new ITextControl(IRECT(70, 455, 1200, 550),
-                "Velocity-to-amp belongs to Sound. This typed selector stores the firmware destination identity, filters by route owner, and rejects unavailable cross-owner targets.",
-                text, kLXRPanel), kNoTag, modulationGroups[owner]);
-            graphics->AttachControl(new ITextControl(IRECT(70, 585, 1200, 635),
-                "Complete modulation editing is intentionally deferred to P19-D.",
-                muted, kLXRBackground), kNoTag, modulationGroups[owner]);
+                "MODULATION  /  VELOCITY + LFO", title, kLXRBackground),
+                kNoTag, kModulationGroups[owner]);
+            graphics->AttachControl(new ITextControl(IRECT(40, 240, 430, 385),
+                "VELOCITY", IText(12.f, kLXRMuted, "LXRSystem",
+                EAlign::Near, EVAlign::Top), kLXRPanel),
+                kNoTag, kModulationGroups[owner]);
+            graphics->AttachControl(new ITextControl(IRECT(440, 240, 1240, 530),
+                "LFO", IText(12.f, kLXRMuted, "LXRSystem",
+                EAlign::Near, EVAlign::Top), kLXRPanel),
+                kNoTag, kModulationGroups[owner]);
+            for (const auto& binding : lxr::gui::kModulationBindings)
+            {
+                if (binding.owner != ownerId) continue;
+                const auto bounds = lxr::gui::modulationControlBounds(binding.role);
+                graphics->AttachControl(new LXRModulationControl(
+                    IRECT(static_cast<float>(bounds.left),
+                          static_cast<float>(bounds.top),
+                          static_cast<float>(bounds.right),
+                          static_cast<float>(bounds.bottom)), binding),
+                    kParameterControlTag + binding.parameter,
+                    kModulationGroups[owner]);
+            }
+            graphics->AttachControl(new ITextControl(IRECT(55, 550, 1230, 610),
+                "ROUTING STATUS  Accepted identities are shown verbatim. OFF is identity 0. Invalid, reserved and cross-owner identities are rejected and the last accepted route remains authoritative.",
+                text, kLXRPanel), kNoTag, kModulationGroups[owner]);
+            graphics->AttachControl(new ITextControl(IRECT(55, 630, 1230, 680),
+                "Rate, amount and phase use the original byte domain. Wave, retrigger and sync menus preserve their stored firmware identities; no frequency conversion is implied.",
+                muted, kLXRBackground), kNoTag, kModulationGroups[owner]);
         }
 
         constexpr const char* sequencer = "lxr.view.sequencer";
@@ -1312,10 +1565,13 @@ LXR::LXR(
         graphics->AttachControl(new ITextControl(IRECT(35, 195, 900, 235),
             "KITS + MORPH  /  PRODUCTION OPERATIONS", title, kLXRBackground),
             kNoTag, kits);
-        graphics->AttachControl(new ITextControl(IRECT(55, 245, 620, 275),
+        graphics->AttachControl(new ITextControl(IRECT(55, 242, 620, 275),
+            "Current kit: <unnamed> (identity present)", text, kLXRBackground),
+            kKitIdentityDetailTag, kits);
+        graphics->AttachControl(new ITextControl(IRECT(55, 275, 620, 335),
             "Ready. Import and export run outside audio processing.", text,
             kLXRBackground), kKitStatusControlTag, kits);
-        graphics->AttachControl(new IVButtonControl(IRECT(55, 290, 300, 342),
+        graphics->AttachControl(new IVButtonControl(IRECT(55, 350, 300, 402),
             [this, graphics](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Open, "snd",
@@ -1335,10 +1591,11 @@ LXR::LXR(
                             (void) ImportKitFile(wide.Get());
                             SetLastKitOperationPath(selected.Get());
                         }
+                        mLatestGUIOperationKind = kKitGUIOperation;
                         RefreshKitManagementControls();
                     });
-            }, "Import .snd kit", buttonStyle), kNoTag, kits);
-        graphics->AttachControl(new IVButtonControl(IRECT(320, 290, 565, 342),
+            }, "Import .snd kit", buttonStyle), kImportKitOperationTag, kits);
+        graphics->AttachControl(new IVButtonControl(IRECT(320, 350, 565, 402),
             [this, graphics](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Save, "snd",
@@ -1358,10 +1615,14 @@ LXR::LXR(
                             (void) ExportKitFile(wide.Get());
                             SetLastKitOperationPath(selected.Get());
                         }
+                        mLatestGUIOperationKind = kKitGUIOperation;
                         RefreshKitManagementControls();
                     });
-            }, "Export .snd kit", buttonStyle), kNoTag, kits);
-        graphics->AttachControl(new ITextControl(IRECT(650, 245, 1215, 275),
+            }, "Export .snd kit", buttonStyle), kExportKitOperationTag, kits);
+        graphics->AttachControl(new ITextControl(IRECT(55, 430, 620, 530),
+            "HOST PRESETS\nStandard VST3 preset save/load is provided through the host. The plugin does not own the host preset filesystem and includes no fabricated factory preset browser.",
+            muted, kLXRPanel), kNoTag, kits);
+        graphics->AttachControl(new ITextControl(IRECT(650, 242, 1215, 275),
             "Morph target: <none>", text, kLXRBackground),
             kMorphTargetControlTag, kits);
         graphics->AttachControl(new IVButtonControl(IRECT(650, 290, 895, 342),
@@ -1381,16 +1642,21 @@ LXR::LXR(
                             (void) LoadMorphTargetFile(wide.Get());
                             SetLastMorphOperationPath(selected.Get());
                         }
+                        mLatestGUIOperationKind = kMorphGUIOperation;
                         RefreshMorphManagementControls();
                     });
-            }, "Load Morph Target", buttonStyle), kNoTag, kits);
+            }, "Load Morph Target", buttonStyle), kLoadMorphOperationTag, kits);
         graphics->AttachControl(new IVButtonControl(IRECT(915, 290, 1160, 342),
             [this](IControl*) {
                 (void) ClearMorphTarget();
                 SetLastMorphOperationPath(nullptr);
+                mLatestGUIOperationKind = kMorphGUIOperation;
                 RefreshMorphManagementControls();
-            }, "Clear Morph Target", buttonStyle), kNoTag, kits);
-        graphics->AttachControl(new IVButtonControl(IRECT(650, 370, 1160, 425),
+            }, "Clear Morph Target", buttonStyle), kClearMorphOperationTag, kits);
+        graphics->AttachControl(new IVKnobControl(IRECT(650, 370, 800, 510),
+            245, "Morph Amount (0-255)", controlStyle, true, true),
+            kParameterControlTag + 245, kits);
+        graphics->AttachControl(new IVButtonControl(IRECT(825, 385, 1160, 440),
             [this, graphics](IControl*) {
                 WDL_String file, directory;
                 graphics->PromptForFile(file, directory, EFileAction::Save, "snd",
@@ -1407,29 +1673,16 @@ LXR::LXR(
                             (void) ExportMorphedKitFile(wide.Get());
                             SetLastMorphOperationPath(selected.Get());
                         }
+                        mLatestGUIOperationKind = kMorphGUIOperation;
                         RefreshMorphManagementControls();
                     });
-            }, "Export Morphed Kit (.snd)", buttonStyle), kNoTag, kits);
-        graphics->AttachControl(new ITextControl(IRECT(650, 445, 1215, 505),
+            }, "Export Morphed Kit (.snd)", buttonStyle),
+            kExportMorphOperationTag, kits);
+        graphics->AttachControl(new ITextControl(IRECT(650, 525, 1215, 600),
             "Ready. Load, clear and export run outside audio processing.",
             text, kLXRBackground), kMorphStatusControlTag, kits);
-        auto* bankStatus = new ITextControl(IRECT(320, 515, 620, 590),
-            "Load an LXQB bank. Transport uses parameters 240-242.",
-            text, kLXRBackground);
-        graphics->AttachControl(bankStatus, kNoTag, kits);
-        graphics->AttachControl(new IVButtonControl(IRECT(55, 520, 300, 572),
-            [this, graphics, bankStatus](IControl*) {
-                WDL_String file, directory;
-                graphics->PromptForFile(file, directory, EFileAction::Open, "lxqb",
-                    [this, bankStatus](const WDL_String& selected, const WDL_String&) {
-                        if (selected.GetLength() == 0) return;
-                        bankStatus->SetStr(ImportSequencerBank(selected.Get())
-                            ? "Bank loaded. Enable the sequencer to play."
-                            : "Import rejected or Busy. Previous state retained.");
-                    });
-            }, "Import sequencer bank", buttonStyle), kNoTag, kits);
-        graphics->AttachControl(new ITextControl(IRECT(55, 620, 1215, 665),
-            "Morph Amount is the single host-bound control in Overview and remains readable in the persistent header.",
+        graphics->AttachControl(new ITextControl(IRECT(55, 620, 1215, 675),
+            "Morph Amount is host parameter 245. Amount 255 preserves original firmware arithmetic and is not forced to equal the target exactly. Morph target state remains transient.",
             muted, kLXRBackground), kNoTag, kits);
 
         graphics->AttachControl(new ITextControl(IRECT(24, 728, 1255, 755),
@@ -2664,12 +2917,18 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
     auto* graphics = GetUI();
     if (graphics == nullptr) return false;
 
-    std::array<int, 96> order {};
+    std::array<int, 128> order {};
     std::size_t count = 0u;
     for (std::size_t i = 0; i < lxr::gui::kViewNames.size(); ++i)
         order[count++] = kNavControlTag + static_cast<int>(i);
     for (std::size_t i = 0; i < lxr::gui::kVoiceNames.size(); ++i)
         order[count++] = kVoiceControlTag + static_cast<int>(i);
+    for (int tag = kImportKitOperationTag; tag <= kExportMorphOperationTag;
+         ++tag)
+    {
+        auto* control = graphics->GetControlWithTag(tag);
+        if (control != nullptr && !control->IsHidden()) order[count++] = tag;
+    }
     for (const auto& binding : lxr::gui::kSoundBindings)
     {
         auto* control = graphics->GetControlWithTag(kParameterControlTag + binding.parameter);
@@ -2678,9 +2937,17 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
     }
     for (const auto& binding : lxr::gui::kCoreBindings)
     {
-        if (lxr::gui::soundBindingForParameter(binding.parameter) != nullptr)
+        if (lxr::gui::soundBindingForParameter(binding.parameter) != nullptr ||
+            lxr::gui::modulationBindingForParameter(binding.parameter) != nullptr)
             continue;
         auto* control = graphics->GetControlWithTag(kParameterControlTag + binding.parameter);
+        if (control != nullptr && !control->IsHidden())
+            order[count++] = kParameterControlTag + binding.parameter;
+    }
+    for (const auto& binding : lxr::gui::kModulationBindings)
+    {
+        auto* control = graphics->GetControlWithTag(
+            kParameterControlTag + binding.parameter);
         if (control != nullptr && !control->IsHidden())
             order[count++] = kParameterControlTag + binding.parameter;
     }
@@ -2696,10 +2963,14 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
         {
             const int oldParameter = mGUIFocusTag - kParameterControlTag;
             const auto* oldSound = lxr::gui::soundBindingForParameter(oldParameter);
+            const auto* oldModulation =
+                lxr::gui::modulationBindingForParameter(oldParameter);
             const auto* oldBinding = lxr::gui::bindingForParameter(oldParameter);
             auto* oldControl = graphics->GetControlWithTag(mGUIFocusTag);
             if (oldSound != nullptr && oldControl != nullptr)
                 static_cast<LXRSoundControl*>(oldControl)->SetFocused(false);
+            else if (oldModulation != nullptr && oldControl != nullptr)
+                static_cast<LXRModulationControl*>(oldControl)->SetFocused(false);
             else if (oldBinding != nullptr && oldControl != nullptr &&
                 (oldBinding->kind == lxr::gui::ControlKind::Enumeration ||
                  oldBinding->kind == lxr::gui::ControlKind::SourceToggle ||
@@ -2719,9 +2990,13 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
         {
             const int parameter = tag - kParameterControlTag;
             const auto* sound = lxr::gui::soundBindingForParameter(parameter);
+            const auto* modulation =
+                lxr::gui::modulationBindingForParameter(parameter);
             const auto* binding = lxr::gui::bindingForParameter(parameter);
             if (sound != nullptr)
                 static_cast<LXRSoundControl*>(control)->SetFocused(true);
+            else if (modulation != nullptr)
+                static_cast<LXRModulationControl*>(control)->SetFocused(true);
             else if (binding != nullptr &&
                 (binding->kind == lxr::gui::ControlKind::Enumeration ||
                  binding->kind == lxr::gui::ControlKind::SourceToggle ||
@@ -2748,18 +3023,40 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
             SelectGUIView(static_cast<lxr::gui::PrimaryView>(mGUIFocusTag - kNavControlTag));
         return true;
     }
-    if (mGUIFocusTag >= kVoiceControlTag && mGUIFocusTag < kParameterControlTag)
+    if (mGUIFocusTag >= kVoiceControlTag &&
+        mGUIFocusTag < kOperationControlTag)
     {
         if (key.VK == kVK_RETURN || key.VK == kVK_SPACE)
             SelectGUIVoice(static_cast<lxr::gui::VoiceOwner>(mGUIFocusTag - kVoiceControlTag));
         return true;
     }
+    if (mGUIFocusTag >= kOperationControlTag &&
+        mGUIFocusTag <= kExportMorphOperationTag)
+    {
+        if (key.VK == kVK_RETURN || key.VK == kVK_SPACE)
+        {
+            auto* control = graphics->GetControlWithTag(mGUIFocusTag);
+            if (control != nullptr)
+            {
+                const auto bounds = control->GetRECT();
+                const float x = (bounds.L + bounds.R) * 0.5f;
+                const float y = (bounds.T + bounds.B) * 0.5f;
+                control->OnMouseDown(x, y,
+                    iplug::igraphics::IMouseMod(true, false, key.S));
+                control->OnMouseUp(x, y, iplug::igraphics::IMouseMod());
+            }
+        }
+        return true;
+    }
 
     const int parameter = mGUIFocusTag - kParameterControlTag;
     const auto* sound = lxr::gui::soundBindingForParameter(parameter);
+    const auto* modulation =
+        lxr::gui::modulationBindingForParameter(parameter);
     const auto* binding = lxr::gui::bindingForParameter(parameter);
     auto* control = graphics->GetControlWithTag(mGUIFocusTag);
-    if ((sound == nullptr && binding == nullptr) || control == nullptr) return false;
+    if ((sound == nullptr && modulation == nullptr && binding == nullptr) ||
+        control == nullptr) return false;
     if (key.VK == kVK_RETURN || key.VK == kVK_SPACE)
     {
         control->PromptUserInput();
@@ -2777,6 +3074,16 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
             soundControl->KeyboardEndpoint(key.VK == kVK_END);
         else if (direction != 0)
             soundControl->KeyboardStep(direction,
+                (key.VK == kVK_PRIOR || key.VK == kVK_NEXT) ? 10 : 1);
+        return true;
+    }
+    if (modulation != nullptr)
+    {
+        auto* modulationControl = static_cast<LXRModulationControl*>(control);
+        if (key.VK == kVK_HOME || key.VK == kVK_END)
+            modulationControl->KeyboardEndpoint(key.VK == kVK_END);
+        else if (direction != 0)
+            modulationControl->KeyboardStep(direction,
                 (key.VK == kVK_PRIOR || key.VK == kVK_NEXT) ? 10 : 1);
         return true;
     }
@@ -2851,13 +3158,28 @@ void LXR::RefreshKitManagementControls()
     if (graphics == nullptr)
         return;
     auto* nameControl = graphics->GetControlWithTag(kKitNameControlTag);
+    auto* identityControl = graphics->GetControlWithTag(kKitIdentityDetailTag);
     auto* statusControl = graphics->GetControlWithTag(kKitStatusControlTag);
-    if (nameControl != nullptr)
+    if (nameControl != nullptr || identityControl != nullptr)
     {
-        const auto name = CurrentKitDisplayName();
+        lxr::RoutingStateAuthority::Guard guard;
+        lxr::RoutingStateAuthority::Snapshot routing;
+        const bool coherent = mRoutingState.tryAcquire(guard) &&
+            mRoutingState.copyLocked(guard, routing);
+        const auto name = coherent
+            ? lxr::kit::management::FormatName(routing.kitName)
+            : CurrentKitDisplayName();
         WDL_String text;
         text.SetFormatted(96, "Current kit: %s", name.text.data());
         SetTextIfChanged(nameControl, text.Get());
+        if (identityControl != nullptr)
+        {
+            text.SetFormatted(160, "Current kit: %s (%s)", name.text.data(),
+                coherent && routing.kitIdentityPresent
+                    ? "embedded identity present"
+                    : "no embedded identity");
+            SetTextIfChanged(identityControl, text.Get());
+        }
     }
     if (statusControl != nullptr)
     {
@@ -2876,8 +3198,11 @@ void LXR::RefreshKitManagementControls()
         SetTextIfChanged(statusControl, text.Get());
         WDL_String operation;
         operation.SetFormatted(256, "Kit: %s", text.Get());
-        SetTextIfChanged(graphics->GetControlWithTag(kOperationStatusControlTag), operation.Get());
-        SetTextIfChanged(graphics->GetControlWithTag(kOperationStatusControlTag + 100), operation.Get());
+        if (mLatestGUIOperationKind == kKitGUIOperation)
+        {
+            SetTextIfChanged(graphics->GetControlWithTag(kOperationStatusControlTag), operation.Get());
+            SetTextIfChanged(graphics->GetControlWithTag(kOperationStatusControlTag + 100), operation.Get());
+        }
     }
 }
 
@@ -2922,7 +3247,8 @@ void LXR::RefreshMorphManagementControls()
         if (mLastMorphOperation.route != 0xffu)
             text.AppendFormatted(64, " Route %u.", mLastMorphOperation.route);
         SetTextIfChanged(statusControl, text.Get());
-        if (mLastMorphOperation.action != lxr::morph::management::Action::None)
+        if (mLatestGUIOperationKind == kMorphGUIOperation &&
+            mLastMorphOperation.action != lxr::morph::management::Action::None)
         {
             WDL_String operation;
             operation.SetFormatted(256, "Morph: %s", text.Get());

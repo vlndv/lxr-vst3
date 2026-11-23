@@ -303,6 +303,10 @@ private:
   int mGUIFocusTag = -1;
   std::uint64_t mGUIRefreshCount = 0u;
   std::uint64_t mGUIRefreshChangedCount = 0u;
+  // UI-thread presentation order only. P17/P18 authorities remain the sole
+  // operation-state owners; this prevents an older success category from
+  // replacing a newer GUI failure during the paired idle refresh.
+  std::uint8_t mLatestGUIOperationKind = 0u;
 #endif
 
   // Reset Engine and adapter state, then reconstruct the Engine from
