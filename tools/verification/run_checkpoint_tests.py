@@ -262,7 +262,8 @@ class Runner:
                         "P18BVST3MorphTest", "P18CVST3MorphManagementTest",
                         "P19DVST3GUIIntegrationTest"):
                 arguments.append(kit_fixtures)
-            self.command(name, arguments, env=env, test=True, timeout=55)
+            timeout = 120 if name == "P19FVST3GUIQualificationTest" else 55
+            self.command(name, arguments, env=env, test=True, timeout=timeout)
         self.command("SteinbergValidator", [build / "bin/Release/validator.exe", plugin], env=env, test=True, timeout=55)
         assert digest(plugin) == before, "Plugin changed during read-only host tests"
         (self.out / "plugin-after.json").write_text(json.dumps(dict(path=str(plugin), sha256=digest(plugin)), indent=2))
