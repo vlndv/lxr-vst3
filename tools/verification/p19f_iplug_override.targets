@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Keep the pinned iPlug2 checkout untouched. The P19-F candidate builder
+       supplies an asserted one-line derivative at this exact item path. -->
+  <ItemGroup>
+    <ClCompile Remove="@(ClCompile->WithMetadataValue('Filename', 'IGraphicsWin'))" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(P19FIGraphicsWinSource)" />
+  </ItemGroup>
+</Project>
