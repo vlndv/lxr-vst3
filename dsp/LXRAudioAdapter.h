@@ -2,6 +2,9 @@
 
 #include "Engine.h"
 #include "PolyphaseResampler.h"
+#if defined(LXR_P20D_DIAGNOSTIC_CAPTURE)
+#include "NativeBatchCapture.h"
+#endif
 
 #include <array>
 #include <cstddef>
@@ -59,6 +62,24 @@ public:
     return mNativeFrame;
   }
 
+#if defined(LXR_P20D_DIAGNOSTIC_CAPTURE)
+  // TEST-ONLY DIAGNOSTIC: ordinary production candidates do not contain this
+  // storage or interface. The controlled host calls configure only while the
+  // instance is stopped and consumes records only after process() returns.
+  diagnostic::NativeBatchCapture& diagnosticCapture() noexcept
+  {
+    return mDiagnosticCapture;
+  }
+  const diagnostic::NativeBatchCapture& diagnosticCapture() const noexcept
+  {
+    return mDiagnosticCapture;
+  }
+  void beginDiagnosticHostCallback(std::int32_t frames) noexcept
+  {
+    mDiagnosticCapture.beginHostCallback(frames);
+  }
+#endif
+
 private:
   // Native LXR output buffers, 32 frames each.
   std::array<int16_t, kEngineBlockSize> mST1Left {};
@@ -70,6 +91,10 @@ private:
   std::uint64_t mNativeFrame = 0;
 
   PolyphaseResampler mResampler {};
+
+#if defined(LXR_P20D_DIAGNOSTIC_CAPTURE)
+  diagnostic::NativeBatchCapture mDiagnosticCapture {};
+#endif
 
   void renderNextEngineBlock(
     Engine& engine,

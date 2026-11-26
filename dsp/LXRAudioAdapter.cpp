@@ -68,6 +68,13 @@ void LXRAudioAdapter::renderNextEngineBlock(
     mST2Right.data()
   );
 
+#if defined(LXR_P20D_DIAGNOSTIC_CAPTURE)
+  // TEST-ONLY DIAGNOSTIC: copy the now-complete native batch before a later
+  // refill overwrites TriggerScheduler::lastBatch(). This observes only.
+  if (scheduler != nullptr)
+    mDiagnosticCapture.retain(this, *scheduler, mNativeFrame, hostSampleOffset);
+#endif
+
   mReadIndex = 0;
   if (mNativeFrame <= (std::numeric_limits<std::uint64_t>::max() - kEngineBlockSize))
   {

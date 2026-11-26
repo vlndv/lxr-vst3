@@ -80,6 +80,7 @@ std::uint8_t raw(const HostInstance& instance, int parameter, int maximum)
 }
 }
 
+#ifndef LXR_P19E_EDITOR_TEST_HELPERS_ONLY
 int main(int argc, char** argv)
 {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
@@ -224,3 +225,4 @@ int main(int argc, char** argv)
                 passed, failed);
     return failed == 0 ? 0 : 1;
 }
+#endif

@@ -5191,6 +5191,12 @@ void LXR::ProcessBlock(
     // LXR currently operates as an instrument.
     (void)inputs;
 
+#if defined(LXR_P20D_DIAGNOSTIC_CAPTURE)
+    // TEST-ONLY DIAGNOSTIC: establishes callback identity and resets only the
+    // diagnostic publication window. Ordinary candidates compile this out.
+    mAudioAdapter.beginDiagnosticHostCallback(nFrames);
+#endif
+
     mCollectCallbackMidi = false;
     // iPlug2 delivers synthetic CC parameter queues before the note-event
     // list, so arrival order need not be timestamp order. std::sort operates

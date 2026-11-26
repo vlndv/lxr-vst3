@@ -34,11 +34,12 @@ def protected():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--p20d-diagnostic-capture', action='store_true')
     args = parser.parse_args()
     out = args.output.resolve()
     allowed = ('out/p16f3', 'out/p16f4', 'out/p16f5', 'out/p16f6',
                'out/p17d', 'out/p17e', 'out/p17f', 'out/p18c', 'out/p19b',
-               'out/p19e', 'out/p19f', 'out/p20b')
+               'out/p19e', 'out/p19f', 'out/p20b', 'out/p20d')
     assert any((ROOT / p).resolve() in out.parents for p in allowed), \
         'Private output must be under an approved milestone evidence directory'
     before = protected()
@@ -46,7 +47,7 @@ def main():
     override_properties = []
     source_override = None
     if any((ROOT / f'out/{phase}').resolve() in out.parents
-           for phase in ('p19f', 'p20b')):
+           for phase in ('p19f', 'p20b', 'p20d')):
         # P19-F keeps the pinned iPlug2 checkout byte-for-byte intact. Build an
         # isolated derivative with exactly one asserted DPI type correction and
         # replace only that translation unit through a checked MSBuild override.
@@ -64,7 +65,9 @@ def main():
         override_properties = [
             '/p:P19FIGraphicsWinSource=' + str(override_source),
             '/p:ForceImportAfterCppTargets=' + str(
-                ROOT / 'tools/verification/p19f_iplug_override.targets'),
+                ROOT / ('tools/verification/p20d_diagnostic_capture.targets'
+                        if args.p20d_diagnostic_capture else
+                        'tools/verification/p19f_iplug_override.targets')),
         ]
         source_override = {'kind': 'P19-F fractional DPI preservation',
                            'pinned_source_sha256': sha(pinned_igraphics),
@@ -117,6 +120,9 @@ def main():
                 'configuration': 'Release x64/v145', 'visual_studio': str(vs),
                 'source_fingerprint': fingerprint, 'resources': resources, 'build_log': str(out / 'build.log'),
                 'pdb': str(out / 'pdb/LXR.pdb'), 'pre_build_events': False, 'post_build_events': False,
+                'p20d_diagnostic_capture': args.p20d_diagnostic_capture,
+                'diagnostic_compile_definition': ('LXR_P20D_DIAGNOSTIC_CAPTURE'
+                                                  if args.p20d_diagnostic_capture else None),
                 **({'source_override': source_override} if source_override else {}),
                 'firmware': 'dee49689f3f0cdf8f9b7b5e79628cfdca1b79394',
                 'iplug2': 'd54f69050f517e43b941d88c2a170f0a840b9ee4',
