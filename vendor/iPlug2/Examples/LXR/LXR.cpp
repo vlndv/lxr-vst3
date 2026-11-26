@@ -77,6 +77,7 @@ constexpr int kSequencerRollTag = 20500;
 constexpr int kSequencerSubstepTag = 20600;
 constexpr int kSequencerValueTag = 20700;
 constexpr int kSequencerOperationTag = 20800;
+constexpr int kSequencerImportTag = kSequencerOperationTag + 7;
 constexpr int kSequencerStatusTag = 20900;
 constexpr int kNoTag = iplug::kNoTag;
 constexpr std::uint8_t kKitGUIOperation = 1u;
@@ -2007,6 +2008,25 @@ LXR::LXR(
                 edit.pattern = mGUISequencerSelection.pattern(); edit.track = mGUISequencerSelection.track();
                 ApplySequencerEdit(edit);
             }, "Clear track", buttonStyle), kSequencerOperationTag + 6, sequencer);
+        graphics->AttachControl(new IVButtonControl(IRECT(1125, 635, 1240, 675),
+            [this, graphics](IControl*) {
+                WDL_String file, directory;
+                graphics->PromptForFile(file, directory, EFileAction::Open, "lxqb",
+                    [this](const WDL_String& selected, const WDL_String&) {
+                        if (selected.GetLength() == 0)
+                        {
+                            SetSequencerStatus("Bank import cancelled.");
+                            return;
+                        }
+                        if (!ImportSequencerBank(selected.Get()))
+                        {
+                            SetSequencerStatus("Bank import rejected or Busy. Previous bank retained.");
+                            return;
+                        }
+                        RefreshSequencerControls(true);
+                        SetSequencerStatus("Bank loaded. Enable the sequencer to play.");
+                    });
+            }, "Import bank", buttonStyle), kSequencerImportTag, sequencer);
         graphics->AttachControl(new ITextControl(IRECT(35, 642, 980, 682),
             "Ready. Probability uses inclusive random <= value; 0 is not OFF. Gate OFF preserves all physical data.",
             muted, kLXRPanel), kSequencerStatusTag, sequencer);
@@ -3463,7 +3483,7 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
         auto* control = graphics->GetControlWithTag(tag);
         if (control != nullptr && !control->IsHidden()) order[count++] = tag;
     }
-    for (int tag = kSequencerOperationTag; tag <= kSequencerOperationTag + 6; ++tag)
+    for (int tag = kSequencerOperationTag; tag <= kSequencerImportTag; ++tag)
     {
         auto* control = graphics->GetControlWithTag(tag);
         if (control != nullptr && !control->IsHidden()) order[count++] = tag;
@@ -3577,7 +3597,7 @@ bool LXR::HandleGUIKey(const iplug::IKeyPress& key, bool isUp)
         return true;
     }
     if ((mGUIFocusTag >= kSequencerMuteTag && mGUIFocusTag < kSequencerMuteTag + 7) ||
-        (mGUIFocusTag >= kSequencerOperationTag && mGUIFocusTag <= kSequencerOperationTag + 6))
+        (mGUIFocusTag >= kSequencerOperationTag && mGUIFocusTag <= kSequencerImportTag))
     {
         if (key.VK == kVK_RETURN || key.VK == kVK_SPACE) activateFocused();
         return true;

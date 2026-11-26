@@ -38,14 +38,15 @@ def main():
     out = args.output.resolve()
     allowed = ('out/p16f3', 'out/p16f4', 'out/p16f5', 'out/p16f6',
                'out/p17d', 'out/p17e', 'out/p17f', 'out/p18c', 'out/p19b',
-               'out/p19e', 'out/p19f')
+               'out/p19e', 'out/p19f', 'out/p20b')
     assert any((ROOT / p).resolve() in out.parents for p in allowed), \
         'Private output must be under an approved milestone evidence directory'
     before = protected()
     out.mkdir(parents=True, exist_ok=False)
     override_properties = []
     source_override = None
-    if (ROOT / 'out/p19f').resolve() in out.parents:
+    if any((ROOT / f'out/{phase}').resolve() in out.parents
+           for phase in ('p19f', 'p20b')):
         # P19-F keeps the pinned iPlug2 checkout byte-for-byte intact. Build an
         # isolated derivative with exactly one asserted DPI type correction and
         # replace only that translation unit through a checked MSBuild override.
